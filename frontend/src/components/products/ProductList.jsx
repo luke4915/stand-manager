@@ -4,8 +4,9 @@ import QuickEditProductModal from './modals/QuickEditProductModal';
 const LONG_PRESS_MS = 1500;
 const VISIBLE_THRESHOLD_PCT = 10; // sotto questa soglia il bordo resta invisibile: evita il "flash" su un click veloce
 
-const ProductList = ({ products, addToCart, cart, lowStockThreshold = 10, setProducts }) => {
+const ProductList = ({ products, addToCart, cart, lowStockThreshold = 15, setProducts }) => {
   const [activeCategory, setActiveCategory] = useState('TUTTI');
+  const [searchTerm, setSearchTerm] = useState('');
   const [progressById, setProgressById] = useState({});
   const [editingProduct, setEditingProduct] = useState(null);
 
@@ -18,9 +19,35 @@ const ProductList = ({ products, addToCart, cart, lowStockThreshold = 10, setPro
 
   const filteredProducts = useMemo(() => {
     const visible = products.filter(p => p.visible !== false);
-    if (activeCategory === 'TUTTI') return visible;
-    return visible.filter(p => (p.category || 'Generico') === activeCategory);
-  }, [products, activeCategory]);
+    
+    if (!searchTerm.trim() && activeCategory === 'TUTTI') {
+      return visible;
+    }
+
+    // Helper per rimuovere accenti e convertire in minuscolo
+    const normalize = (str) =>
+      (str || '')
+        .toLowerCase()
+        .normalize("NFD")
+        .replace(/[\u0300-\u036f]/g, "");
+
+    const searchWords = normalize(searchTerm).trim().split(/\s+/);
+
+    return visible.filter(p => {
+      // 1. Filtro Categoria Dropdown
+      const matchesCategory = activeCategory === 'TUTTI' || (p.category || 'Generico') === activeCategory;
+      if (!matchesCategory) return false;
+
+      // Se l'input di ricerca è vuoto, basta il filtro categoria
+      if (!searchTerm.trim()) return true;
+
+      // Prepariamo il testo su cui cercare (Nome + Categoria + Prezzo)
+      const searchableText = normalize(`${p.name} ${p.category || ''} ${p.price.toFixed(2)}`);
+
+      // 2. Verifichiamo che TUTTE le parole cercate siano presenti nel testo
+      return searchWords.every(word => searchableText.includes(word));
+    });
+  }, [products, activeCategory, searchTerm]);
 
   const clearPress = useCallback((id) => {
     const t = timers.current[id];
@@ -65,22 +92,59 @@ const ProductList = ({ products, addToCart, cart, lowStockThreshold = 10, setPro
 
   return (
     <div className="flex flex-col h-full overflow-hidden">
-      {/* Tab categorie */}
-      <div className="flex gap-2 overflow-x-auto no-scrollbar pb-3 shrink-0">
-        {categories.map(cat => (
-          <button
-            key={cat}
-            onClick={() => setActiveCategory(cat)}
-            className={`
-              shrink-0 h-9 px-4 rounded-xl font-black text-[10px] tracking-widest uppercase whitespace-nowrap border cursor-pointer hover:bg-[var(--accent-hover)] transition-all duration-150
-              ${activeCategory === cat
-                ? 'bg-[var(--accent)] border-[var(--accent)] text-white shadow-md shadow-[var(--accent-shadow)]'
-                : 'bg-[var(--bg-card-2)] border-[var(--border)] text-[var(--text-muted)]'}
-            `}
+      {/* Barra Filtri: Dropdown Categoria + Search Bar */}
+      <div className="flex gap-2 pb-3 shrink-0">
+        {/* Dropdown Categoria */}
+        <div className="relative shrink-0 w-40 sm:w-48">
+          <select
+            value={activeCategory}
+            onChange={(e) => setActiveCategory(e.target.value)}
+            className="w-full h-10 pl-3 pr-8 rounded-xl bg-[var(--bg-card-2)] border border-[var(--border)] text-[var(--text-main)] font-black text-xs uppercase tracking-wider appearance-none cursor-pointer focus:outline-none focus:border-[var(--accent)] transition-colors"
           >
-            {cat}
-          </button>
-        ))}
+            {categories.map(cat => (
+              <option key={cat} value={cat} className="bg-[var(--bg-card-2)] text-[var(--text-main)] font-bold">
+                {cat}
+              </option>
+            ))}
+          </select>
+          {/* Icona Freccia Dropdown */}
+          <div className="absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none text-[var(--text-muted)]">
+            <svg className="w-4 h-4 fill-current" viewBox="0 0 20 20">
+              <path d="M5.293 7.293a1 1 0 011.414 0L10 10.586l3.293-3.293a1 1 0 111.414 1.414l-4 4a1 1 0 01-1.414 0l-4-4a1 1 0 010-1.414z"/>
+            </svg>
+          </div>
+        </div>
+
+        {/* Input Ricerca Rapida */}
+        <div className="relative flex-1">
+          <input
+            type="text"
+            placeholder="Cerca prodotto..."
+            value={searchTerm}
+            onChange={(e) => setSearchTerm(e.target.value)}
+            className="w-full h-10 pl-9 pr-8 rounded-xl bg-[var(--bg-card-2)] border border-[var(--border)] text-[var(--text-main)] text-sm placeholder-[var(--text-muted)] focus:outline-none focus:border-[var(--accent)] transition-colors"
+          />
+          {/* Icona Lente d'ingrandimento */}
+          <div className="absolute left-3 top-1/2 -translate-y-1/2 text-[var(--text-muted)] pointer-events-none">
+            <svg className="w-4 h-4 stroke-current fill-none stroke-2" viewBox="0 0 24 24">
+              <circle cx="11" cy="11" r="8"></circle>
+              <line x1="21" y1="21" x2="16.65" y2="16.65"></line>
+            </svg>
+          </div>
+
+          {/* Pulsante "X" per svuotare la ricerca */}
+          {searchTerm && (
+            <button
+              onClick={() => setSearchTerm('')}
+              className="absolute right-2.5 top-1/2 -translate-y-1/2 text-[var(--text-muted)] hover:text-[var(--text-main)] p-1 rounded-lg"
+            >
+              <svg className="w-4 h-4 stroke-current stroke-2" viewBox="0 0 24 24">
+                <line x1="18" y1="6" x2="6" y2="18"></line>
+                <line x1="6" y1="6" x2="18" y2="18"></line>
+              </svg>
+            </button>
+          )}
+        </div>
       </div>
 
       {/* Griglia prodotti */}
@@ -114,7 +178,10 @@ const ProductList = ({ products, addToCart, cart, lowStockThreshold = 10, setPro
                   onTouchCancel={() => clearPress(product.id)}
                   onContextMenu={(e) => e.preventDefault()}
                   onMouseEnter={(e) => e.currentTarget.style.setProperty('--bg-opacity', '12%')}
-                  className="product-card relative flex flex-col rounded-xl pt-4 px-3 pb-2 border-l-4 bg-[var(--bg-card-2)] cursor-pointer border border-[var(--border)] hover:border-[var(--text-muted)]/30 active:scale-95 transition-all duration-150 text-left overflow-hidden select-none"
+                  className={`product-card relative flex flex-col rounded-xl pt-4 px-3 pb-2 border-l-4 bg-[var(--bg-card-2)]
+                               border border-[var(--border)] hover:border-[var(--text-muted)]/30 
+                              transition-all duration-150 text-left overflow-hidden select-none}
+                              ${remainingStock===0 ? 'opacity-60 grayscale cursor-not-allowed' : 'active:scale-95 cursor-pointer'}`}
                   style={{
                     borderLeftColor: color,
                     backgroundColor: `color-mix(in srgb, ${color} var(--bg-opacity, 6%), var(--bg-card-2))`

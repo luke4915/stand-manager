@@ -2,6 +2,7 @@ import { useState, useEffect, useRef } from 'react';
 import { X, Edit, Trash2, Search, Plus, CheckSquare, Square, Eye, EyeOff } from 'lucide-react';
 
 import { API_URL } from '../../config/api';
+import { useToast } from '../../context/ToastContext';
 
 const Combobox = ({ name, value, onChange, options, placeholder }) => {
   const [open, setOpen] = useState(false);
@@ -28,10 +29,10 @@ const Combobox = ({ name, value, onChange, options, placeholder }) => {
         value={value}
         onChange={(e) => { onChange(e.target.value); setOpen(true); }}
         onFocus={() => setOpen(true)}
-        className="w-full p-2.5 rounded-xl bg-[var(--bg-input)] border border-[var(--border)] text-[var(--text-main)] font-medium text-sm outline-none focus:ring-2 focus:ring-[var(--accent)]"
+        className="w-full p-2.5 rounded-xl bg-[var(--bg-card)] border border-[var(--border)] text-[var(--text-main)] font-medium text-sm outline-none focus:ring-2 focus:ring-[var(--accent)]"
       />
       {open && (filtered.length > 0 || (value?.trim() && !exactMatch)) && (
-        <div className="absolute z-10 mt-1 w-full max-h-48 overflow-y-auto bg-[var(--bg-card)] border border-[var(--border)] rounded-xl shadow-lg no-scrollbar">
+        <div className="absolute z-20 mt-1 w-full max-h-48 overflow-y-auto bg-[var(--bg-card)] border border-[var(--border)] rounded-xl shadow-lg no-scrollbar">
           {filtered.map(o => (
             <button
               key={o}
@@ -58,33 +59,60 @@ const Combobox = ({ name, value, onChange, options, placeholder }) => {
 };
 
 const ProductConfig = ({ products, setProducts }) => {
+  const { showToast } = useToast();
   const [editingProduct, setEditingProduct] = useState(null);
-  const [formData, setFormData] = useState({ name: '', price: 0, category: '', color: '#3b82f6', visible: true });
+  const [formData, setFormData] = useState({ 
+    name: '', 
+    price: '', 
+    category: '', 
+    color: '#3b82f6', 
+    visible: true, 
+    print_destination: 'both',
+    stock_enabled: false,
+    stock: ''
+  });
   const [showForm, setShowForm] = useState(false);
   const [popupVisible, setPopupVisible] = useState(false);
   const [filterCategory, setFilterCategory] = useState('all');
   const [searchTerm, setSearchTerm] = useState('');
 
-  // Stato per gestione conflitti di categoria (stesso prodotto presente già in un'altra categoria --> WARNING)
+  // Stato per gestione conflitti di categoria
   const [duplicateConflict, setDuplicateConflict] = useState(null);
 
   // Stati per la Selezione Multipla
   const [isBulkMode, setIsBulkMode] = useState(false);
   const [selectedIds, setSelectedIds] = useState([]);
 
-  // MODIFICA: Aggiunto stato per filtrare solo i prodotti visibili nella dashboard principale
+  // Stato per filtrare solo i prodotti visibili
   const [showOnlyVisible, setShowOnlyVisible] = useState(true);
 
-  // MODIFICA: Modificato il reset del form per la creazione: "visible" è blindato a true di default
   const openAddForm = () => {
     setEditingProduct(null);
-    setFormData({ name: '', price: 0, category: '', color: '#3b82f6', visible: true, print_destination: 'both' });
+    setFormData({ 
+      name: '', 
+      price: '', 
+      category: '', 
+      color: '#3b82f6', 
+      visible: true, 
+      print_destination: 'both',
+      stock_enabled: false,
+      stock: ''
+    });
     setShowForm(true);
   };
 
   const openEditForm = (p) => {
     setEditingProduct(p);
-    setFormData({ name: p.name || '', price: p.price ?? 0, category: p.category || '', color: p.color || '#3b82f6', visible: p.visible ?? true, print_destination: p.print_destination || 'both', stock_enabled: p.stock_enabled ?? false, stock: p.stock ?? '' });
+    setFormData({
+      name: p.name || '',
+      price: p.price !== undefined && p.price !== null ? String(p.price) : '',
+      category: p.category || '',
+      color: p.color || '#3b82f6',
+      visible: p.visible ?? true,
+      print_destination: p.print_destination || 'both',
+      stock_enabled: p.stock_enabled ?? false,
+      stock: p.stock !== undefined && p.stock !== null ? String(p.stock) : ''
+    });
     setShowForm(true);
   };
 
@@ -95,14 +123,19 @@ const ProductConfig = ({ products, setProducts }) => {
 
   const handleInputChange = (e) => {
     const { name, value, type, checked } = e.target;
-    setFormData(prev => ({
-      ...prev,
-      [name]: type === 'checkbox' ? checked : (name === 'price' ? parseFloat(value) || 0 : value)
-    }));
+    if (name === 'price') {
+      const val = value.replace(',', '.');
+      if (/^\d*\.?\d{0,2}$/.test(val)) {
+        setFormData(prev => ({ ...prev, price: val }));
+      }
+    } else {
+      setFormData(prev => ({
+        ...prev,
+        [name]: type === 'checkbox' ? checked : value
+      }));
+    }
   };
 
-  // Usato dal Combobox (categoria/nome), che non emette un vero evento input.
-  // Mantiene la stessa automazione colore già presente prima.
   const setField = (name, value) => {
     setFormData(prev => {
       const updated = { ...prev, [name]: value };
@@ -118,7 +151,6 @@ const ProductConfig = ({ products, setProducts }) => {
     });
   };
 
-  // Toggle visibilità per singolo prodotto istantaneo
   const handleToggleSingleVisibility = async (product) => {
     const updatedStatus = !product.visible;
     try {
@@ -128,10 +160,17 @@ const ProductConfig = ({ products, setProducts }) => {
         credentials: "include",
         body: JSON.stringify({ ...product, visible: updatedStatus }),
       });
-      if (!res.ok) throw new Error();
+      if (!res.ok) {
+        const errData = await res.json().catch(() => ({}));
+        throw new Error(errData.error || "Errore nel cambio visibilità");
+      }
 
       setProducts(prev => prev.map(p => p.id === product.id ? { ...p, visible: updatedStatus } : p));
-    } catch (err) { console.error("Errore cambio visibilità", err); }
+      showToast(`Visibilità "${product.name}" aggiornata`, 'success');
+    } catch (err) {
+      console.error("Errore cambio visibilità", err);
+      showToast(err.message || "Errore nel cambio visibilità", 'error');
+    }
   };
 
   const handleSelectProduct = (id) => {
@@ -147,23 +186,47 @@ const ProductConfig = ({ products, setProducts }) => {
         credentials: "include",
         body: JSON.stringify({ ids: selectedIds, visible: visibleStatus }),
       });
-      if (!res.ok) throw new Error();
+      if (!res.ok) {
+        const errData = await res.json().catch(() => ({}));
+        throw new Error(errData.error || "Errore nell'aggiornamento di massa");
+      }
 
       setProducts(prev => prev.map(p => selectedIds.includes(p.id) ? { ...p, visible: visibleStatus } : p));
+      showToast(`Visibilità aggiornata per ${selectedIds.length} prodotti`, 'success');
       setSelectedIds([]);
       setIsBulkMode(false);
-    } catch (err) { console.error(err); }
+    } catch (err) {
+      console.error("Errore modifica visibilità di massa", err);
+      showToast(err.message || "Errore durante l'aggiornamento della visibilità", 'error');
+    }
   };
 
   const doSubmit = async () => {
+    if (formData.stock_enabled) {
+      const parsedStock = parseInt(formData.stock, 10);
+      if (formData.stock === '' || isNaN(parsedStock) || parsedStock < 0) {
+        showToast('Inserisci una quantità valida per la disponibilità limitata', 'error');
+        return;
+      }
+    }
+
     try {
+      const parsedPrice = parseFloat(String(formData.price).replace(',', '.')) || 0;
+      const payload = {
+        ...formData,
+        price: parsedPrice
+      };
+
       const res = await fetch(editingProduct ? `${API_URL}/products/${editingProduct.id}` : `${API_URL}/products`, {
         method: editingProduct ? "PUT" : "POST",
         headers: { "Content-Type": "application/json" },
         credentials: "include",
-        body: JSON.stringify(formData),
+        body: JSON.stringify(payload),
       });
-      if (!res.ok) throw new Error((await res.json()).error || "Errore");
+      if (!res.ok) {
+        const errData = await res.json().catch(() => ({}));
+        throw new Error(errData.error || "Errore durante il salvataggio del prodotto");
+      }
 
       const updatedProduct = await res.json();
 
@@ -173,13 +236,16 @@ const ProductConfig = ({ products, setProducts }) => {
           headers: { 'Content-Type': 'application/json' },
           credentials: 'include',
           body: JSON.stringify({
-            stock: formData.stock !== '' ? parseInt(formData.stock) : null,
+            stock: formData.stock_enabled ? parseInt(formData.stock, 10) : null,
             stock_enabled: !!formData.stock_enabled
           })
         });
         if (stockRes.ok) {
           const stockData = await stockRes.json();
           Object.assign(updatedProduct, { stock: stockData.stock, stock_enabled: stockData.stock_enabled });
+        } else {
+          const stockErrData = await stockRes.json().catch(() => ({}));
+          showToast(stockErrData.error || "Prodotto salvato, ma errore nell'aggiornamento dello stock", 'error');
         }
       }
 
@@ -187,12 +253,17 @@ const ProductConfig = ({ products, setProducts }) => {
 
       if (editingProduct) {
         setProducts(prev => prev.map(p => p.id === parsedProduct.id ? parsedProduct : p));
+        showToast(`Prodotto "${parsedProduct.name}" modificato con successo`, 'success');
       } else {
         setProducts(prev => [...prev, parsedProduct]);
+        showToast(`Prodotto "${parsedProduct.name}" aggiunto con successo`, 'success');
       }
 
       setShowForm(false);
-    } catch (err) { console.error(err); }
+    } catch (err) {
+      console.error("Errore salvataggio prodotto", err);
+      showToast(err.message || "Impossibile salvare il prodotto", 'error');
+    }
   };
 
   const handleSubmit = (e) => {
@@ -235,17 +306,22 @@ const ProductConfig = ({ products, setProducts }) => {
   const confirmDelete = async () => {
     try {
       const res = await fetch(`${API_URL}/products/${deleteTarget.id}`, { method: "DELETE", credentials: "include" });
-      if (!res.ok) throw new Error();
+      if (!res.ok) {
+        const errData = await res.json().catch(() => ({}));
+        throw new Error(errData.error || "Errore durante l'eliminazione");
+      }
 
       setProducts(prev => prev.filter(p => p.id !== deleteTarget.id));
+      showToast(`Prodotto "${deleteTarget.name}" eliminato`, 'success');
       setDeleteTarget(null);
-    } catch (err) { console.error(err); }
+    } catch (err) {
+      console.error("Errore eliminazione prodotto", err);
+      showToast(err.message || "Impossibile eliminare il prodotto", 'error');
+    }
   };
 
   const categories = [...new Set(products.map(p => p.category).filter(Boolean))];
 
-  // Restringe i suggerimenti nome alla categoria selezionata, se esiste già;
-  // altrimenti (categoria vuota o non ancora esistente) mostra tutti i prodotti.
   const productNamesForCategory = (() => {
     const catNorm = (formData.category || '').trim().toLowerCase();
     const categoryExists = categories.some(c => c.toLowerCase() === catNorm);
@@ -255,7 +331,6 @@ const ProductConfig = ({ products, setProducts }) => {
     return [...new Set(pool.map(p => p.name).filter(Boolean))];
   })();
 
-  // MODIFICA: Aggiornata la logica di filtraggio per includere il controllo "showOnlyVisible"
   const filteredGroups = categories
     .filter(c => filterCategory === 'all' || c === filterCategory)
     .map(c => ({
@@ -268,39 +343,100 @@ const ProductConfig = ({ products, setProducts }) => {
     }))
     .filter(g => g.items.length > 0);
 
+  const isFormSubmitDisabled = formData.stock_enabled && (
+    formData.stock === '' || 
+    isNaN(parseInt(formData.stock, 10)) || 
+    parseInt(formData.stock, 10) < 0
+  );
+
   return (
-    <div className="max-w-5xl mx-auto space-y-6 relative">
-      <div className="flex justify-between items-end flex-wrap gap-4">
-        <div>
-          <h2 className="text-4xl font-black tracking-tighter text-[var(--text-main)]">MENU</h2>
-          <p className="text-[10px] font-black uppercase tracking-widest text-gray-400 mt-1">Gestione prodotti</p>
+    <div className="max-w-5xl mx-auto space-y-5 relative">
+      {/* Header Titolo */}
+      <div>
+        <h2 className="text-4xl font-black tracking-tighter text-[var(--text-main)]">MENU</h2>
+        <p className="text-[10px] font-black uppercase tracking-widest text-gray-400 mt-1">Gestione prodotti</p>
+      </div>
+
+      {/* Top Bar Unificata */}
+      <div className="flex items-center justify-between flex-wrap gap-2.5 w-full">
+        {/* Filtri a Sinistra: Dropdown Categoria + Search Input */}
+        <div className="flex items-center gap-2 flex-1 min-w-[280px]">
+          {/* Select Categoria con Freccia Singola */}
+          <div className="relative w-44 sm:w-52 shrink-0">
+            <select
+              value={filterCategory}
+              onChange={(e) => setFilterCategory(e.target.value)}
+              className="w-full h-10 pl-3.5 pr-8 rounded-xl bg-[var(--bg-card-2)] border border-[var(--border)] text-[var(--text-main)] font-black text-xs uppercase tracking-wider appearance-none cursor-pointer focus:outline-none focus:border-[var(--accent)] transition-colors"
+            >
+              <option value="all">Tutte le categorie</option>
+              {categories.map(c => <option key={c} value={c}>{c}</option>)}
+            </select>
+            <div className="absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none text-[var(--text-muted)]">
+              <svg className="w-3.5 h-3.5 fill-current" viewBox="0 0 20 20">
+                <path d="M5.293 7.293a1 1 0 011.414 0L10 10.586l3.293-3.293a1 1 0 111.414 1.414l-4 4a1 1 0 01-1.414 0l-4-4a1 1 0 010-1.414z"/>
+              </svg>
+            </div>
+          </div>
+
+          {/* Search Input con icona e Clear Button */}
+          <div className="relative flex-1">
+            <input
+              type="text"
+              value={searchTerm}
+              onChange={(e) => setSearchTerm(e.target.value)}
+              placeholder="Cerca..."
+              className="w-full h-10 pl-9 pr-8 rounded-xl bg-[var(--bg-card-2)] border border-[var(--border)] text-[var(--text-main)] text-xs font-bold placeholder-[var(--text-muted)] focus:outline-none focus:border-[var(--accent)] transition-colors"
+            />
+            <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-[var(--text-muted)] pointer-events-none" />
+            {searchTerm && (
+              <button
+                onClick={() => setSearchTerm('')}
+                className="absolute right-2.5 top-1/2 -translate-y-1/2 text-[var(--text-muted)] hover:text-[var(--text-main)] p-1 rounded-lg"
+              >
+                <X size={12} />
+              </button>
+            )}
+          </div>
         </div>
 
-        <div className="flex gap-2">
+        {/* Azioni a Destra: Visibilità, Selezione Multipla, Aggiungi */}
+        <div className="flex items-center gap-2 shrink-0">
           <button
             onClick={() => setShowOnlyVisible(!showOnlyVisible)}
-            className={`flex items-center gap-2 px-4 py-2.5 rounded-2xl font-black text-xs uppercase tracking-widest transition-all border cursor-pointer ${showOnlyVisible
-              ? 'bg-green-600 border-green-600 text-white hover:bg-green-700'
-              : 'bg-[var(--bg-card)] border-[var(--border)] text-[var(--text-main)] hover:bg-[var(--bg-card-2)] hover:border-gray-400'
-              }`}
+            title={showOnlyVisible ? "Mostra anche i prodotti nascosti" : "Mostra solo i prodotti visibili"}
+            className={`flex items-center gap-1.5 h-10 px-3.5 rounded-xl font-black text-[10px] uppercase tracking-widest transition-all border cursor-pointer ${
+              showOnlyVisible
+                ? 'bg-green-600/10 border-green-500/30 text-green-400 hover:bg-green-600/20'
+                : 'bg-[var(--bg-card-2)] border-[var(--border)] text-[var(--text-muted)] hover:text-[var(--text-main)] hover:border-gray-400'
+            }`}
           >
             {showOnlyVisible ? <Eye size={14} /> : <EyeOff size={14} />}
-            {showOnlyVisible ? 'Solo Visibili' : 'Tutti i Prodotti'}
+            <span className="hidden sm:inline">{showOnlyVisible ? 'Solo Visibili' : 'Tutti'}</span>
           </button>
 
           <button
             onClick={() => { setIsBulkMode(!isBulkMode); setSelectedIds([]); }}
-            className={`flex items-center gap-2 px-5 py-2.5 rounded-2xl font-black text-xs uppercase tracking-widest transition-all cursor-pointer ${isBulkMode ? 'bg-blue-600 hover:bg-blue-700 text-white' : 'bg-[var(--bg-card)] border border-[var(--border)] text-[var(--text-main)] hover:bg-[var(--bg-card-2)]'}`}
+            className={`flex items-center gap-1.5 h-10 px-3.5 rounded-xl font-black text-[10px] uppercase tracking-widest transition-all border cursor-pointer ${
+              isBulkMode
+                ? 'bg-blue-600 border-blue-500 text-white hover:bg-blue-700 shadow-sm'
+                : 'bg-[var(--bg-card-2)] border-[var(--border)] text-[var(--text-muted)] hover:text-[var(--text-main)]'
+            }`}
           >
-            {isBulkMode ? 'Annulla Selezione' : 'Selezione Multipla'}
+            <span className="hidden sm:inline">{isBulkMode ? 'Annulla Multi' : 'Multi-Select'}</span>
+            <span className="sm:hidden">{isBulkMode ? 'Annulla' : 'Multi'}</span>
           </button>
 
-          <button onClick={openAddForm} className="flex items-center gap-2 px-5 py-2.5 bg-[var(--accent)] hover:bg-[var(--accent-hover)] text-white rounded-2xl font-black text-xs uppercase tracking-widest transition-all cursor-pointer">
-            <Plus size={16} /> Aggiungi
+          <button
+            onClick={openAddForm}
+            className="flex items-center gap-1.5 h-10 px-4 bg-[var(--accent)] hover:bg-[var(--accent-hover)] text-white rounded-xl font-black text-[10px] uppercase tracking-widest transition-all shadow-md shadow-[var(--accent-shadow)] cursor-pointer"
+          >
+            <Plus size={15} />
+            <span>Aggiungi</span>
           </button>
         </div>
       </div>
 
+      {/* Banner Selezione Multipla */}
       {isBulkMode && (
         <div className="flex items-center justify-between p-4 bg-blue-950/40 border border-blue-500/30 rounded-2xl animate-in fade-in slide-in-from-top-2">
           <span className="text-xs font-bold text-blue-300 uppercase tracking-wider">{selectedIds.length} Prodotti Selezionati</span>
@@ -308,14 +444,14 @@ const ProductConfig = ({ products, setProducts }) => {
             <button
               onClick={() => handleBulkVisibilityChange(true)}
               disabled={selectedIds.length === 0}
-              className="flex items-center gap-1.5 px-4 py-2 bg-green-600 disabled:opacity-40 hover:bg-green-700 text-white font-black text-[10px] uppercase tracking-widest rounded-xl transition-all"
+              className="flex items-center gap-1.5 px-4 py-2 bg-green-600 disabled:opacity-40 hover:bg-green-700 text-white font-black text-[10px] uppercase tracking-widest rounded-xl transition-all cursor-pointer disabled:cursor-not-allowed"
             >
               <Eye size={14} /> Mostra nel Listino
             </button>
             <button
               onClick={() => handleBulkVisibilityChange(false)}
               disabled={selectedIds.length === 0}
-              className="flex items-center gap-1.5 px-4 py-2 bg-red-600 disabled:opacity-40 hover:bg-red-700 text-white font-black text-[10px] uppercase tracking-widest rounded-xl transition-all"
+              className="flex items-center gap-1.5 px-4 py-2 bg-red-600 disabled:opacity-40 hover:bg-red-700 text-white font-black text-[10px] uppercase tracking-widest rounded-xl transition-all cursor-pointer disabled:cursor-not-allowed"
             >
               <EyeOff size={14} /> Nascondi nel Listino
             </button>
@@ -323,17 +459,7 @@ const ProductConfig = ({ products, setProducts }) => {
         </div>
       )}
 
-      <div className="flex gap-3 flex-wrap">
-        <select value={filterCategory} onChange={(e) => setFilterCategory(e.target.value)} className="h-10 px-4 rounded-xl bg-[var(--bg-card)] border border-[var(--border)] text-sm font-bold text-[var(--text-main)] outline-none">
-          <option value="all">Tutte le categorie</option>
-          {categories.map(c => <option key={c} value={c}>{c}</option>)}
-        </select>
-        <div className="flex items-center gap-2 h-10 px-4 rounded-xl bg-[var(--bg-card)] border border-[var(--border)]">
-          <Search size={14} className="text-gray-400" />
-          <input type="text" value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)} placeholder="Cerca prodotto" className="bg-transparent outline-none text-sm font-medium text-[var(--text-main)] w-40" />
-        </div>
-      </div>
-
+      {/* Lista Gruppi Prodotti */}
       <div className="space-y-6">
         {filteredGroups.map(group => (
           <div key={group.category}>
@@ -368,14 +494,14 @@ const ProductConfig = ({ products, setProducts }) => {
                       <button
                         onClick={() => handleToggleSingleVisibility(product)}
                         title={product.visible !== false ? "Nascondi dal menu rapido" : "Mostra nel menu rapido"}
-                        className={`p-2 rounded-xl transition-colors ${product.visible !== false ? 'text-green-500 hover:bg-green-500/10' : 'text-gray-500 hover:bg-gray-500/10'}`}
+                        className={`p-2 rounded-xl transition-colors cursor-pointer ${product.visible !== false ? 'text-green-500 hover:bg-green-500/10' : 'text-gray-500 hover:bg-gray-500/10'}`}
                       >
                         {product.visible !== false ? <Eye size={18} /> : <EyeOff size={18} />}
                       </button>
 
                       <div className="flex gap-1 border-l border-[var(--border)] pl-2">
-                        <button onClick={() => openEditForm(product)} className="p-2 rounded-xl hover:bg-[var(--bg-card-2)] transition-colors"><Edit size={16} className="text-gray-500" /></button>
-                        <button onClick={() => setDeleteTarget(product)} className="p-2 rounded-xl hover:bg-red-50 dark:hover:bg-red-900/20 transition-colors"><Trash2 size={16} className="text-red-500" /></button>
+                        <button onClick={() => openEditForm(product)} className="p-2 rounded-xl hover:bg-[var(--bg-card-2)] transition-colors cursor-pointer"><Edit size={16} className="text-gray-500" /></button>
+                        <button onClick={() => setDeleteTarget(product)} className="p-2 rounded-xl hover:bg-red-50 dark:hover:bg-red-900/20 transition-colors cursor-pointer"><Trash2 size={16} className="text-red-500" /></button>
                       </div>
                     </div>
                   )}
@@ -386,53 +512,76 @@ const ProductConfig = ({ products, setProducts }) => {
         ))}
       </div>
 
+      {/* Modal Aggiungi/Modifica */}
       {showForm && (
         <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50 p-4">
           <div className={`bg-[var(--bg-card)] rounded-2xl shadow-2xl w-full max-w-2xl border border-[var(--border)] transform transition-all duration-300 ${popupVisible ? 'opacity-100 scale-100' : 'opacity-0 scale-95'} overflow-hidden`}>
             <div className="flex justify-between items-center px-6 py-4 border-b border-[var(--border)]">
               <h3 className="text-base font-black tracking-tight uppercase text-[var(--text-main)]">{editingProduct ? 'Modifica prodotto' : 'Nuovo prodotto'}</h3>
-              <button onClick={() => setShowForm(false)} className="p-1.5 rounded-xl hover:bg-[var(--bg-card-2)] transition-colors"><X size={16} className="text-[var(--text-muted)]" /></button>
+              <button onClick={() => setShowForm(false)} className="p-1.5 rounded-xl hover:bg-[var(--bg-card-2)] transition-colors cursor-pointer"><X size={16} className="text-[var(--text-muted)]" /></button>
             </div>
             <form onSubmit={handleSubmit} className="p-6">
               <div className="grid grid-cols-2 gap-3 mb-3">
-                <div className="col-span-2">
+                <div className="col-span-2 p-3 rounded-xl bg-[var(--bg-input)] border border-[var(--border)] space-y-1.5">
+                  <label className="text-[10px] font-black uppercase tracking-widest text-[var(--text-muted)] block">
+                    Categoria
+                  </label>
                   <Combobox
                     name="category"
                     value={formData.category}
                     onChange={(v) => setField('category', v)}
                     options={categories}
-                    placeholder="Categoria (es. Pizze)"
+                    placeholder="Seleziona o inserisci categoria (es. Pizze, Bevande)"
                   />
                 </div>
-                <div className="col-span-2">
+
+                <div className="col-span-2 p-3 rounded-xl bg-[var(--bg-input)] border border-[var(--border)] space-y-1.5">
+                  <label className="text-[10px] font-black uppercase tracking-widest text-[var(--text-muted)] block">
+                    Nome Prodotto
+                  </label>
                   <Combobox
                     name="name"
                     value={formData.name}
                     onChange={(v) => setField('name', v)}
                     options={productNamesForCategory}
-                    placeholder="Nome prodotto"
+                    placeholder="Inserisci nome prodotto (es. Margherita, Coca Cola)"
                   />
                 </div>
-                <input
-                  name="price"
-                  type="number"
-                  step="0.01"
-                  placeholder="Prezzo (es. 8.50)"
-                  value={formData.price}
-                  onChange={handleInputChange}
-                  required
-                  className="p-2.5 rounded-xl bg-[var(--bg-input)] border border-[var(--border)] text-[var(--text-main)] font-medium text-sm outline-none focus:ring-2 focus:ring-[var(--accent)] col-span-2"
-                />
+
+                <div className="col-span-2 p-3 rounded-xl bg-[var(--bg-input)] border border-[var(--border)] space-y-1.5">
+                  <label className="text-[10px] font-black uppercase tracking-widest text-[var(--text-muted)] block">
+                    Prezzo (€)
+                  </label>
+                  <input
+                    name="price"
+                    type="text"
+                    inputMode="decimal"
+                    placeholder="0.00"
+                    value={formData.price}
+                    onChange={handleInputChange}
+                    required
+                    className="w-full p-2.5 rounded-xl bg-[var(--bg-card)] border border-[var(--border)] text-[var(--text-main)] font-medium text-sm outline-none focus:ring-2 focus:ring-[var(--accent)]"
+                  />
+                </div>
               </div>
+
               <div className="grid grid-cols-2 gap-3">
-                <div className="p-3 rounded-xl bg-[var(--bg-input)] border border-[var(--border)] space-y-2">
+                <div className="p-3 rounded-xl bg-[var(--bg-input)] border border-[var(--border)] flex flex-col justify-between space-y-2">
                   <div className="flex items-center justify-between">
-                    <span className="text-xs font-bold text-[var(--text-muted)] uppercase tracking-widest">Colore</span>
-                    <input type="color" name="color" value={formData.color} onChange={handleInputChange} className="w-8 h-8 rounded-lg cursor-pointer border-0 bg-transparent" />
+                    <label className="text-[10px] font-black text-[var(--text-muted)] uppercase tracking-widest">
+                      Colore Categoria
+                    </label>
+                    <input 
+                      type="color" 
+                      name="color" 
+                      value={formData.color} 
+                      onChange={handleInputChange} 
+                      className="w-8 h-8 rounded-lg cursor-pointer border-0 bg-transparent" 
+                    />
                   </div>
 
                   {products.length > 0 && (
-                    <div className="pt-1.5 border-t border-[var(--border)]/40">
+                    <div className="pt-2 border-t border-[var(--border)]/40">
                       <div className="flex flex-wrap gap-1.5">
                         {[...new Map(products.filter(p => p.category && p.color).map(p => [p.category.toLowerCase(), p])).values()].map(p => (
                           <button
@@ -440,7 +589,7 @@ const ProductConfig = ({ products, setProducts }) => {
                             type="button"
                             title={p.category}
                             onClick={() => setFormData(prev => ({ ...prev, color: p.color, category: prev.category || p.category }))}
-                            className="w-9 h-9 rounded-full border-2 transition-transform hover:scale-110 active:scale-95"
+                            className="w-7 h-7 rounded-full border-2 transition-transform hover:scale-110 active:scale-95 cursor-pointer"
                             style={{
                               backgroundColor: p.color,
                               borderColor: formData.color.toLowerCase() === p.color.toLowerCase() ? 'var(--text-main)' : 'transparent'
@@ -453,7 +602,9 @@ const ProductConfig = ({ products, setProducts }) => {
                 </div>
 
                 <div className="p-3 rounded-xl bg-[var(--bg-input)] border border-[var(--border)]">
-                  <span className="text-[9px] font-black uppercase tracking-widest text-[var(--text-muted)] block mb-2">Stampa</span>
+                  <span className="text-[10px] font-black uppercase tracking-widest text-[var(--text-muted)] block mb-2">
+                    Stampa
+                  </span>
                   <div className="flex gap-1.5">
                     {[
                       { value: 'both', label: 'Tutti', desc: 'Bar + Cucina' },
@@ -464,7 +615,7 @@ const ProductConfig = ({ products, setProducts }) => {
                         key={opt.value}
                         type="button"
                         onClick={() => setFormData(prev => ({ ...prev, print_destination: opt.value }))}
-                        className={`flex-1 py-2 rounded-xl border text-xs font-black transition-all ${formData.print_destination === opt.value
+                        className={`flex-1 py-2 rounded-xl border text-xs font-black transition-all cursor-pointer ${formData.print_destination === opt.value
                           ? 'bg-[var(--accent)] border-[var(--accent)] text-white'
                           : 'bg-[var(--bg-card)] border-[var(--border)] text-[var(--text-muted)] hover:border-[var(--accent)]'
                           }`}
@@ -478,7 +629,7 @@ const ProductConfig = ({ products, setProducts }) => {
 
                 {editingProduct && (
                   <div className="p-3 rounded-xl bg-[var(--bg-input)] border border-[var(--border)] flex items-center gap-3">
-                    <input type="checkbox" id="visible" name="visible" checked={formData.visible} onChange={handleInputChange} className="w-4 h-4 rounded" />
+                    <input type="checkbox" id="visible" name="visible" checked={formData.visible} onChange={handleInputChange} className="w-4 h-4 rounded cursor-pointer" />
                     <label htmlFor="visible" className="text-xs font-bold text-[var(--text-main)] cursor-pointer">Visibile nel listino</label>
                   </div>
                 )}
@@ -486,7 +637,7 @@ const ProductConfig = ({ products, setProducts }) => {
                 <div className="p-3 rounded-xl bg-[var(--bg-input)] border border-[var(--border)] space-y-2">
                   <div className="flex items-center gap-3">
                     <input type="checkbox" id="stock_enabled" name="stock_enabled" checked={formData.stock_enabled || false}
-                      onChange={handleInputChange} className="w-4 h-4 rounded" />
+                      onChange={handleInputChange} className="w-4 h-4 rounded cursor-pointer" />
                     <label htmlFor="stock_enabled" className="text-xs font-bold text-[var(--text-main)] cursor-pointer">Disponibilità limitata</label>
                   </div>
                   {formData.stock_enabled && (
@@ -494,9 +645,13 @@ const ProductConfig = ({ products, setProducts }) => {
                       className="w-full p-2 rounded-xl bg-[var(--bg-card)] border border-[var(--border)] text-[var(--text-main)] text-sm outline-none focus:ring-2 focus:ring-[var(--accent)]" />
                   )}
                 </div>
+              </div>
 
-              </div>{/* fine grid */}
-              <button type="submit" className="w-full mt-4 py-2.5 rounded-xl bg-[var(--accent)] hover:bg-[var(--accent-hover)] text-white font-black text-sm uppercase tracking-widest transition-all">
+              <button 
+                type="submit" 
+                disabled={isFormSubmitDisabled}
+                className="w-full mt-4 py-2.5 rounded-xl bg-[var(--accent)] hover:bg-[var(--accent-hover)] text-white font-black text-sm uppercase tracking-widest transition-all cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
+              >
                 {editingProduct ? 'Salva modifiche' : 'Aggiungi prodotto'}
               </button>
             </form>
@@ -504,6 +659,7 @@ const ProductConfig = ({ products, setProducts }) => {
         </div>
       )}
 
+      {/* Modal Duplicato */}
       {duplicateConflict && (
         <div className="fixed inset-0 z-[60] flex items-center justify-center p-4" onClick={() => setDuplicateConflict(null)}>
           <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" />
@@ -534,6 +690,7 @@ const ProductConfig = ({ products, setProducts }) => {
         </div>
       )}
 
+      {/* Modal Elimina */}
       {deleteTarget && (
         <div className="fixed inset-0 z-[60] flex items-center justify-center p-4" onClick={() => setDeleteTarget(null)}>
           <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" />

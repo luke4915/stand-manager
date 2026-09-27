@@ -6,7 +6,7 @@ import { EposXmlPrinter } from "./eposXmlPrinter.js";
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 const TMP_DIR = path.join(__dirname, "..", "tmp");
-let tmpDirEnsured = false; // evita di rifare la syscall mkdirSync ad ogni singola stampa
+let tmpDirEnsured = false;
 
 const LINE_WIDTH = 42;
 const DIVIDER = "=".repeat(LINE_WIDTH);
@@ -16,8 +16,8 @@ const HEADER_LOGO_WIDTH = 512;
 const ASSOCIAZIONE_NOME = "APS MARIA SS DI TROCCHIO";
 const ASSOCIAZIONE_CF = "C.F. 90051130608";
 
-const SIDE_IMG_WIDTH = 125; // Ridotto leggermente per centrare tutto nei 512px max delle stampanti
-const TOTAL_PRINTER_WIDTH = 512; // Larghezza standard perfetta per stampanti termiche da 80mm
+const SIDE_IMG_WIDTH = 125;
+const TOTAL_PRINTER_WIDTH = 512;
 
 let _sideImgBase = null;
 async function getSideImgBase(sideImgPath) {
@@ -34,12 +34,9 @@ async function getSideImgBase(sideImgPath) {
   return _sideImgBase;
 }
 
-export async function renderNumberSlip(printer, orderData, logoPath) {
-  const orderId = orderData.id;
+export async function renderNumberSlip(printer, orderData) {
   const sideImgPath = path.join(__dirname, '..', 'assets', 'Gemini_Generated_Image_fxfw0dfxfw0dfxfw.png');
-  const numberText = String(orderId);
 
-  // 1. Stampiamo prima la scritta in formato testo ESC/POS (Nitida, centrata e veloce)
   printer.align('CT')
     .size(2, 2)
     .style('B')
@@ -49,30 +46,22 @@ export async function renderNumberSlip(printer, orderData, logoPath) {
 
   printer.feed(1);
 
-  // 2. Generiamo il blocco Grafico [Immagine | NUMERO + Scritta | Immagine]
   if (fs.existsSync(sideImgPath)) {
     try {
       const sharp = (await import('sharp')).default;
-
       const { resized: sideImgResized, h, svgW } = await getSideImgBase(sideImgPath);
 
-      // 2. Aggiorniamo l'SVG con le nuove coordinate Y
       const svgText = `
         <svg xmlns="http://www.w3.org/2000/svg" width="${svgW}" height="${h}">
           <rect width="${svgW}" height="${h}" fill="#ffffff"/>
-          
-          <!-- Numero principale: coordinata y impostata a 0.50 per tenerlo centrato nella sua metà superiore -->
           <text x="${svgW / 2}" y="${h * 0.50}" font-size="${(h - 45) * 0.70}" font-weight="bold"
-                text-anchor="middle" fill="black" font-family="monospace"> ${numberText} </text>
-          
-          <!-- Scritta "Buon appetito!": alzata a font-size 50, spostata a y = 0.90 per farla scendere al massimo sul fondo -->
+                text-anchor="middle" fill="black" font-family="monospace"> ${orderData.display_code} </text>
           <text x="${svgW / 2}" y="${h * 0.95}" font-size="40" font-style="italic" font-weight="600"
                 text-anchor="middle" fill="black" font-family="sans-serif">Buon appetito!</text>
         </svg>
       `;
       const numBuf = await sharp(Buffer.from(svgText)).png().toBuffer();
 
-      // Creiamo il nastro unico finale (sfondo bianco in stringa hex per evitare il crash di Sharp)
       const composite = await sharp({
         create: {
           width: TOTAL_PRINTER_WIDTH,
@@ -89,45 +78,35 @@ export async function renderNumberSlip(printer, orderData, logoPath) {
         .png()
         .toBuffer();
 
-      // Mandiamo in stampa la riga grafica perfettamente centrata e scalata a 512px
       await printer.image(composite, { align: 'center', width: TOTAL_PRINTER_WIDTH });
 
     } catch (printErr) {
-      // Fallback di emergenza: se Sharp fallisce per l'immagine, scrive il numero in grande stile testo
       console.error("Errore generazione Sharp, fallback su testo:", printErr);
-      printer.align('CT').size(4, 4).style('B').text(`# ${numberText} #`).size(1, 1).style('NORMAL');
+      printer.align('CT').size(4, 4).style('B').text(`# ${orderData.display_code} #`).size(1, 1).style('NORMAL');
     }
   } else {
-    // Fallback se il file dell'immagine non esiste sul PC
-    printer.align('CT').size(4, 4).style('B').text(`# ${numberText} #`).size(1, 1).style('NORMAL');
+    printer.align('CT').size(4, 4).style('B').text(`# ${orderData.display_code} #`).size(1, 1).style('NORMAL');
   }
 
-  // 3. Spaziatura finale e taglio scontrino
   printer.feed(2);
   printer.cut();
 }
 
-// Genera il blocco grafico [Immagine | NUMERO PULITO | Immagine] 
-async function renderTopHeaderImage(printer, orderId) {
+async function renderTopHeaderImage(printer, displayCode) {
   const sideImgPath = path.join(__dirname, '..', 'assets', 'Gemini_Generated_Image_fxfw0dfxfw0dfxfw.png');
-  const numberText = String(orderId);
 
   if (fs.existsSync(sideImgPath)) {
     try {
       const sharp = (await import('sharp')).default;
-
       const { resized: sideImgResized, h, svgW } = await getSideImgBase(sideImgPath);
 
-      // SVG con la scritta fissa in alto e il numero progressivo pulito sotto
       const svgText = `
         <svg xmlns="http://www.w3.org/2000/svg" width="${svgW}" height="${h}">
           <rect width="${svgW}" height="${h}" fill="#ffffff"/>
-          <!-- Testo identificativo in alto -->
           <text x="${svgW / 2}" y="${h * 0.15}" font-size="28" font-weight="600"
                 text-anchor="middle" fill="black" font-family="sans-serif">NUMERO ORDINE:</text>
-          <!-- Numero progressivo gigante -->
           <text x="${svgW / 2}" y="${h * 0.95}" font-size="${(h - 45) * 0.75}" font-weight="bold"
-                text-anchor="middle" fill="black" font-family="monospace">${numberText}</text>
+                text-anchor="middle" fill="black" font-family="monospace">${displayCode}</text>
         </svg>
       `;
       const numBuf = await sharp(Buffer.from(svgText)).png().toBuffer();
@@ -177,8 +156,6 @@ function wrapText(text, width) {
   return lines.length ? lines : [text.slice(0, width)];
 }
 
-// Distribuisce colonne su tutta la larghezza LINE_WIDTH partendo da sinistra,
-// con almeno 1 spazio di gap garantito tra colonne (mai testo "attaccato").
 function justifyRow(cols, width = LINE_WIDTH) {
   const n = cols.length;
   const gap = 1;
@@ -195,12 +172,10 @@ function rowLR(left, right, width = LINE_WIDTH) {
   return justifyRow([left, right], width);
 }
 
-// Riga a 3 colonne (Prodotto, Qtà, Contributo), larghezze right/center fisse
-// così i numeri restano allineati tra le righe di un ordine.
 function rowThreeColumns(left, center, right, width = LINE_WIDTH) {
   const rightWidth = 8;
   const centerWidth = 4;
-  const leftWidth = width - rightWidth - centerWidth - 2; // -2 = i due gap da 1 spazio
+  const leftWidth = width - rightWidth - centerWidth - 2;
 
   const l = left.slice(0, leftWidth).padEnd(leftWidth);
   const c = center.padStart(centerWidth);
@@ -222,7 +197,7 @@ function filterItems(items, destination) {
   return items.filter((item) => (item.print_destination || "both") === "both" || (item.print_destination === destination));
 }
 
-async function renderHeader(printer, { title, orderId, timestamp, logoPath, showLogo, subtitle = "", pickupStatus = null, showTimestamp = false }) {
+async function renderHeader(printer, { title, logoPath, showLogo, subtitle = "", pickupStatus = null }) {
   if (showLogo && logoPath) {
     const logoBuf = loadLogoBuffer(logoPath);
     if (logoBuf) {
@@ -240,20 +215,14 @@ async function renderHeader(printer, { title, orderId, timestamp, logoPath, show
   printer.align("CT").style("NORMAL").text(ASSOCIAZIONE_CF);
   printer.align("CT").text(DIVIDER_THIN);
 
-  // 1. Stampa il titolo (es. "DOCUMENTO NON FISCALE" o "*** COPIA OMAGGIO... ***")
   printer.align("CT").style("B").text(title).style("NORMAL");
-
-  // 2. Forza il separatore subito sotto il titolo, valido per la copia customer
   printer.align("CT").text(DIVIDER_THIN);
 
-  // 3. Se c'è un sottotitolo testuale (solo per copie che non hanno il banner nero)
   if (subtitle && !pickupStatus) {
     printer.align("CT").style("B").text(subtitle).style("NORMAL");
     printer.align("CT").text(DIVIDER_THIN);
   }
 
-  // 4. Stampa il rettangolo nero nativo (per Gastronomia e Bar). 
-  // Il comando nativo del banner sovrascrive lo stile e si piazza perfettamente sotto.
   printPickupBanner(printer, pickupStatus, subtitle);
 }
 
@@ -262,7 +231,7 @@ function renderItems(printer, items, layoutType = "standard", bigFont = false) {
     printer.align("LT").text(rowThreeColumns("OMAGGIO", "QTA", "CONTRIB."));
     printer.align("CT").text(DIVIDER_THIN);
 
-    const maxTextWidth = LINE_WIDTH - 8 - 4 - 2; // costante, invariante per ogni item: calcolata una sola volta
+    const maxTextWidth = LINE_WIDTH - 8 - 4 - 2;
     items.forEach((item) => {
       const qty = String(item.quantity).trim();
       const priceUnit = parseFloat(item.price || 0);
@@ -291,13 +260,12 @@ function renderItems(printer, items, layoutType = "standard", bigFont = false) {
     items.forEach((item) => {
       const qty = String(item.quantity).trim();
       if (bigFont) {
-        // Riga singola troncata con formato "Nx NOME" in grassetto grande
-        const maxW = Math.floor((LINE_WIDTH - qty.length - 2) / 2); // /2 perché size 2x
+        const maxW = Math.floor((LINE_WIDTH - qty.length - 2) / 2);
         const truncName = item.name.toUpperCase().slice(0, maxW);
         printer.align("LT").size(2, 2).style("B").text(`${qty}x ${truncName}`).size(1, 1).style("NORMAL");
         if (item.note) printer.align("LT").text(`  >> ${item.note}`);
         printer.align("CT").text(DIVIDER_THIN);
-        return; // salta il resto
+        return;
       }
       const lines = wrapText(item.name.toUpperCase(), maxTextWidth);
       lines.forEach((line, i) => {
@@ -317,12 +285,8 @@ function renderItems(printer, items, layoutType = "standard", bigFont = false) {
   printer.align("CT").text(DIVIDER_THIN);
 }
 
-// Banda nera con testo bianco, font_a, size 2x2 — per lo stato di ritiro,
-// mostrato a colpo d'occhio subito sotto il titolo. Max ~21 caratteri a
-// size 2 su 42 colonne (oltre va a capo in modo brutto).
 function printPickupBanner(printer, status, subtitle = "") {
   if (status !== "valid") return;
-  // Determina testo banner dal subtitle
   let bannerText = "VALIDO PER IL RITIRO";
   if (subtitle.toUpperCase().includes("GASTRONOMIA") || subtitle.toUpperCase().includes("CUCINA")) bannerText = "RITIRO CUCINA";
   else if (subtitle.toUpperCase().includes("BAR")) bannerText = "RITIRO BAR";
@@ -350,7 +314,6 @@ async function renderFooter(printer, { total, QRcode, showTotal = false, showQR 
       printer.align("CT").text("Mostra questo QR Code al ritiro:");
       printer.feed(1);
       printer.align("CT");
-      // Utilizzo del metodo nativo per la generazione del QR Code via hardware Epson ePOS XML
       printer.qrcode(QRcode, { model: "model2", level: "level_l", width: 3 });
       printer.feed(1);
     } else {
@@ -364,9 +327,9 @@ async function renderFooter(printer, { total, QRcode, showTotal = false, showQR 
   printer.cut();
 }
 
-export async function renderCustomerEscpos(printer, orderData, logoPath, showLogo = false, showTimestamp = false) {
+export async function renderCustomerEscpos(printer, orderData, logoPath, showLogo = false) {
   const ts = new Date(orderData.created_at);
-  await renderHeader(printer, { title: "DOCUMENTO NON FISCALE", subtitle: "COPIA BENEFICIARIO", orderId: orderData.id, timestamp: ts, logoPath, showLogo, pickupStatus: "invalid", showTimestamp });
+  await renderHeader(printer, { title: "DOCUMENTO NON FISCALE", subtitle: "COPIA BENEFICIARIO", logoPath, showLogo, pickupStatus: "invalid" });
   renderItems(printer, orderData.items, "customer");
   if (orderData.is_takeaway) {
     printer.align('CT').style('B').text('[ DA ASPORTO ]').style('NORMAL');
@@ -375,28 +338,26 @@ export async function renderCustomerEscpos(printer, orderData, logoPath, showLog
   await renderFooter(printer, { total: orderData.total, QRcode: encodeOrderId(orderData.id, ts), showTotal: true, showQR: false });
 }
 
-export async function renderAssociationEscpos(printer, orderData, logoPath, showLogo = false, showTimestamp = false) {
+export async function renderAssociationEscpos(printer, orderData, logoPath, showLogo = false) {
   const ts = new Date(orderData.created_at);
-  await renderHeader(printer, { title: "DOCUMENTO NON FISCALE", subtitle: "COPIA INTERNA ASSOCIAZIONE", orderId: orderData.id, timestamp: ts, logoPath, showLogo, showTimestamp });
+  await renderHeader(printer, { title: "DOCUMENTO NON FISCALE", subtitle: "COPIA INTERNA ASSOCIAZIONE", logoPath, showLogo });
   renderItems(printer, orderData.items, "association");
   await renderFooter(printer, { total: orderData.total, QRcode: encodeOrderId(orderData.id, ts), showTotal: true, showQR: false });
 }
 
-export async function renderKitchenEscpos(printer, orderData, logoPath, showLogo = false, showTimestamp = false) {
+export async function renderKitchenEscpos(printer, orderData, logoPath, showLogo = false) {
   const items = filterItems(orderData.items, "kitchen");
   if (!items.length) return;
-  const ts = new Date(orderData.created_at || Date.now());
-  await renderHeader(printer, { title: "=== COPIA CUCINA ===", orderId: orderData.id, timestamp: ts, logoPath, showLogo, showTimestamp });
+  await renderHeader(printer, { title: "=== COPIA CUCINA ===", logoPath, showLogo });
   renderItems(printer, items, "kitchen");
   await renderFooter(printer, {});
 }
 
-export async function renderGastronomyEscpos(printer, orderData, logoPath, showLogo = false, showTimestamp = false) {
+export async function renderGastronomyEscpos(printer, orderData, logoPath) {
   const items = filterItems(orderData.items, "kitchen");
   if (!items.length) return;
 
-  // Immagine in alto con il numero dell'ordine pulito
-  await renderTopHeaderImage(printer, orderData.id);
+  await renderTopHeaderImage(printer, orderData.display_code);
 
   const ts = new Date(orderData.created_at || Date.now());
 
@@ -407,41 +368,32 @@ export async function renderGastronomyEscpos(printer, orderData, logoPath, showL
     printer.align('CT').text(DIVIDER_THIN);
   }
 
-  // Passiamo "RITIRO CUCINA" per il banner nero nativo
   await renderHeader(printer, {
     title: "*** COPIA OMAGGIO GASTRONOMICO ***",
-    orderId: orderData.id,
-    timestamp: ts,
     logoPath,
     showLogo: false,
     subtitle: "RITIRO CUCINA",
-    pickupStatus: "valid",
-    showTimestamp
+    pickupStatus: "valid"
   });
 
   renderItems(printer, items, "gastronomy", true);
   await renderFooter(printer, { QRcode: encodeOrderId(orderData.id, ts), showQR: false });
 }
 
-export async function renderBarEscpos(printer, orderData, logoPath, showLogo = true, showTimestamp = false) {
+export async function renderBarEscpos(printer, orderData, logoPath) {
   const items = filterItems(orderData.items, "bar");
   if (!items.length) return;
 
-  // Immagine in alto con il numero dell'ordine pulito
-  await renderTopHeaderImage(printer, orderData.id);
+  await renderTopHeaderImage(printer, orderData.display_code);
 
   const ts = new Date(orderData.created_at || Date.now());
 
-  // Passiamo "RITIRO BAR" per il banner nero nativo
   await renderHeader(printer, {
     title: "*** COPIA OMAGGIO BAR ***",
-    orderId: orderData.id,
-    timestamp: ts,
     logoPath,
     showLogo: false,
     subtitle: "RITIRO BAR",
-    pickupStatus: "valid",
-    showTimestamp
+    pickupStatus: "valid"
   });
 
   renderItems(printer, items, "bar", true);
@@ -457,9 +409,6 @@ export const templatesEscpos = {
   "Ritiro Bar": renderBarEscpos
 };
 
-// Risolve un singolo "setting" di stampa in: funzione template + destinazione fisica.
-// Condivisa da printESCPosNetwork (singola copia) e printOrderBatch (più copie
-// raggruppate per stampante).
 function resolvePrintTarget(setting, hostDefault, portDefault) {
   let templateFunc;
   if (typeof setting === "function") {
@@ -513,22 +462,13 @@ export async function printESCPosNetwork(setting, orderData, eventName, logoPath
   console.log(`[STAMPA] Completata su: ${target.host}:${target.port} (devid=${target.devid})`);
 }
 
-// Stampa più copie di uno stesso ordine, raggruppandole per stampante fisica
-// (stessa host:port:devid = un solo invio HTTP con più cut() in sequenza,
-// invece di un round-trip separato per copia). Stampanti diverse partono in
-// parallelo, dato che non c'è contesa hardware tra loro.
-//
-// settingsArray: stessa forma dei "setting" già usati da printESCPosNetwork
-// (uno per copia). Il raggruppamento è automatico, quindi funziona sia con
-// una stampante sola (oggi) sia con più stampanti dedicate per reparto (domani)
-// senza dover toccare questa funzione.
 export async function printOrderBatch(settingsArray, orderData, logoPath, hostDefault = "127.0.0.1", portDefault = 443) {
   if (!tmpDirEnsured) {
     fs.mkdirSync(TMP_DIR, { recursive: true });
     tmpDirEnsured = true;
   }
 
-  const groups = new Map(); // key "host:port:devid" -> { host, port, devid, targets: [] }
+  const groups = new Map();
 
   for (const setting of settingsArray) {
     const target = resolvePrintTarget(setting, hostDefault, portDefault);

@@ -12,7 +12,13 @@ const ReprintSelectionModal = ({ onClose }) => {
     useEffect(() => {
         fetch(`${API_URL}/orders?session=active`, { credentials: 'include' })
             .then(r => r.ok ? r.json() : Promise.reject())
-            .then(data => setRecentOrders(data.slice(0, 10)))
+            .then(data => {
+                // Filtra escludendo gli ordini stornati, poi prende i primi 10
+                const activeOrders = data
+                    .filter(o => o.status !== 'canceled')
+                    .slice(0, 10);
+                setRecentOrders(activeOrders);
+            })
             .catch(() => setError('Impossibile recuperare gli ordini'))
             .finally(() => setLoading(false));
     }, []);

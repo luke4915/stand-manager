@@ -14,58 +14,64 @@ const mergeOrders = (existing, incoming) => {
 };
 
 // ─── Singolo ordine ─────────────────────────────────────────────
-const OrderCard = ({ order, onComplete }) => (
-  <div className={`rounded-xl p-4 border-l-4 transition-all ${order.status === 'completed' ? 'bg-[var(--bg-card)] border-green-500/40 opacity-40' :
-    order.status === 'canceled' ? 'bg-[var(--bg-card)] border-red-500/40 opacity-30' :
+const OrderCard = ({ order, onComplete }) => {
+  const orderCode = order.display_code || order.id;
+
+  return (
+    <div className={`rounded-xl p-4 border-l-4 transition-all ${
+      order.status === 'completed' ? 'bg-[var(--bg-card)] border-green-500/40 opacity-40' :
+      order.status === 'canceled' ? 'bg-[var(--bg-card)] border-red-500/40 opacity-30' :
       'bg-[var(--bg-card)] border-[var(--accent)] shadow-sm'
     }`}>
-    <div className="flex justify-between items-center mb-3">
-      <div className="flex items-center gap-2">
-        <span className={`font-black text-sm tracking-widest uppercase ${order.status === 'completed' || order.status === 'canceled'
-          ? 'line-through text-[var(--text-muted)]'
-          : 'text-[var(--text-main)]'
-          }`}>#{order.id}</span>
-        {order.is_takeaway && (
-          <span className="px-2 py-0.5 bg-green-500/10 border border-green-500/30 text-green-500 rounded-full text-[9px] font-black uppercase">Asporto</span>
-        )}
-        {order.status === 'canceled' && (
-          <span className="px-2 py-0.5 bg-red-500/10 border border-red-500/30 text-red-500 rounded-full text-[9px] font-black uppercase">Stornato</span>
-        )}
-        {order.status === 'completed' && (
-          <span className="px-2 py-0.5 bg-green-500/10 border border-green-500/30 text-green-500 rounded-full text-[9px] font-black uppercase">Completato</span>
-        )}
-      </div>
-      <span className="text-[10px] font-bold text-[var(--text-muted)] tabular-nums">
-        {order.created_at
-          ? new Date(order.created_at).toLocaleTimeString('it-IT', { hour: '2-digit', minute: '2-digit' })
-          : ''}
-      </span>
-    </div>
-
-    <ul className="space-y-1.5 mb-3">
-      {order.items?.map((item, idx) => (
-        <li key={idx}>
-          <div className="flex items-baseline gap-2">
-            <span className="text-[var(--accent)] font-black text-sm">×{item.quantity}</span>
-            <span className="font-bold text-sm text-[var(--text-main)] uppercase">{item.name}</span>
-          </div>
-          {item.note && (
-            <div className="ml-6 mt-0.5 px-2 py-0.5 bg-yellow-500/10 border-l-2 border-yellow-400 text-xs text-yellow-500 font-black uppercase">
-              {item.note}
-            </div>
+      <div className="flex justify-between items-center mb-3">
+        <div className="flex items-center gap-2">
+          <span className={`font-black text-sm tracking-widest uppercase ${
+            order.status === 'completed' || order.status === 'canceled'
+              ? 'line-through text-[var(--text-muted)]'
+              : 'text-[var(--text-main)]'
+          }`}>#{orderCode}</span>
+          {order.is_takeaway && (
+            <span className="px-2 py-0.5 bg-green-500/10 border border-green-500/30 text-green-500 rounded-full text-[9px] font-black uppercase">Asporto</span>
           )}
-        </li>
-      ))}
-    </ul>
+          {order.status === 'canceled' && (
+            <span className="px-2 py-0.5 bg-red-500/10 border border-red-500/30 text-red-500 rounded-full text-[9px] font-black uppercase">Stornato</span>
+          )}
+          {order.status === 'completed' && (
+            <span className="px-2 py-0.5 bg-green-500/10 border border-green-500/30 text-green-500 rounded-full text-[9px] font-black uppercase">Completato</span>
+          )}
+        </div>
+        <span className="text-[10px] font-bold text-[var(--text-muted)] tabular-nums">
+          {order.created_at
+            ? new Date(order.created_at).toLocaleTimeString('it-IT', { hour: '2-digit', minute: '2-digit' })
+            : ''}
+        </span>
+      </div>
 
-    {order.status !== 'completed' && order.status !== 'canceled' && (
-      <button onClick={() => onComplete(order.id)}
-        className="w-full flex items-center justify-center gap-2 py-2.5 bg-[var(--accent)] hover:bg-[var(--accent-hover)] text-white rounded-xl font-black text-xs uppercase tracking-widest transition-all active:scale-[0.99]">
-        <Check size={14} /> PRONTO
-      </button>
-    )}
-  </div>
-);
+      <ul className="space-y-1.5 mb-3">
+        {order.items?.map((item, idx) => (
+          <li key={idx}>
+            <div className="flex items-baseline gap-2">
+              <span className="text-[var(--accent)] font-black text-sm">×{item.quantity}</span>
+              <span className="font-bold text-sm text-[var(--text-main)] uppercase">{item.name}</span>
+            </div>
+            {item.note && (
+              <div className="ml-6 mt-0.5 px-2 py-0.5 bg-yellow-500/10 border-l-2 border-yellow-400 text-xs text-yellow-500 font-black uppercase">
+                {item.note}
+              </div>
+            )}
+          </li>
+        ))}
+      </ul>
+
+      {order.status !== 'completed' && order.status !== 'canceled' && (
+        <button onClick={() => onComplete(order)}
+          className="w-full flex items-center justify-center gap-2 py-2.5 bg-[var(--accent)] hover:bg-[var(--accent-hover)] text-white rounded-xl font-black text-xs uppercase tracking-widest transition-all active:scale-[0.99]">
+          <Check size={14} /> PRONTO
+        </button>
+      )}
+    </div>
+  );
+};
 
 // ─── Componente principale ──────────────────────────────────────
 const OrdersKitchen = () => {
@@ -96,8 +102,16 @@ const OrdersKitchen = () => {
   useEffect(() => {
     if (loading || !user) return;
 
+    let isMounted = true;
+
     const connectWS = () => {
+      if (wsRef.current) {
+        wsRef.current.onclose = null;
+        wsRef.current.close();
+      }
+
       wsRef.current = new WebSocket(WS_URL);
+
       wsRef.current.onmessage = (event) => {
         try {
           const msg = JSON.parse(event.data);
@@ -107,32 +121,53 @@ const OrdersKitchen = () => {
           } else if (msg.type === 'order_updated') {
             setOrders(prev => prev.map(o => o.id === msg.order.id ? msg.order : o));
           }
-        } catch (err) { console.error('WS parse error:', err); }
+        } catch (err) {
+          console.error('WS parse error:', err);
+        }
       };
-      wsRef.current.onclose = () => { reconnectTimer.current = setTimeout(connectWS, 3000); };
-      wsRef.current.onerror = () => wsRef.current?.close();
+
+      wsRef.current.onclose = () => {
+        if (isMounted) {
+          reconnectTimer.current = setTimeout(connectWS, 5000);
+        }
+      };
+
+      wsRef.current.onerror = (err) => {
+        console.warn('WebSocket error encountered:', err);
+      };
     };
 
     connectWS();
     loadOrders();
 
     return () => {
+      isMounted = false;
       clearTimeout(reconnectTimer.current);
-      wsRef.current?.close();
+      if (wsRef.current) {
+        wsRef.current.onclose = null;
+        wsRef.current.close();
+      }
     };
   }, [user, loading, loadOrders]);
 
-  const markAsCompleted = async (orderId) => {
+  const markAsCompleted = async (targetOrderOrId) => {
+    const targetId = typeof targetOrderOrId === 'object' ? targetOrderOrId.id : targetOrderOrId;
+    const orderObj = typeof targetOrderOrId === 'object' 
+      ? targetOrderOrId 
+      : orders.find(o => o.id === targetId);
+
+    const displayCode = orderObj?.display_code || targetId;
+
     try {
-      const res = await fetch(`${API_URL}/orders/${orderId}`, {
+      const res = await fetch(`${API_URL}/orders/${targetId}`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         credentials: 'include',
         body: JSON.stringify({ status: 'completed' }),
       });
       if (!res.ok) throw new Error();
-      setOrders(prev => prev.map(o => o.id === orderId ? { ...o, status: 'completed' } : o));
-      showToast(`Ordine #${orderId} completato!`, 'success');
+      setOrders(prev => prev.map(o => o.id === targetId ? { ...o, status: 'completed' } : o));
+      showToast(`Ordine #${displayCode} completato!`, 'success');
     } catch {
       showToast('Errore aggiornamento ordine', 'error');
     }
@@ -188,8 +223,9 @@ const OrdersKitchen = () => {
           </p>
         </div>
         <button onClick={scanning ? stopScanner : startScanner}
-          className={`flex items-center gap-2 px-4 py-2.5 rounded-xl font-black text-xs uppercase tracking-widest text-white transition-all ${scanning ? 'bg-red-500' : 'bg-[var(--accent)] hover:bg-[var(--accent-hover)]'
-            }`}>
+          className={`flex items-center gap-2 px-4 py-2.5 rounded-xl font-black text-xs uppercase tracking-widest text-white transition-all ${
+            scanning ? 'bg-red-500' : 'bg-[var(--accent)] hover:bg-[var(--accent-hover)]'
+          }`}>
           <Camera size={16} /> {scanning ? 'Ferma' : 'Scansiona QR'}
         </button>
       </div>

@@ -1,6 +1,5 @@
 import { useEffect, useState, useRef, useMemo } from 'react';
 import { ChefHat, Wifi, WifiOff } from 'lucide-react';
-
 import { API_URL, WS_URL } from '../config/api';
 
 const mergeOrders = (existing, incoming) => {
@@ -47,11 +46,12 @@ const CumulativeQueue = ({ orders }) => {
 const OrderCard = ({ order }) => {
     const age = Math.floor((Date.now() - new Date(order.created_at)) / 60000);
     const urgent = age >= 10;
+    const orderCode = order.display_code || order.id;
 
     return (
         <div className={`rounded-2xl p-4 border transition-all ${urgent ? 'bg-red-500/10 border-red-500/40' : 'bg-white/5 border-white/10'}`}>
             <div className="flex justify-between items-center mb-3">
-                <span className="font-black text-xl text-white">#{order.id}</span>
+                <span className="font-black text-xl text-white">#{orderCode}</span>
                 {order.is_takeaway && (
                     <span className="px-2 py-0.5 bg-green-500/10 border border-green-500/30 text-green-500 rounded-full text-[9px] font-black uppercase">Asporto</span>
                 )}
@@ -135,7 +135,9 @@ export default function KDS() {
         };
     }, []);
 
-    const pending = orders.filter(o => o.status === 'pending' || o.status === 'preparing');
+    const pending = useMemo(() => {
+        return orders.filter(o => o.status === 'pending' || o.status === 'preparing');
+    }, [orders]);
 
     return (
         <div className="min-h-screen bg-[var(--bg-main)] text-white flex flex-col">
