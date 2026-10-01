@@ -23,8 +23,10 @@ import KDS from './pages/KDSPage';
 import Login from './pages/LoginPage';
 import MenuPage from './pages/MenuPage';
 import MasterPage from './pages/MasterPage';
+import DexieTestPage from './pages/DexieTestPage';
 import { getDiscountedTotal } from './utils/pricing';
 import CashCountModal from './components/shared/CashCountModal';
+import { enqueueOrder } from './offline/syncQueue';
 
 import { API_URL, WS_URL } from './config/api';
 // Ruoli abilitati ad applicare sconti/omaggi (specchio di DISCOUNT_ROLES nel backend)
@@ -235,27 +237,50 @@ const App = () => {
   const sendOrder = async (isTakeaway = false) => {
     if (!sessionActive) return showToast('Nessuna sessione attiva!', 'error');
     if (cart.length === 0) return showToast('Carrello vuoto!', 'error');
+
+    const payload = {
+      items: cart.map(i => ({
+        id: i.id, name: i.name, quantity: i.quantity, price: i.price, note: i.note || '',
+        print_destination: i.print_destination || 'both',
+        type: i.type || 'sale',
+        discountMode: i.discountMode || null,
+        discountValue: i.discountValue ?? null,
+      })),
+      status: orderMode === 'simple' ? 'completed' : 'pending',
+      is_takeaway: isTakeaway,
+    };
+
+    if (!navigator.onLine) {
+      await enqueueOrder(payload);
+      playSagraSound('order_confirm_sound');
+      clearCart();
+      showToast('Sei offline: ordine salvato, verrà inviato al ritorno della connessione', 'warning');
+      if (isMobile) setIsMobileCartOpen(false);
+      return;
+    }
+
     try {
       const res = await fetch(`${API_URL}/orders`, {
         method: 'POST', headers: { 'Content-Type': 'application/json' }, credentials: 'include',
-        body: JSON.stringify({
-          items: cart.map(i => ({
-            id: i.id, name: i.name, quantity: i.quantity, price: i.price, note: i.note || '',
-            print_destination: i.print_destination || 'both',
-            type: i.type || 'sale',
-            discountMode: i.discountMode || null,
-            discountValue: i.discountValue ?? null,
-          })),
-          status: orderMode === 'simple' ? 'completed' : 'pending',
-          is_takeaway: isTakeaway,
-        })
+        body: JSON.stringify(payload)
       });
       if (!res.ok) { const d = await res.json().catch(() => ({})); throw new Error(d.error || 'Errore server'); }
       playSagraSound('order_confirm_sound');
       clearCart();
       showToast('Ordine inviato!', 'success');
       if (isMobile) setIsMobileCartOpen(false);
-    } catch (err) { showToast(`Errore: ${err.message}`, 'error'); }
+    } catch (err) {
+      // fetch fallita per motivi di rete (non un errore applicativo del server) -> coda offline
+      if (err instanceof TypeError) {
+        await enqueueOrder(payload);
+        playSagraSound('order_confirm_sound');
+        clearCart();
+        showToast('Connessione assente: ordine salvato, verrà inviato al ritorno della connessione', 'warning');
+        if (isMobile) setIsMobileCartOpen(false);
+        return;
+      }
+      showToast(`Errore: ${err.message}`, 'error');
+    }
   };
 
   const handleSessionToggleClick = (targetState) => {
@@ -318,6 +343,7 @@ const App = () => {
   if (needsPasswordChange) return <ChangePassword user={user} onPasswordChanged={() => setNeedsPasswordChange(false)} />;
   if (window.location.pathname === '/menu') return <MenuPage />;
   if (window.location.pathname === '/master') return <MasterPage />;
+  if (window.location.pathname === '/dexie-test') return <DexieTestPage />;
 
   const canDiscount = DISCOUNT_ROLES.includes(user?.role);
 

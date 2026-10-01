@@ -1,0 +1,8 @@
+{
+  "devDependencies": {
+    "vite-plugin-pwa": "^1.3.0"
+  },
+  "dependencies": {
+    "dexie": "^4.4.6"
+  }
+}
