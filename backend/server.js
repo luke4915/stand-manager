@@ -118,7 +118,7 @@ app.use('/api/settings', settingsRoutes);
 app.use('/api/master', masterRoutes);
 
 // Serve frontend build in produzione
-const distPath = path.join(__dirname, '..', 'sagra-manager', 'dist');
+const distPath = path.join(__dirname, '..', 'frontend', 'dist');
 if (process.env.NODE_ENV === 'production') {
   app.use(express.static(distPath));
   app.use((req, res, next) => {
