@@ -65,7 +65,7 @@ export default function (broadcast) {
       );
 
       // 🔴 AGGIUNTA: Logghiamo l'apertura della sessione
-      await logAudit(req.user.id, 'START_SESSION', {
+      await logAudit(req.db, req.user.id, 'START_SESSION', {
         sessionId: rows[0].id,
         sessionName: rows[0].name
       });
@@ -111,7 +111,7 @@ export default function (broadcast) {
         [expectedCash, declared, active.id]
       );
 
-      await logAudit(req.user.id, 'END_SESSION', {
+      await logAudit(req.db, req.user.id, 'END_SESSION', {
         sessionId: rows[0].id,
         sessionName: rows[0].name,
         expectedCash,

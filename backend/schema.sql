@@ -67,8 +67,11 @@ CREATE TABLE public.audit_logs (
     user_id integer,
     action text NOT NULL,
     details jsonb,
-    created_at timestamp with time zone DEFAULT now()
+    created_at timestamp with time zone DEFAULT now(),
+    tenant_id integer DEFAULT (NULLIF(current_setting('app.tenant_id'::text, true), ''::text))::integer NOT NULL
 );
+
+ALTER TABLE ONLY public.audit_logs FORCE ROW LEVEL SECURITY;
 
 
 ALTER TABLE public.audit_logs OWNER TO colettas;
@@ -548,15 +551,7 @@ ALTER TABLE ONLY public.sessions
 --
 
 ALTER TABLE ONLY public.settings
-    ADD CONSTRAINT settings_pkey PRIMARY KEY (key);
-
-
---
--- Name: settings settings_tenant_key_unique; Type: CONSTRAINT; Schema: public; Owner: colettas
---
-
-ALTER TABLE ONLY public.settings
-    ADD CONSTRAINT settings_tenant_key_unique UNIQUE (tenant_id, key);
+    ADD CONSTRAINT settings_pkey PRIMARY KEY (tenant_id, key);
 
 
 --
@@ -606,6 +601,13 @@ CREATE INDEX idx_audit_logs_created_at ON public.audit_logs USING btree (created
 
 
 --
+-- Name: idx_audit_logs_tenant; Type: INDEX; Schema: public; Owner: colettas
+--
+
+CREATE INDEX idx_audit_logs_tenant ON public.audit_logs USING btree (tenant_id);
+
+
+--
 -- Name: idx_copy_types_tenant; Type: INDEX; Schema: public; Owner: colettas
 --
 
@@ -641,17 +643,18 @@ CREATE INDEX idx_sessions_tenant ON public.sessions USING btree (tenant_id);
 
 
 --
--- Name: idx_settings_tenant; Type: INDEX; Schema: public; Owner: colettas
---
-
-CREATE INDEX idx_settings_tenant ON public.settings USING btree (tenant_id);
-
-
---
 -- Name: idx_users_tenant; Type: INDEX; Schema: public; Owner: colettas
 --
 
 CREATE INDEX idx_users_tenant ON public.users USING btree (tenant_id);
+
+
+--
+-- Name: audit_logs audit_logs_tenant_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: colettas
+--
+
+ALTER TABLE ONLY public.audit_logs
+    ADD CONSTRAINT audit_logs_tenant_id_fkey FOREIGN KEY (tenant_id) REFERENCES public.tenants(id);
 
 
 --
@@ -727,6 +730,12 @@ ALTER TABLE ONLY public.users
 
 
 --
+-- Name: audit_logs; Type: ROW SECURITY; Schema: public; Owner: colettas
+--
+
+ALTER TABLE public.audit_logs ENABLE ROW LEVEL SECURITY;
+
+--
 -- Name: copy_types; Type: ROW SECURITY; Schema: public; Owner: colettas
 --
 
@@ -761,6 +770,13 @@ ALTER TABLE public.sessions ENABLE ROW LEVEL SECURITY;
 --
 
 ALTER TABLE public.settings ENABLE ROW LEVEL SECURITY;
+
+--
+-- Name: audit_logs tenant_isolation; Type: POLICY; Schema: public; Owner: colettas
+--
+
+CREATE POLICY tenant_isolation ON public.audit_logs USING ((tenant_id = (NULLIF(current_setting('app.tenant_id'::text, true), ''::text))::integer));
+
 
 --
 -- Name: copy_types tenant_isolation; Type: POLICY; Schema: public; Owner: colettas

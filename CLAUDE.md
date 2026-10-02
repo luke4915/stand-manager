@@ -62,7 +62,7 @@ L'isolamento tra tenant si basa sulla Row-Level Security di PostgreSQL con la va
 - Se cambi la logica di prezzo, aggiorna **entrambi** i file `pricing.js` (backend e frontend) nello stesso commit.
 - **Ogni payload in ingresso si valida con zod** in `backend/schemas/`. Le route più vecchie validano a mano: quando le tocchi, migrale a zod.
 - Le operazioni con più scritture (ordine + stock, storno + ripristino stock) vanno in transazione `BEGIN/COMMIT/ROLLBACK` sulla stessa connessione.
-- Le azioni sensibili (creazione ordine, storno, ristampa, modifiche admin) si registrano con `logAudit`.
+- Le azioni sensibili (creazione ordine, storno, ristampa, modifiche admin) si registrano con `logAudit(req.db, req.user.id, 'AZIONE', dettagli)`: usa la connessione del tenant, quindi i log sono isolati dalla RLS. Chiamala fuori da transazioni aperte.
 - Sessione: il token JWT dura 8 ore. `/auth/refresh` lo rinnova solo se è scaduto da meno di 24 ore e se il login (`loginAt` nel token) risale a meno di 7 giorni; oltre serve un nuovo login (`SESSION_EXPIRED`). Il refresh verifica anche tenant attivo e licenza.
 - Impostazioni per tenant (`settings`): le chiavi ammesse sono in `schemas/settingsSchema.js`. Solo quelle in `PUBLIC_SETTINGS_KEYS` escono dall'endpoint pubblico `GET /settings`.
 - Ruoli esistenti: `admin`, `responsabile`, `cassa`, `cucina`. Le autorizzazioni si controllano lato server, non solo nascondendo la UI.
@@ -95,7 +95,7 @@ L'isolamento tra tenant si basa sulla Row-Level Security di PostgreSQL con la va
 
 ## 6. Database e migrazioni
 
-- Ogni modifica di schema è una nuova migrazione `backend/migrations/NNN_descrizione.sql`, numerata dopo l'ultima esistente (oggi 013; il numero 012 è saltato, non riusarlo).
+- Ogni modifica di schema è una nuova migrazione `backend/migrations/NNN_descrizione.sql`, numerata dopo l'ultima esistente (oggi 014; il numero 012 è saltato, non riusarlo).
 - **Non modificare mai una migrazione già applicata.** Per correggerla, scrivine una nuova.
 - Le migrazioni devono essere idempotenti dove possibile (`IF NOT EXISTS`, `DROP POLICY IF EXISTS`). `run.js` le esegue in transazione.
 - `MIGRATION_DATABASE_URL` serve a eseguire le DDL con un utente privilegiato. L'app gira con l'utente applicativo, soggetto a RLS.
@@ -140,20 +140,15 @@ L'isolamento tra tenant si basa sulla Row-Level Security di PostgreSQL con la va
 
 Elenco verificato sul codice, ordinato per gravità. Quando ne risolvi una, toglila da qui nello stesso commit.
 
-**Critiche (isolamento tenant e sicurezza)**
-- `audit_logs` non ha `tenant_id` e `logAudit` usa `pool.query`: i log non sono isolati per tenant. L'eliminazione di un tenant dal master panel non li cancella.
-
 **Correttezza dei dati**
 - `orders.js` `getNextDisplayCode`: conta con `COUNT(*)` senza lock, quindi due ordini concorrenti possono ricevere lo stesso `display_code`.
 - `orders.js` POST: lo stock è verificato fuori dalla transazione e senza `SELECT … FOR UPDATE`, quindi si può vendere oltre la disponibilità.
 - `orders.js` PUT: `status` non è validato e lo storno con ripristino dello stock non è in transazione.
 - Gli ordini non hanno `session_id`: l'appartenenza a una sessione si deduce da `created_at`, sia nei report che nella cassa che nei codici.
-- `settings` ha ancora la PRIMARY KEY solo su `key`: la migrazione 007 ha tolto i vincoli UNIQUE ma non la chiave primaria. Due tenant non possono avere la stessa chiave, per esempio `welcome_message`.
 
 **Validazione e coerenza API**
 - Solo il POST `/orders` usa zod (`schemas/orderSchema.js`). Le altre route validano a mano o non validano: per esempio `PATCH /products/:id/stock` accetta qualsiasi ruolo e qualsiasi valore.
 - `auth.js` `/change-password` risponde con `{ message }` invece di `{ error }`.
-- `master.js`: l'eliminazione di un tenant non è in transazione.
 - `orders.js`: `logoPath` punta a `assets/logo_5calzoni.png`, che non esiste ed è un logo specifico di un cliente. Il logo dovrebbe venire dalle impostazioni del tenant.
 
 **Codice legacy e dipendenze**

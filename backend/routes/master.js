@@ -129,7 +129,9 @@ router.patch('/tenants/:id/active', authenticateMaster, async (req, res) => {
 
 // ELIMINA — irreversibile, cancella anche tutti i dati del tenant.
 // Richiede conferma esplicita (slug ripetuto) lato client prima di chiamarla.
-const TENANT_SCOPED_TABLES = ['orders', 'products', 'sessions', 'copy_types', 'print_settings', 'settings', 'users'];
+// Tutto in un'unica transazione sulla connessione scoped al tenant: o sparisce
+// tutto o non sparisce niente. L'ordine rispetta le foreign key (audit_logs → users).
+const TENANT_SCOPED_TABLES = ['audit_logs', 'orders', 'products', 'sessions', 'print_settings', 'copy_types', 'settings', 'users'];
 router.delete('/tenants/:id', authenticateMaster, async (req, res) => {
   const { id } = req.params;
   try {
@@ -139,11 +141,18 @@ router.delete('/tenants/:id', authenticateMaster, async (req, res) => {
       return res.status(400).json({ error: 'Conferma slug non corrispondente' });
 
     await withTenantClient(id, async (db) => {
-      for (const tbl of TENANT_SCOPED_TABLES) {
-        await db.query(`DELETE FROM ${tbl} WHERE tenant_id = $1`, [id]);
+      try {
+        await db.query('BEGIN');
+        for (const tbl of TENANT_SCOPED_TABLES) {
+          await db.query(`DELETE FROM ${tbl} WHERE tenant_id = $1`, [id]);
+        }
+        await db.query('DELETE FROM tenants WHERE id = $1', [id]);
+        await db.query('COMMIT');
+      } catch (err) {
+        await db.query('ROLLBACK');
+        throw err;
       }
     });
-    await pool.query('DELETE FROM tenants WHERE id = $1', [id]);
     res.json({ ok: true });
   } catch (err) {
     logger.error({ err }, 'Errore eliminazione tenant');

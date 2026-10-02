@@ -38,7 +38,7 @@ router.put('/:key', authenticate, authorizeAdmin, tenantScope, async (req, res) 
             'INSERT INTO settings (key, value) VALUES ($1, $2) ON CONFLICT (tenant_id, key) DO UPDATE SET value = $2',
             [key.data, value]
         );
-        await logAudit(req.user.id, 'UPDATE_SETTING', { key: key.data });
+        await logAudit(req.db, req.user.id, 'UPDATE_SETTING', { key: key.data });
         res.json({ key: key.data, value });
     } catch (err) {
         logger.error({ err }, 'Errore PUT /api/settings/:key');

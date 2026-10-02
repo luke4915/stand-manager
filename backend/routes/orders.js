@@ -244,7 +244,7 @@ export default function (broadcast) {
 
       await client.query('COMMIT');
 
-      await logAudit(req.user.id, 'CREATE_ORDER', {
+      await logAudit(req.db, req.user.id, 'CREATE_ORDER', {
         orderId,
         total: verifiedTotal,
         itemCount: verifiedItems.length
@@ -342,7 +342,7 @@ export default function (broadcast) {
         }
       }
 
-      await logAudit(req.user.id, 'UPDATE_ORDER_STATUS', {
+      await logAudit(req.db, req.user.id, 'UPDATE_ORDER_STATUS', {
         orderId: id,
         oldStatus: current[0].status,
         newStatus: status
@@ -363,7 +363,7 @@ export default function (broadcast) {
       if (!rows.length) return res.status(404).json({ error: 'Ordine non trovato' });
       const order = rows[0];
 
-      await logAudit(req.user.id, 'REPRINT_ORDER', { orderId: req.params.id });
+      await logAudit(req.db, req.user.id, 'REPRINT_ORDER', { orderId: req.params.id });
 
       const { rows: sessionRows } = await req.db.query(
         'SELECT name FROM sessions WHERE end_time IS NULL ORDER BY start_time DESC LIMIT 1'
