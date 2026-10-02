@@ -28,13 +28,13 @@ import { getDiscountedTotal } from './utils/pricing';
 import CashCountModal from './components/shared/CashCountModal';
 import { enqueueOrder } from './offline/syncQueue';
 
-import { API_URL, WS_URL } from './config/api';
+import { API_URL, WS_URL, WS_CLOSE_UNAUTHORIZED } from './config/api';
 // Ruoli abilitati ad applicare sconti/omaggi (specchio di DISCOUNT_ROLES nel backend)
 const DISCOUNT_ROLES = ['admin', 'responsabile'];
 
 
 const App = () => {
-  const { user, loading, login, logout } = useAuth();
+  const { user, loading, login, logout, refreshSession } = useAuth();
   const { showToast } = useToast();
   const navigate = useNavigate();
   const isMobile = useIsMobile(); // breakpoint 1280px
@@ -160,14 +160,23 @@ const App = () => {
         }
       } catch (err) { console.error('WS Parsing Error', err); }
     };
-    ws.current.onclose = () => { setWsConnected(false); wsReconnectTimer.current = setTimeout(() => connectWS.current?.(), 3000); };
+    ws.current.onclose = async (event) => {
+      setWsConnected(false);
+      // Token scaduto o non valido: rinnoviamo il cookie prima di riprovare.
+      if (event.code === WS_CLOSE_UNAUTHORIZED && !(await refreshSession())) return;
+      wsReconnectTimer.current = setTimeout(() => connectWS.current?.(), 3000);
+    };
     ws.current.onerror = () => ws.current?.close();
   };
 
   useEffect(() => {
     if (loading || !user) return;
     connectWS.current();
-    return () => { clearTimeout(wsReconnectTimer.current); ws.current?.close(); };
+    return () => {
+      clearTimeout(wsReconnectTimer.current);
+      if (ws.current) ws.current.onclose = null; // chiusura voluta: niente riconnessione
+      ws.current?.close();
+    };
   }, [user, loading]);
 
   // Il totale mostrato/usato per il resto è sempre quello REALE da incassare

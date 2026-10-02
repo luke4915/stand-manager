@@ -77,7 +77,7 @@ export default function (broadcast) {
          WHERE stock_enabled = true AND stock = 0`
       );
 
-      if (broadcast) broadcast({ type: 'session_started', session: rows[0] });
+      if (broadcast) broadcast(req.user.tenantId, { type: 'session_started', session: rows[0] });
       res.json(rows[0]);
     } catch (err) {
       logger.error({ err }, 'db error');
@@ -119,7 +119,7 @@ export default function (broadcast) {
         difference: declared !== null ? +(declared - expectedCash).toFixed(2) : null
       });
 
-      if (broadcast) broadcast({ type: 'session_ended', session: rows[0] });
+      if (broadcast) broadcast(req.user.tenantId, { type: 'session_ended', session: rows[0] });
       res.json(rows[0]);
     } catch (err) {
       logger.error({ err }, 'db error');

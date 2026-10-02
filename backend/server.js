@@ -2,7 +2,6 @@ import express from 'express';
 import cors from 'cors';
 // 🔴 MODIFICA: Importiamo 'createServer' da 'https' nativo anziché 'http'
 import { createServer } from 'https';
-import { WebSocketServer } from 'ws';
 import dotenv from 'dotenv';
 import cookieParser from 'cookie-parser';
 import { fileURLToPath } from 'url';
@@ -25,6 +24,8 @@ import { loginLimiter, apiLimiter, ordersLimiter } from './middleware/rateLimite
 import logger from './logger.js';
 import { pool } from './db.js';
 import masterRoutes from './routes/master.js';
+import { attachWebSocket } from './ws.js';
+import { isAllowedOrigin } from './utils/origins.js';
 
 // escpos.USB = escposUsb;
 dotenv.config();
@@ -55,10 +56,7 @@ app.use(cookieParser());
 app.use(cors({
   origin: (origin, cb) => {
     if (!origin) return cb(null, true);
-    const ok = origin.includes('localhost') ||
-      origin.includes('127.0.0.1') ||
-      origin.includes('192.168.') ||
-      origin.includes('.standmanager.local')
+    const ok = isAllowedOrigin(origin);
     cb(ok ? null : new Error('CORS non consentito'), ok);
   },
   credentials: true,
@@ -92,19 +90,8 @@ try {
 // 🔴 MODIFICA: Passiamo le opzioni SSL al server HTTPS
 const server = createServer(httpsOptions, app);
 
-// Il server WebSocket eredita automaticamente lo strato SSL diventando a tutti gli effetti WSS://
-const wss = new WebSocketServer({ server });
-
-wss.on('connection', (ws) => {
-  logger.info('WS client connesso in modalità sicura (WSS)');
-  ws.send(JSON.stringify({ type: 'connected' }));
-  ws.on('error', (err) => logger.error({ err }, 'WS client error'));
-});
-
-function broadcast(msg) {
-  const payload = JSON.stringify(msg);
-  wss.clients.forEach(client => { if (client.readyState === 1) client.send(payload); });
-}
+// WebSocket sullo stesso server HTTPS (quindi WSS), isolato per tenant: vedi ws.js
+const { broadcast, close: closeWebSocket } = attachWebSocket(server);
 
 app.use('/api/auth', authRoutes);
 app.use('/api/profile', profileRoutes);
@@ -137,6 +124,7 @@ app.use((err, _req, res, _next) => {
 
 process.on('SIGTERM', () => {
   logger.info('SIGTERM ricevuto, chiusura server...');
+  closeWebSocket();
   server.close(() => {
     pool.end(() => process.exit(0));
   });

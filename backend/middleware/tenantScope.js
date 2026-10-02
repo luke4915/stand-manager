@@ -1,6 +1,21 @@
 import { pool } from '../db.js';
 import logger from '../logger.js';
 
+// Verifica che il tenant sia attivo e con licenza valida. Ritorna null se
+// l'accesso è consentito, altrimenti { status, error, code } da restituire.
+// Query leggera su `tenants` (non RLS-protetta, non serve app.tenant_id).
+export async function checkTenantAccess(tenantId) {
+  const { rows } = await pool.query('SELECT expires_at, active FROM tenants WHERE id = $1', [tenantId]);
+  const tenant = rows[0];
+  if (!tenant?.active) {
+    return { status: 403, error: 'Tenant disattivato', code: 'TENANT_INACTIVE' };
+  }
+  if (tenant.expires_at && new Date(tenant.expires_at) < new Date()) {
+    return { status: 402, error: 'Licenza scaduta', code: 'LICENSE_EXPIRED' };
+  }
+  return null;
+}
+
 // Va usato SEMPRE dopo `authenticate` (serve req.user.tenantId).
 // Acquisisce una connessione dedicata dal pool (non condivisa con altre
 // richieste finché non viene rilasciata) e vi imposta app.tenant_id a
@@ -18,16 +33,9 @@ export async function tenantScope(req, res, next) {
   }
 
   // Licenza scaduta: blocca qui, prima di aprire la connessione scoped.
-  // Query leggera su `tenants` (non RLS-protetta, non serve app.tenant_id).
   try {
-    const { rows } = await pool.query('SELECT expires_at, active FROM tenants WHERE id = $1', [req.user.tenantId]);
-    const tenant = rows[0];
-    if (!tenant?.active) {
-      return res.status(403).json({ error: 'Tenant disattivato', code: 'TENANT_INACTIVE' });
-    }
-    if (tenant.expires_at && new Date(tenant.expires_at) < new Date()) {
-      return res.status(402).json({ error: 'Licenza scaduta', code: 'LICENSE_EXPIRED' });
-    }
+    const denied = await checkTenantAccess(req.user.tenantId);
+    if (denied) return res.status(denied.status).json({ error: denied.error, code: denied.code });
   } catch (err) {
     logger.error({ err }, 'Errore verifica scadenza licenza');
     return res.status(500).json({ error: 'Errore interno' });

@@ -14,7 +14,8 @@ Lingua: **UI, messaggi di errore, log e commenti in italiano.** Nomi di variabil
 
 ```
 backend/            Node.js (ESM) + Express 5 + pg + ws (WSS) + pino + zod
-  server.js         entrypoint: helmet, CORS, rate limit, HTTPS+WSS, mount delle route
+  server.js         entrypoint: helmet, CORS, rate limit, HTTPS, mount delle route
+  ws.js             WebSocket (WSS) isolato per tenant: handshake autenticato, broadcast(tenantId, msg)
   db.js             Pool PostgreSQL condiviso
   middleware/       authenticate, tenantScope, resolveTenantFromHost, rateLimiter, authenticateMaster
   routes/           una route per dominio (orders, products, sessions, printSettings, master, …)
@@ -87,7 +88,8 @@ L'isolamento tra tenant si basa sulla Row-Level Security di PostgreSQL con la va
 - Errori: `{ error: 'messaggio in italiano' }`, più `code` in MAIUSCOLO quando il frontend deve distinguerli (`TOKEN_EXPIRED`, `LICENSE_EXPIRED`, `TENANT_INACTIVE`). Status coerenti: 400 validazione, 401 non autenticato, 403 non autorizzato, 404, 409 conflitto, 402 licenza.
 - Log solo con `logger` (pino), mai `console.log` nel codice applicativo. Passa l'errore come `{ err }`.
 - Query sempre parametrizzate (`$1, $2`). Niente concatenazione di input utente in SQL.
-- Eventi WebSocket: `{ type: 'snake_case_evento', … }` (es. `order_updated`, `product_stock_updated`). Un nuovo evento va gestito anche in `App.jsx` e/o nel KDS.
+- Eventi WebSocket: `{ type: 'snake_case_evento', … }` (es. `order_updated`, `product_stock_updated`), inviati con `broadcast(req.user.tenantId, msg)`. Il tenant è obbligatorio: senza, l'evento viene scartato. Un nuovo evento va gestito anche in `App.jsx` e/o nel KDS.
+- Il KDS pubblico (`?kds=public`) riceve solo gli eventi elencati in `PUBLIC_EVENTS` di `ws.js`, ridotti con `toPublicOrder()`. Un evento nuovo per il KDS pubblico va aggiunto lì, senza prezzi, totali o dati utente.
 
 ## 6. Database e migrazioni
 
@@ -137,8 +139,7 @@ L'isolamento tra tenant si basa sulla Row-Level Security di PostgreSQL con la va
 Elenco verificato sul codice, ordinato per gravità. Quando ne risolvi una, toglila da qui nello stesso commit.
 
 **Critiche (isolamento tenant e sicurezza)**
-- `server.js`: il WebSocket non richiede autenticazione e `broadcast()` invia a **tutti** i client connessi. Ordini, stock e sessioni di un tenant arrivano agli altri tenant e a chiunque si colleghi.
-- Endpoint pubblici che violano §3.4: `/orders/kds` fa `SELECT *` sugli ordini (espone `created_by`, totali, ecc.) e `/settings` restituisce tutte le chiavi delle impostazioni.
+- Endpoint pubblico che viola §3.4: `/settings` restituisce tutte le chiavi delle impostazioni. In `products.js` e `settings.js` restano commenti TODO superati sullo stop-gap del tenant "default".
 - `auth.js` `/refresh`: verifica il token con `ignoreExpiration` senza limite di tempo, quindi un token scaduto da qualsiasi tempo si può rinnovare. Non controlla nemmeno se il tenant è attivo o se la licenza è scaduta.
 - `audit_logs` non ha `tenant_id` e `logAudit` usa `pool.query`: i log non sono isolati per tenant. L'eliminazione di un tenant dal master panel non li cancella.
 
@@ -165,13 +166,14 @@ Elenco verificato sul codice, ordinato per gravità. Quando ne risolvi una, togl
 - Due dump SQL (`backend/schema.sql` e `stand_manager_db.sql`): tieni come riferimento solo `backend/schema.sql`.
 
 **Deploy e configurazione**
-- `server.js`: la CORS accetta solo host locali e `.standmanager.local`. Il dominio di produzione va aggiunto via env.
+- `utils/origins.js`: la CORS e il WebSocket accettano solo host locali e `.standmanager.local`. Il dominio di produzione va aggiunto via env. Un Origin rifiutato dalla CORS finisce nel gestore errori globale con un 500 invece di un 403.
 - `config/api.js`: la porta `:3000` è fissa. In produzione l'API passerà da reverse proxy sullo stesso host.
 - `vite.config.js`: le icone `pwa-192.png` e `pwa-512.png` non sono in `frontend/public`, e `allowedHosts` contiene sottodomini di tenant scritti a mano.
 
 **Frontend e offline**
 - La cache `NetworkFirst` del service worker copre tutto `/api`, autenticazione compresa e senza chiave per tenant (viola §8).
 - `offline/syncQueue.js`: nessuna chiave di idempotenza e nessuna gestione del 401 durante la sincronizzazione.
+- `npm run lint` fallisce già (11 errori, 6 avvisi, in file non legati alle ultime modifiche): va riportato a zero prima di poterlo usare come controllo.
 - 53 `fetch` sparse in 17 file e nessun `fetchWithAuth` centralizzato. La pagina di test `/dexie-test` è ancora raggiungibile da `App.jsx`.
 
 **Evoluzione (priorità 2)**

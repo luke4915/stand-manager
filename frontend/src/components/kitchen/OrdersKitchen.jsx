@@ -4,7 +4,7 @@ import { BrowserMultiFormatReader, NotFoundException } from '@zxing/library';
 import { useToast } from '../../context/ToastContext';
 import { useAuth } from '../../context/AuthContext';
 
-import { API_URL, WS_URL } from '../../config/api';
+import { API_URL, WS_URL, WS_CLOSE_UNAUTHORIZED } from '../../config/api';
 
 const mergeOrders = (existing, incoming) => {
   const map = new Map();
@@ -75,7 +75,7 @@ const OrderCard = ({ order, onComplete }) => {
 
 // ─── Componente principale ──────────────────────────────────────
 const OrdersKitchen = () => {
-  const { user, loading } = useAuth();
+  const { user, loading, refreshSession } = useAuth();
   const { showToast } = useToast();
 
   const [orders, setOrders] = useState([]);
@@ -126,10 +126,11 @@ const OrdersKitchen = () => {
         }
       };
 
-      wsRef.current.onclose = () => {
-        if (isMounted) {
-          reconnectTimer.current = setTimeout(connectWS, 5000);
-        }
+      wsRef.current.onclose = async (event) => {
+        if (!isMounted) return;
+        // Token scaduto o non valido: rinnoviamo il cookie prima di riprovare.
+        if (event.code === WS_CLOSE_UNAUTHORIZED && !(await refreshSession())) return;
+        if (isMounted) reconnectTimer.current = setTimeout(connectWS, 5000);
       };
 
       wsRef.current.onerror = (err) => {
@@ -148,7 +149,7 @@ const OrdersKitchen = () => {
         wsRef.current.close();
       }
     };
-  }, [user, loading, loadOrders]);
+  }, [user, loading, loadOrders, refreshSession]);
 
   const markAsCompleted = async (targetOrderOrId) => {
     const targetId = typeof targetOrderOrId === 'object' ? targetOrderOrId.id : targetOrderOrId;

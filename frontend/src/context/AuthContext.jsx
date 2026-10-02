@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useState, useEffect, useRef } from 'react';
+import React, { createContext, useContext, useState, useEffect, useRef, useCallback } from 'react';
 
 import { API_URL } from '../config/api';
 const AuthContext = createContext();
@@ -11,7 +11,9 @@ export const AuthProvider = ({ children }) => {
   const [loading, setLoading] = useState(true);
   const refreshTimer = useRef(null);
 
-  const executeRefresh = async () => {
+  // Ritorna false solo se la sessione è persa (il server ha rifiutato il refresh).
+  // Stabile tra i render (useCallback): i componenti possono metterla nelle dipendenze degli effect.
+  const executeRefresh = useCallback(async () => {
     try {
       const res = await fetch(`${API_URL}/auth/refresh`, {
         method: 'POST',
@@ -25,13 +27,16 @@ export const AuthProvider = ({ children }) => {
         // Se il server risponde con un errore (es: token revocato o utente eliminato), logout forzato
         setUser(null);
         if (refreshTimer.current) clearInterval(refreshTimer.current);
+        return false;
       }
+      return true;
     } catch (err) {
       // Se il server è temporaneamente offline o c'è un calo di Wi-Fi durante la sagra,
       // non buttiamo fuori l'utente! Generiamo solo un avviso in console.
       console.warn('Refresh token momentaneamente fallito (problema di rete o server occupato):', err);
+      return true; // sessione non persa: chi chiama può riprovare più tardi
     }
-  };
+  }, []);
 
   const startRefreshTimer = () => {
     if (refreshTimer.current) clearInterval(refreshTimer.current);
@@ -92,7 +97,7 @@ export const AuthProvider = ({ children }) => {
   };
 
   return (
-    <AuthContext.Provider value={{ user, loading, login, logout }}>
+    <AuthContext.Provider value={{ user, loading, login, logout, refreshSession: executeRefresh }}>
       {children}
     </AuthContext.Provider>
   );

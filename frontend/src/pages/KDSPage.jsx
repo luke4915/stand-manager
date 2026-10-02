@@ -89,7 +89,7 @@ export default function KDS() {
 
     useEffect(() => {
         const connectWS = () => {
-            wsRef.current = new WebSocket(WS_URL);
+            wsRef.current = new WebSocket(`${WS_URL}?kds=public`);
             wsRef.current.onopen = () => setWsConnected(true);
             wsRef.current.onmessage = (event) => {
                 try {

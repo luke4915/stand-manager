@@ -11,6 +11,7 @@ import { computeEffectivePrice, sanitizeAdjustment } from '../utils/pricing.js';
 import logger from '../logger.js';
 import { logAudit } from '../utils/auditLogger.js';
 import { createOrderSchema } from '../schemas/orderSchema.js';
+import { toPublicOrder } from '../utils/publicOrder.js';
 
 const router = express.Router();
 const TMP_DIR = path.join(path.dirname(fileURLToPath(import.meta.url)), '..', 'tmp');
@@ -234,7 +235,7 @@ export default function (broadcast) {
 
         // FIX: Ora inviamo sempre l'aggiornamento, non solo quando arriva a 0
         if (broadcast) {
-          broadcast({
+          broadcast(req.user.tenantId, {
             type: 'product_stock_updated',
             product: { id: p.id, stock: newStock, visible: newStock > 0 ? p.visible : false }
           });
@@ -263,7 +264,7 @@ export default function (broadcast) {
       };
 
       if (broadcast) {
-        broadcast({
+        broadcast(req.user.tenantId, {
           type: 'order_created',
           order: {
             id: orderId,
@@ -335,7 +336,7 @@ export default function (broadcast) {
               [newStock, p.id]
             );
             if (broadcast) {
-              broadcast({ type: 'product_stock_updated', product: { id: p.id, stock: newStock, visible: true } });
+              broadcast(req.user.tenantId, { type: 'product_stock_updated', product: { id: p.id, stock: newStock, visible: true } });
             }
           }
         }
@@ -347,7 +348,7 @@ export default function (broadcast) {
         newStatus: status
       });
 
-      if (broadcast) broadcast({ type: 'order_updated', order: updated });
+      if (broadcast) broadcast(req.user.tenantId, { type: 'order_updated', order: updated });
       res.json(updated);
     } catch (err) {
       logger.error({ err }, 'Errore PUT /api/orders/:id:')
@@ -379,15 +380,6 @@ export default function (broadcast) {
     }
   });
 
-  // GET /orders/kds
-  // ⚠️ TODO multi-tenant: questa route è pubblica (nessun authenticate), quindi
-  // non sa per quale tenant servire i dati. Con FORCE ROW LEVEL SECURITY attivo,
-  // una query senza app.tenant_id impostato non vede NESSUNA riga (non tutte!),
-  // quindi senza questo stop-gap il KDS smetterebbe di funzionare subito dopo
-  // la migrazione. Per ora è agganciata al tenant "default" (quello dei dati
-  // migrati da Windows). Prima del multi-tenant vero va decisa un'identificazione
-  // reale (slug nell'URL? token pubblico per-tenant?) e sostituita qui sotto.
-  let defaultTenantIdCache = null;
   // GET /orders/kds — tenant risolto dal sottodominio
   router.get('/kds', resolveTenantFromHost, async (req, res) => {
     try {
@@ -397,10 +389,11 @@ export default function (broadcast) {
         );
         if (!sessions.length) return [];
         const { rows } = await db.query(
-          `SELECT * FROM orders WHERE status IN ('pending','preparing') AND created_at >= $1 ORDER BY created_at DESC`,
+          `SELECT id, display_code, status, is_takeaway, created_at, items
+           FROM orders WHERE status IN ('pending','preparing') AND created_at >= $1 ORDER BY created_at DESC`,
           [sessions[0].start_time]
         );
-        return rows.map(o => ({ ...o, items: safeParseJSON(o.items).map(i => ({ ...i, note: i.note || '' })) }));
+        return rows.map(o => toPublicOrder({ ...o, items: safeParseJSON(o.items) }));
       });
       res.json(data);
     } catch (err) {
