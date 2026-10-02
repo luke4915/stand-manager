@@ -64,11 +64,7 @@ export function useStatistics() {
   };
 
   const getOrdersBySession = (sessionId) => {
-    const s = sessions.find(x => String(x.id) === String(sessionId));
-    if (!s) return [];
-    return orders.filter(o => o.status === 'completed' &&
-      new Date(o.created_at) >= new Date(s.start_time) &&
-      new Date(o.created_at) <= (s.end_time ? new Date(s.end_time) : new Date()));
+    return orders.filter(o => o.status === 'completed' && String(o.session_id) === String(sessionId));
   };
 
   const availableProducts = useMemo(() => {
@@ -110,11 +106,7 @@ export function useStatistics() {
     let filtered = orders.filter(o => o.status === 'completed');
 
     if (selectedSessionIds.length > 0 && sessions.length > 0) {
-      const isOrderInSessions = (o) => sessions.some(s => {
-        if (!selectedSessionIds.includes(String(s.id))) return false;
-        const d = new Date(o.created_at);
-        return d >= new Date(s.start_time) && d <= (s.end_time ? new Date(s.end_time) : new Date());
-      });
+      const isOrderInSessions = (o) => selectedSessionIds.includes(String(o.session_id));
       filtered = filtered.filter(isOrderInSessions);
       canceledFiltered = canceledFiltered.filter(isOrderInSessions);
     }
@@ -200,11 +192,7 @@ export function useStatistics() {
     tempiCompletamento.forEach(t => { if (t.count > 0) t.media = parseFloat((t.media / t.count).toFixed(1)); });
 
     const confrontoSerate = sessions.map(s => {
-      const so = orders.filter(o => {
-        if (o.status !== 'completed') return false;
-        const d = new Date(o.created_at);
-        return d >= new Date(s.start_time) && d <= (s.end_time ? new Date(s.end_time) : new Date());
-      });
+      const so = orders.filter(o => o.status === 'completed' && o.session_id === s.id);
       const totale = so.reduce((sum, o) => sum + Number(o.total || 0), 0);
       return {
         id: s.id, name: s.name || new Date(s.start_time).toLocaleDateString('it-IT'),

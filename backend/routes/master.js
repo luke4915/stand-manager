@@ -1,7 +1,7 @@
 import express from 'express';
 import bcrypt from 'bcrypt';
 import jwt from 'jsonwebtoken';
-import { pool } from '../db.js';
+import { pool, inTransaction } from '../db.js';
 import { withTenantClient } from '../middleware/tenantScope.js';
 import { authenticateMaster } from '../middleware/authenticateMaster.js';
 import logger from '../logger.js';
@@ -140,19 +140,12 @@ router.delete('/tenants/:id', authenticateMaster, async (req, res) => {
     if (req.body.confirmSlug !== check[0].slug)
       return res.status(400).json({ error: 'Conferma slug non corrispondente' });
 
-    await withTenantClient(id, async (db) => {
-      try {
-        await db.query('BEGIN');
-        for (const tbl of TENANT_SCOPED_TABLES) {
-          await db.query(`DELETE FROM ${tbl} WHERE tenant_id = $1`, [id]);
-        }
-        await db.query('DELETE FROM tenants WHERE id = $1', [id]);
-        await db.query('COMMIT');
-      } catch (err) {
-        await db.query('ROLLBACK');
-        throw err;
+    await withTenantClient(id, (client) => inTransaction(client, async (db) => {
+      for (const tbl of TENANT_SCOPED_TABLES) {
+        await db.query(`DELETE FROM ${tbl} WHERE tenant_id = $1`, [id]);
       }
-    });
+      await db.query('DELETE FROM tenants WHERE id = $1', [id]);
+    }));
     res.json({ ok: true });
   } catch (err) {
     logger.error({ err }, 'Errore eliminazione tenant');

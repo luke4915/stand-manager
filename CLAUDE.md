@@ -20,7 +20,8 @@ backend/            Node.js (ESM) + Express 5 + pg + ws (WSS) + pino + zod
   middleware/       authenticate, tenantScope, resolveTenantFromHost, rateLimiter, authenticateMaster
   routes/           una route per dominio (orders, products, sessions, printSettings, master, …)
   schemas/          schemi zod per validare i payload
-  utils/            pricing (fonte di verità server), eposXmlPrinter, receiptTemplates, auditLogger
+  utils/            pricing (fonte di verità server), stock, displayCode, httpError, eposXmlPrinter, receiptTemplates, auditLogger
+  tests/            test unitari node:test (*.test.js) sulla logica pura
   migrations/       NNN_descrizione.sql + run.js (tabella _migrations)
 frontend/           React 19 + Vite 7 + Tailwind v4 + react-router-dom 7 + PWA (vite-plugin-pwa) + Dexie
   src/App.jsx       shell autenticata, routing, WebSocket, carrello, sessioni
@@ -38,6 +39,7 @@ Comandi:
 |---|---|---|
 | backend | `npm run dev` | nodemon su server.js (HTTPS, porta 3000) |
 | backend | `npm run migrate` | applica le migrazioni mancanti |
+| backend | `npm test` | test unitari (`node --test`) |
 | frontend | `npm run dev` | Vite su https://*.standmanager.local:5173 |
 | frontend | `npm run lint` | ESLint — deve passare prima di ogni commit |
 | frontend | `npm run build` | build di produzione |
@@ -61,7 +63,9 @@ L'isolamento tra tenant si basa sulla Row-Level Security di PostgreSQL con la va
 - **Il server ricalcola sempre i prezzi.** Dal client sono affidabili solo `id` e `quantity` di ogni riga. Usa `computeEffectivePrice` e `sanitizeAdjustment` in `utils/pricing.js`. Sconti e omaggi solo per `DISCOUNT_ROLES`.
 - Se cambi la logica di prezzo, aggiorna **entrambi** i file `pricing.js` (backend e frontend) nello stesso commit.
 - **Ogni payload in ingresso si valida con zod** in `backend/schemas/`. Le route più vecchie validano a mano: quando le tocchi, migrale a zod.
-- Le operazioni con più scritture (ordine + stock, storno + ripristino stock) vanno in transazione `BEGIN/COMMIT/ROLLBACK` sulla stessa connessione.
+- Le operazioni con più scritture (ordine + stock, storno + ripristino stock) vanno in transazione con `inTransaction(req.db, async (db) => { … })` da `db.js`. Per uscire con un errore di business (404, 409) lancia `new HttpError(status, messaggio, CODICE)` e nel `catch` della route usa `sendHttpError(res, err)`.
+- Ordini e sessioni: ogni ordine appartiene a una sessione (`orders.session_id`) e senza sessione aperta non si creano ordini (`409 NO_ACTIVE_SESSION`). Esiste al massimo una sessione aperta per tenant. Il `display_code` viene da `sessions.order_counter`, incrementato nella transazione dell'ordine; report e cassa filtrano per `session_id`, mai per orario.
+- Stock: conta solo con `stock_enabled = true` e `stock` valorizzato, altrimenti la disponibilità è illimitata. Si modifica solo con `utils/stock.js`, che somma le righe dello stesso prodotto e blocca i prodotti con `FOR UPDATE`. L'apertura di una sessione riporta tutti i prodotti a disponibilità illimitata.
 - Le azioni sensibili (creazione ordine, storno, ristampa, modifiche admin) si registrano con `logAudit(req.db, req.user.id, 'AZIONE', dettagli)`: usa la connessione del tenant, quindi i log sono isolati dalla RLS. Chiamala fuori da transazioni aperte.
 - Sessione: il token JWT dura 8 ore. `/auth/refresh` lo rinnova solo se è scaduto da meno di 24 ore e se il login (`loginAt` nel token) risale a meno di 7 giorni; oltre serve un nuovo login (`SESSION_EXPIRED`). Il refresh verifica anche tenant attivo e licenza.
 - Impostazioni per tenant (`settings`): le chiavi ammesse sono in `schemas/settingsSchema.js`. Solo quelle in `PUBLIC_SETTINGS_KEYS` escono dall'endpoint pubblico `GET /settings`.
@@ -95,7 +99,7 @@ L'isolamento tra tenant si basa sulla Row-Level Security di PostgreSQL con la va
 
 ## 6. Database e migrazioni
 
-- Ogni modifica di schema è una nuova migrazione `backend/migrations/NNN_descrizione.sql`, numerata dopo l'ultima esistente (oggi 014; il numero 012 è saltato, non riusarlo).
+- Ogni modifica di schema è una nuova migrazione `backend/migrations/NNN_descrizione.sql`, numerata dopo l'ultima esistente (oggi 016; il numero 012 è saltato, non riusarlo).
 - **Non modificare mai una migrazione già applicata.** Per correggerla, scrivine una nuova.
 - Le migrazioni devono essere idempotenti dove possibile (`IF NOT EXISTS`, `DROP POLICY IF EXISTS`). `run.js` le esegue in transazione.
 - `MIGRATION_DATABASE_URL` serve a eseguire le DDL con un utente privilegiato. L'app gira con l'utente applicativo, soggetto a RLS.
@@ -131,7 +135,7 @@ L'isolamento tra tenant si basa sulla Row-Level Security di PostgreSQL con la va
 2. Modifiche piccole e focalizzate. Niente refactoring non richiesti mescolati alla feature: segnalali a parte.
 3. Riusa i pattern esistenti (vedi `routes/products.js` e il POST in `routes/orders.js` come riferimento).
 4. Dopo ogni modifica: `npm run lint` nel frontend e verifica che il backend parta. Se tocchi una migrazione, eseguila su un DB locale.
-5. Non esistono ancora test automatici. Quando aggiungi logica critica (prezzi, stock, RLS) proponi test mirati (es. `node:test`) invece di saltarli.
+5. I test unitari sono in `backend/tests/` (`npm test`). Quando aggiungi logica critica (prezzi, stock, RLS) aggiungi test mirati; la logica pura va in funzioni separate, testabili senza database.
 6. Commit in italiano, all'imperativo, con un ambito: `feat(orders): …`, `fix(rls): …`, `chore: …`.
 7. Se una richiesta contraddice queste regole (soprattutto §3 e §4), fermati e chiedi.
 8. A fine feature, aggiorna questo file se è nata una convenzione nuova.
@@ -139,12 +143,6 @@ L'isolamento tra tenant si basa sulla Row-Level Security di PostgreSQL con la va
 ## 11. Insidie note (da sistemare, non replicare)
 
 Elenco verificato sul codice, ordinato per gravità. Quando ne risolvi una, toglila da qui nello stesso commit.
-
-**Correttezza dei dati**
-- `orders.js` `getNextDisplayCode`: conta con `COUNT(*)` senza lock, quindi due ordini concorrenti possono ricevere lo stesso `display_code`.
-- `orders.js` POST: lo stock è verificato fuori dalla transazione e senza `SELECT … FOR UPDATE`, quindi si può vendere oltre la disponibilità.
-- `orders.js` PUT: `status` non è validato e lo storno con ripristino dello stock non è in transazione.
-- Gli ordini non hanno `session_id`: l'appartenenza a una sessione si deduce da `created_at`, sia nei report che nella cassa che nei codici.
 
 **Validazione e coerenza API**
 - Solo il POST `/orders` usa zod (`schemas/orderSchema.js`). Le altre route validano a mano o non validano: per esempio `PATCH /products/:id/stock` accetta qualsiasi ruolo e qualsiasi valore.
@@ -162,14 +160,15 @@ Elenco verificato sul codice, ordinato per gravità. Quando ne risolvi una, togl
 
 **Deploy e configurazione**
 - `utils/origins.js`: la CORS e il WebSocket accettano solo host locali e `.standmanager.local`. Il dominio di produzione va aggiunto via env. Un Origin rifiutato dalla CORS finisce nel gestore errori globale con un 500 invece di un 403.
+- `rateLimiter.js`: i limiti sono per IP. Le casse della stessa sagra escono spesso dallo stesso IP pubblico, quindi condividono i 60 ordini al minuto di `ordersLimiter`: nei momenti di punta si rischiano 429. Il limite va calcolato per utente o tenant.
 - `config/api.js`: la porta `:3000` è fissa. In produzione l'API passerà da reverse proxy sullo stesso host.
 - `vite.config.js`: le icone `pwa-192.png` e `pwa-512.png` non sono in `frontend/public`, e `allowedHosts` contiene sottodomini di tenant scritti a mano.
 
 **Frontend e offline**
 - La cache `NetworkFirst` del service worker copre tutto `/api`, autenticazione compresa e senza chiave per tenant (viola §8).
-- `offline/syncQueue.js`: nessuna chiave di idempotenza e nessuna gestione del 401 durante la sincronizzazione.
+- `offline/syncQueue.js`: nessuna chiave di idempotenza e nessuna gestione del 401 durante la sincronizzazione. Un ordine offline sincronizzato dopo la chiusura della sessione riceve 409 e resta in coda: va assegnato alla sessione in cui è stato creato.
 - `npm run lint` fallisce già (11 errori, 6 avvisi, in file non legati alle ultime modifiche): va riportato a zero prima di poterlo usare come controllo.
 - 53 `fetch` sparse in 17 file e nessun `fetchWithAuth` centralizzato. La pagina di test `/dexie-test` è ancora raggiungibile da `App.jsx`.
 
 **Evoluzione (priorità 2)**
-- `orders.items` è un array JSONB dentro l'ordine. Per la ristorazione avanzata (tavoli, stato per singola riga nel KDS, conti divisi) serviranno una tabella `order_items` e un `session_id` sugli ordini.
+- `orders.items` è un array JSONB dentro l'ordine. Per la ristorazione avanzata (tavoli, stato per singola riga nel KDS, conti divisi) servirà una tabella `order_items`.

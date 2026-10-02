@@ -24,3 +24,10 @@ export const createOrderSchema = z.object({
     status: z.enum(['pending', 'completed']).optional(),
     is_takeaway: z.boolean().optional().default(false),
 });
+export const ORDER_STATUSES = ['pending', 'preparing', 'completed', 'canceled'];
+
+export const orderIdSchema = z.coerce.number().int().positive();
+
+export const updateOrderStatusSchema = z.object({
+    status: z.enum(ORDER_STATUSES),
+});

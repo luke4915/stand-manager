@@ -152,7 +152,8 @@ CREATE TABLE public.orders (
     is_takeaway boolean DEFAULT false NOT NULL,
     tenant_id integer DEFAULT (NULLIF(current_setting('app.tenant_id'::text, true), ''::text))::integer NOT NULL,
     display_code character varying(10),
-    CONSTRAINT orders_order_type_check CHECK (((order_type)::text = ANY (ARRAY[('sale'::character varying)::text, ('gift'::character varying)::text])))
+    session_id integer,
+    CONSTRAINT orders_order_type_check CHECK (((order_type)::text = ANY ((ARRAY['sale'::character varying, 'gift'::character varying, 'discount'::character varying])::text[])))
 );
 
 ALTER TABLE ONLY public.orders FORCE ROW LEVEL SECURITY;
@@ -279,7 +280,8 @@ CREATE TABLE public.sessions (
     name character varying(100),
     tenant_id integer DEFAULT (NULLIF(current_setting('app.tenant_id'::text, true), ''::text))::integer NOT NULL,
     declared_cash numeric(10,2),
-    expected_cash numeric(10,2)
+    expected_cash numeric(10,2),
+    order_counter integer DEFAULT 0 NOT NULL
 );
 
 ALTER TABLE ONLY public.sessions FORCE ROW LEVEL SECURITY;
@@ -615,6 +617,13 @@ CREATE INDEX idx_copy_types_tenant ON public.copy_types USING btree (tenant_id);
 
 
 --
+-- Name: idx_orders_session; Type: INDEX; Schema: public; Owner: colettas
+--
+
+CREATE INDEX idx_orders_session ON public.orders USING btree (session_id);
+
+
+--
 -- Name: idx_orders_tenant; Type: INDEX; Schema: public; Owner: colettas
 --
 
@@ -650,6 +659,13 @@ CREATE INDEX idx_users_tenant ON public.users USING btree (tenant_id);
 
 
 --
+-- Name: uniq_sessions_open_per_tenant; Type: INDEX; Schema: public; Owner: colettas
+--
+
+CREATE UNIQUE INDEX uniq_sessions_open_per_tenant ON public.sessions USING btree (tenant_id) WHERE (end_time IS NULL);
+
+
+--
 -- Name: audit_logs audit_logs_tenant_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: colettas
 --
 
@@ -671,6 +687,14 @@ ALTER TABLE ONLY public.audit_logs
 
 ALTER TABLE ONLY public.copy_types
     ADD CONSTRAINT copy_types_tenant_id_fkey FOREIGN KEY (tenant_id) REFERENCES public.tenants(id);
+
+
+--
+-- Name: orders orders_session_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: colettas
+--
+
+ALTER TABLE ONLY public.orders
+    ADD CONSTRAINT orders_session_id_fkey FOREIGN KEY (session_id) REFERENCES public.sessions(id);
 
 
 --

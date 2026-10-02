@@ -1,12 +1,21 @@
 import express from 'express';
-import { pool } from '../db.js';
+import { inTransaction } from '../db.js';
 import { authenticate, authorizeAdmin } from '../middleware/authenticate.js';
 import { tenantScope } from '../middleware/tenantScope.js';
-import logger from '../logger.js'
-// 🔴 NUOVO IMPORT
+import logger from '../logger.js';
 import { logAudit } from '../utils/auditLogger.js';
+import { startSessionSchema, endSessionSchema } from '../schemas/sessionSchema.js';
 
 const router = express.Router();
+
+// Totale atteso in cassa (solo contanti per ora): somma degli ordini completati della sessione.
+async function computeExpectedCash(db, sessionId) {
+  const { rows } = await db.query(
+    `SELECT COALESCE(SUM(total), 0) AS expected FROM orders WHERE status = 'completed' AND session_id = $1`,
+    [sessionId]
+  );
+  return parseFloat(rows[0].expected);
+}
 
 export default function (broadcast) {
 
@@ -14,10 +23,9 @@ export default function (broadcast) {
     try {
       const { rows } = await req.db.query('SELECT * FROM sessions ORDER BY start_time DESC');
       res.json(rows);
-    }
-    catch (err) {
-      logger.error({ err }, 'db error');
-      res.status(500).json({ error: 'db error' });
+    } catch (err) {
+      logger.error({ err }, 'Errore GET /api/sessions');
+      res.status(500).json({ error: 'Errore caricamento sessioni' });
     }
   });
 
@@ -26,104 +34,94 @@ export default function (broadcast) {
       const { rows } = await req.db.query('SELECT * FROM sessions ORDER BY start_time DESC LIMIT 1');
       res.json(rows[0] || null);
     } catch (err) {
-      logger.error({ err }, 'db error');
-      res.status(500).json({ error: 'db error' });
+      logger.error({ err }, 'Errore GET /api/sessions/latest');
+      res.status(500).json({ error: 'Errore caricamento sessione' });
     }
   });
 
-    // GET /expected-cash — totale atteso (solo contanti) della sessione attiva
+  // GET /expected-cash — totale atteso (solo contanti) della sessione aperta
   router.get('/expected-cash', authenticate, tenantScope, async (req, res) => {
     try {
-      const { rows: active } = await req.db.query(
-        'SELECT start_time FROM sessions WHERE end_time IS NULL ORDER BY start_time DESC LIMIT 1'
-      );
-      if (!active.length) return res.json({ expected: 0 });
-
-      const { rows } = await req.db.query(
-        `SELECT COALESCE(SUM(total), 0) AS expected FROM orders WHERE status = 'completed' AND created_at >= $1`,
-        [active[0].start_time]
-      );
-      res.json({ expected: parseFloat(rows[0].expected) });
+      const { rows } = await req.db.query('SELECT id FROM sessions WHERE end_time IS NULL');
+      res.json({ expected: rows.length ? await computeExpectedCash(req.db, rows[0].id) : 0 });
     } catch (err) {
-      logger.error({ err }, 'db error');
-      res.status(500).json({ error: 'db error' });
+      logger.error({ err }, 'Errore GET /api/sessions/expected-cash');
+      res.status(500).json({ error: 'Errore calcolo del totale atteso' });
     }
   });
 
-  // POST /start (Apertura Sessione - TRACCIATO)
+  // POST /start — apre la sessione e riparte con disponibilità illimitata:
+  // si presume che i prodotti siano stati riforniti, lo stock va reimpostato se serve.
   router.post('/start', authenticate, authorizeAdmin, tenantScope, async (req, res) => {
+    const parsed = startSessionSchema.safeParse(req.body);
+    if (!parsed.success) return res.status(400).json({ error: 'Nome obbligatorio (massimo 100 caratteri)' });
+
     try {
-      const { name } = req.body;
-      if (!name?.trim()) return res.status(400).json({ error: 'Nome obbligatorio' });
-
-      const { rows: active } = await req.db.query('SELECT id FROM sessions WHERE end_time IS NULL LIMIT 1');
-      if (active.length) return res.status(400).json({ error: 'Esiste già una sessione attiva' });
-
-      const { rows } = await req.db.query(
-        'INSERT INTO sessions (name, start_time) VALUES ($1, NOW()) RETURNING *',
-        [name.trim()]
-      );
-
-      // 🔴 AGGIUNTA: Logghiamo l'apertura della sessione
-      await logAudit(req.db, req.user.id, 'START_SESSION', {
-        sessionId: rows[0].id,
-        sessionName: rows[0].name
+      const session = await inTransaction(req.db, async (db) => {
+        const { rows } = await db.query(
+          'INSERT INTO sessions (name, start_time) VALUES ($1, NOW()) RETURNING *',
+          [parsed.data.name]
+        );
+        // I prodotti nascosti perché esauriti (stock 0) tornano visibili;
+        // quelli nascosti a mano dall'admin restano nascosti.
+        await db.query(
+          `UPDATE products
+           SET stock = NULL, stock_enabled = false,
+               visible = CASE WHEN stock = 0 THEN true ELSE visible END
+           WHERE stock_enabled`
+        );
+        return rows[0];
       });
 
-      // Reset stock a inizio serata — ripristina visibilità prodotti esauriti
-      await req.db.query(
-        `UPDATE products
-         SET stock = NULL, visible = true
-         WHERE stock_enabled = true AND stock = 0`
-      );
+      await logAudit(req.db, req.user.id, 'START_SESSION', { sessionId: session.id, sessionName: session.name });
 
-      if (broadcast) broadcast(req.user.tenantId, { type: 'session_started', session: rows[0] });
-      res.json(rows[0]);
+      if (broadcast) broadcast(req.user.tenantId, { type: 'session_started', session });
+      res.json(session);
     } catch (err) {
-      logger.error({ err }, 'db error');
-      res.status(500).json({ error: 'db error' });
+      // uniq_sessions_open_per_tenant: esiste già una sessione aperta
+      if (err.code === '23505') return res.status(409).json({ error: 'Esiste già una sessione attiva' });
+      logger.error({ err }, 'Errore POST /api/sessions/start');
+      res.status(500).json({ error: "Errore durante l'apertura della sessione" });
     }
   });
 
-  // POST /end (Chiusura Sessione - TRACCIATO + conto cassa)
+  // POST /end — chiude la sessione con il conto cassa.
+  // Il lock sulla sessione mette in attesa gli ordini in arrivo: o entrano nel
+  // totale atteso, o trovano la sessione chiusa e vengono rifiutati.
   router.post('/end', authenticate, authorizeAdmin, tenantScope, async (req, res) => {
+    const parsed = endSessionSchema.safeParse(req.body ?? {});
+    if (!parsed.success) return res.status(400).json({ error: 'Importo dichiarato non valido' });
+    const declared = parsed.data.declaredCash ?? null;
+
     try {
-      const { declaredCash } = req.body;
+      const result = await inTransaction(req.db, async (db) => {
+        const { rows: active } = await db.query('SELECT id FROM sessions WHERE end_time IS NULL FOR UPDATE');
+        if (!active.length) return null;
 
-      const { rows: activeRows } = await req.db.query(
-        `SELECT id, start_time FROM sessions WHERE end_time IS NULL ORDER BY start_time DESC LIMIT 1`
-      );
-      const active = activeRows[0];
-      if (!active) return res.json(null);
+        const expectedCash = await computeExpectedCash(db, active[0].id);
+        const { rows } = await db.query(
+          `UPDATE sessions SET end_time = NOW(), expected_cash = $1, declared_cash = $2
+           WHERE id = $3 RETURNING *`,
+          [expectedCash, declared, active[0].id]
+        );
+        return { session: rows[0], expectedCash };
+      });
+      if (!result) return res.json(null);
 
-      // Solo contanti per ora: totale atteso = somma ordini completati della sessione
-      const { rows: totalRows } = await req.db.query(
-        `SELECT COALESCE(SUM(total), 0) AS expected
-         FROM orders WHERE status = 'completed' AND created_at >= $1`,
-        [active.start_time]
-      );
-      const expectedCash = parseFloat(totalRows[0].expected);
-      const declared = declaredCash !== undefined && declaredCash !== null ? parseFloat(declaredCash) : null;
-
-      const { rows } = await req.db.query(
-        `UPDATE sessions SET end_time = NOW(), expected_cash = $1, declared_cash = $2
-         WHERE id = $3 RETURNING *`,
-        [expectedCash, declared, active.id]
-      );
-
+      const { session, expectedCash } = result;
       await logAudit(req.db, req.user.id, 'END_SESSION', {
-        sessionId: rows[0].id,
-        sessionName: rows[0].name,
+        sessionId: session.id,
+        sessionName: session.name,
         expectedCash,
         declaredCash: declared,
         difference: declared !== null ? +(declared - expectedCash).toFixed(2) : null
       });
 
-      if (broadcast) broadcast(req.user.tenantId, { type: 'session_ended', session: rows[0] });
-      res.json(rows[0]);
+      if (broadcast) broadcast(req.user.tenantId, { type: 'session_ended', session });
+      res.json(session);
     } catch (err) {
-      logger.error({ err }, 'db error');
-      res.status(500).json({ error: 'db error' });
+      logger.error({ err }, 'Errore POST /api/sessions/end');
+      res.status(500).json({ error: 'Errore durante la chiusura della sessione' });
     }
   });
 

@@ -33,3 +33,17 @@ pool.on('error', (err) => {
 });
 
 export default pool;
+
+// Esegue fn dentro BEGIN/COMMIT sulla stessa connessione; ROLLBACK e rilancio su errore.
+// Per uscire con un errore "di business" (es. 409) lancia un HttpError da utils/httpError.js.
+export async function inTransaction(client, fn) {
+  await client.query('BEGIN');
+  try {
+    const result = await fn(client);
+    await client.query('COMMIT');
+    return result;
+  } catch (err) {
+    await client.query('ROLLBACK');
+    throw err;
+  }
+}

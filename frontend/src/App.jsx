@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { Routes, Route, Navigate, useNavigate } from 'react-router-dom';
 
 import { useAuth } from './context/AuthContext';
@@ -126,13 +126,17 @@ const App = () => {
       .catch(err => console.error('Errore sessione:', err));
   }, [user, loading]);
 
-  useEffect(() => {
-    if (loading || !user) return;
+  const loadProducts = useCallback(() => {
     fetch(`${API_URL}/products`, { credentials: 'include' })
       .then(r => r.json())
       .then(data => setProducts(data.map(p => ({ ...p, price: parseFloat(p.price) }))))
       .catch(console.error);
-  }, [user, loading]);
+  }, []);
+
+  useEffect(() => {
+    if (loading || !user) return;
+    loadProducts();
+  }, [user, loading, loadProducts]);
 
   const wsReconnectTimer = useRef(null);
   const connectWS = useRef(null);
@@ -154,7 +158,8 @@ const App = () => {
                 : p
             ));
             break;
-          case 'session_started': setSessionActive(true); setSessionName(msg.session.name); break;
+          // L'apertura della sessione azzera lo stock lato server: ricarichiamo il catalogo.
+          case 'session_started': setSessionActive(true); setSessionName(msg.session.name); loadProducts(); break;
           case 'session_ended': setSessionActive(false); setSessionName(''); break;
           default: break;
         }
