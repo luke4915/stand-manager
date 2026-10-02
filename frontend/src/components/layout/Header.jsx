@@ -1,9 +1,9 @@
 import React from "react";
-import { LogOut, Settings, Menu, CloudOff, RefreshCw } from "lucide-react";
+import { LogOut, Settings, Menu, CloudOff, RefreshCw, AlertTriangle } from "lucide-react";
 import { useOfflineSync } from "../../offline/useOfflineSync";
 
 const Header = ({ toggleSidebar, currentUser, onLogoutClick, onProfileClick, sessionName, wsConnected }) => {
-  const { online, pending, syncNow } = useOfflineSync();
+  const { online, pending, failed, syncNow } = useOfflineSync();
 
   return (
     <header className="flex items-center justify-between px-4 mb-1 mt-3 bg-transparent shrink-0 select-none">
@@ -47,6 +47,15 @@ const Header = ({ toggleSidebar, currentUser, onLogoutClick, onProfileClick, ses
               )}
               {pending > 0 && <span className="text-[10px] font-black">{pending}</span>}
             </button>
+          )}
+          {failed > 0 && (
+            <span
+              title={`${failed} ordini offline rifiutati dal server: verificarli in cassa`}
+              className="flex items-center gap-1.5 px-2.5 py-1 bg-red-500/10 border border-red-500/30 text-red-500 rounded-full"
+            >
+              <AlertTriangle size={13} />
+              <span className="text-[10px] font-black">{failed}</span>
+            </span>
           )}
           <div className="flex items-center gap-1.5 px-2 py-1 bg-[var(--bg-card-2)] rounded-full">
             <div className="w-6 h-6 rounded-full bg-[var(--accent)] flex items-center justify-center text-[10px] text-white font-bold shrink-0">

@@ -23,12 +23,14 @@ export async function lockAndFindShortages(db, totals) {
 }
 
 // Applica la variazione di stock (sign = -1 scala, +1 ripristina) ai soli prodotti
-// a stock limitato. Un prodotto che arriva a 0 viene nascosto; uno che torna
-// disponibile viene mostrato. Ritorna { id, stock, visible } dei prodotti aggiornati.
+// a stock limitato, senza scendere sotto 0 (un ordine offline sincronizzato in
+// ritardo è già stato venduto e non si rifiuta). Un prodotto che arriva a 0 viene
+// nascosto; uno che torna disponibile viene mostrato.
+// Ritorna { id, stock, visible } dei prodotti aggiornati.
 export async function applyStockChange(db, totals, sign) {
   const { rows } = await db.query(
     `UPDATE products p
-     SET stock = p.stock + $3 * t.qty,
+     SET stock = GREATEST(p.stock + $3 * t.qty, 0),
          visible = CASE WHEN p.stock + $3 * t.qty > 0 THEN (p.visible OR $3 > 0) ELSE false END
      FROM unnest($1::int[], $2::int[]) AS t(id, qty)
      WHERE p.id = t.id AND p.stock_enabled AND p.stock IS NOT NULL

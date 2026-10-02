@@ -15,7 +15,6 @@ const CartDesktopView = ({
     setAmountReceived,
     change,
     sessionActive,
-    wsConnected,
     handleSendOrder,
     setSelectedItem,
     setIsQRScanModalOpen,
@@ -190,7 +189,7 @@ const CartDesktopView = ({
                     {/* Bottone Invia Ordine */}
                     <button
                         onClick={handleSendOrder}
-                        disabled={cart.length === 0 || !sessionActive || !wsConnected}
+                        disabled={cart.length === 0 || !sessionActive}
                         className="flex-1 h-11 px-2 bg-[var(--accent)] hover:enabled:bg-[var(--accent-hover)] cursor-pointer disabled:cursor-not-allowed disabled:opacity-30 disabled:text-[var(--text-muted)] text-white rounded-xl font-black text-xs sm:text-sm uppercase tracking-wider active:enabled:scale-[0.99] transition-all flex items-center justify-center gap-1.5"
                     >
                         <Send size={16} />

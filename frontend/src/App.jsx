@@ -23,10 +23,11 @@ import KDS from './pages/KDSPage';
 import Login from './pages/LoginPage';
 import MenuPage from './pages/MenuPage';
 import MasterPage from './pages/MasterPage';
-import DexieTestPage from './pages/DexieTestPage';
 import { getDiscountedTotal } from './utils/pricing';
 import CashCountModal from './components/shared/CashCountModal';
 import { enqueueOrder } from './offline/syncQueue';
+import { saveProducts, loadCachedProducts } from './offline/productsCache';
+import { remember, recall } from './offline/lastKnown';
 
 import { API_URL, WS_URL, WS_CLOSE_UNAUTHORIZED } from './config/api';
 // Ruoli abilitati ad applicare sconti/omaggi (specchio di DISCOUNT_ROLES nel backend)
@@ -60,8 +61,15 @@ const App = () => {
   const [showLogoutConfirm, setShowLogoutConfirm] = useState(false);
   const [showProfilePopup, setShowProfilePopup] = useState(false);
 
-  const [sessionActive, setSessionActive] = useState(false);
-  const [sessionName, setSessionName] = useState('');
+  // Sessione (serata) aperta: { id, name } oppure null.
+  const [activeSession, setActiveSession] = useState(null);
+  const sessionActive = !!activeSession;
+  const sessionName = activeSession?.name || '';
+  // Stato della sessione arrivato dal server: si ricorda per i ricaricamenti senza rete.
+  const applySession = useCallback((session) => {
+    setActiveSession(session);
+    remember('activeSession', session);
+  }, []);
   const [showStartSessionModal, setShowStartSessionModal] = useState(false);
   const [showEndSessionModal, setShowEndSessionModal] = useState(false);
   const [showCashCountModal, setShowCashCountModal] = useState(false);
@@ -121,16 +129,27 @@ const App = () => {
   useEffect(() => {
     if (loading || !user) return;
     fetch(`${API_URL}/sessions/latest`, { credentials: 'include' })
-      .then(r => r.json())
-      .then(data => { if (data && !data.end_time) { setSessionActive(true); setSessionName(data.name); } })
-      .catch(err => console.error('Errore sessione:', err));
-  }, [user, loading]);
+      .then(async (r) => {
+        if (!r.ok) return;
+        const data = await r.json();
+        applySession(data && !data.end_time ? { id: data.id, name: data.name } : null);
+      })
+      // Senza rete si riprende l'ultima sessione nota, per continuare a battere ordini in coda.
+      .catch(() => setActiveSession(recall('activeSession')));
+  }, [user, loading, applySession]);
 
-  const loadProducts = useCallback(() => {
-    fetch(`${API_URL}/products`, { credentials: 'include' })
-      .then(r => r.json())
-      .then(data => setProducts(data.map(p => ({ ...p, price: parseFloat(p.price) }))))
-      .catch(console.error);
+  // Catalogo dal server; senza connessione si usa l'ultima copia salvata in locale.
+  const loadProducts = useCallback(async () => {
+    const normalize = (list) => list.map(p => ({ ...p, price: parseFloat(p.price) }));
+    try {
+      const res = await fetch(`${API_URL}/products`, { credentials: 'include' });
+      if (!res.ok) return;
+      const data = await res.json();
+      setProducts(normalize(data));
+      saveProducts(data).catch(console.error);
+    } catch {
+      setProducts(normalize(await loadCachedProducts()));
+    }
   }, []);
 
   useEffect(() => {
@@ -159,8 +178,8 @@ const App = () => {
             ));
             break;
           // L'apertura della sessione azzera lo stock lato server: ricarichiamo il catalogo.
-          case 'session_started': setSessionActive(true); setSessionName(msg.session.name); loadProducts(); break;
-          case 'session_ended': setSessionActive(false); setSessionName(''); break;
+          case 'session_started': applySession({ id: msg.session.id, name: msg.session.name }); loadProducts(); break;
+          case 'session_ended': applySession(null); break;
           default: break;
         }
       } catch (err) { console.error('WS Parsing Error', err); }
@@ -262,10 +281,12 @@ const App = () => {
       })),
       status: orderMode === 'simple' ? 'completed' : 'pending',
       is_takeaway: isTakeaway,
+      // Chiave di idempotenza: se la risposta si perde e l'ordine riparte dalla coda, non si duplica.
+      client_order_id: crypto.randomUUID(),
     };
 
     if (!navigator.onLine) {
-      await enqueueOrder(payload);
+      await enqueueOrder(payload, activeSession.id);
       playSagraSound('order_confirm_sound');
       clearCart();
       showToast('Sei offline: ordine salvato, verrà inviato al ritorno della connessione', 'warning');
@@ -286,7 +307,7 @@ const App = () => {
     } catch (err) {
       // fetch fallita per motivi di rete (non un errore applicativo del server) -> coda offline
       if (err instanceof TypeError) {
-        await enqueueOrder(payload);
+        await enqueueOrder(payload, activeSession.id);
         playSagraSound('order_confirm_sound');
         clearCart();
         showToast('Connessione assente: ordine salvato, verrà inviato al ritorno della connessione', 'warning');
@@ -316,7 +337,7 @@ const App = () => {
       const res = await fetch(`${API_URL}/sessions/start`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, credentials: 'include', body: JSON.stringify({ name: inputSessionName.trim() }) });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || 'Errore db');
-      setSessionActive(true); setSessionName(data.name); setShowStartSessionModal(false);
+      applySession({ id: data.id, name: data.name }); setShowStartSessionModal(false);
       showToast(`Sessione "${data.name}" avviata!`, 'success');
     } catch (err) { showToast(err.message || 'Impossibile avviare la sessione', 'error'); }
   };
@@ -331,7 +352,7 @@ const App = () => {
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || 'Errore db');
-      setSessionActive(false); setSessionName(''); setShowEndSessionModal(false);
+      applySession(null); setShowEndSessionModal(false);
       showToast('Sessione terminata.', 'info');
     } catch (err) { showToast(err.message || 'Impossibile chiudere la sessione', 'error'); }
   };
@@ -357,14 +378,13 @@ const App = () => {
   if (needsPasswordChange) return <ChangePassword user={user} onPasswordChanged={() => setNeedsPasswordChange(false)} />;
   if (window.location.pathname === '/menu') return <MenuPage />;
   if (window.location.pathname === '/master') return <MasterPage />;
-  if (window.location.pathname === '/dexie-test') return <DexieTestPage />;
 
   const canDiscount = DISCOUNT_ROLES.includes(user?.role);
 
   const cartProps = {
     cart, setCart, total, addToCart, removeFromCart,
     removeLastItem, clearCart, sendOrder,
-    sessionActive, wsConnected, setShowReversePopup, updateItemType, applyOrderDiscount, canDiscount
+    sessionActive, setShowReversePopup, updateItemType, applyOrderDiscount, canDiscount
   };
 
   return (

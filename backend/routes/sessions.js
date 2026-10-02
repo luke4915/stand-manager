@@ -5,17 +5,9 @@ import { tenantScope } from '../middleware/tenantScope.js';
 import logger from '../logger.js';
 import { logAudit } from '../utils/auditLogger.js';
 import { startSessionSchema, endSessionSchema } from '../schemas/sessionSchema.js';
+import { computeExpectedCash } from '../utils/session.js';
 
 const router = express.Router();
-
-// Totale atteso in cassa (solo contanti per ora): somma degli ordini completati della sessione.
-async function computeExpectedCash(db, sessionId) {
-  const { rows } = await db.query(
-    `SELECT COALESCE(SUM(total), 0) AS expected FROM orders WHERE status = 'completed' AND session_id = $1`,
-    [sessionId]
-  );
-  return parseFloat(rows[0].expected);
-}
 
 export default function (broadcast) {
 

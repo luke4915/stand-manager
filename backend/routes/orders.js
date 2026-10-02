@@ -14,6 +14,7 @@ import { toPublicOrder } from '../utils/publicOrder.js';
 import { formatDisplayCode } from '../utils/displayCode.js';
 import { sumQuantitiesByProduct, lockAndFindShortages, applyStockChange } from '../utils/stock.js';
 import { HttpError, sendHttpError } from '../utils/httpError.js';
+import { computeExpectedCash, clampToSession } from '../utils/session.js';
 
 const router = express.Router();
 
@@ -27,6 +28,35 @@ const TERMINAL_STATUSES = ['canceled', 'completed'];
 // Ordini modalità "semplice": nascono già 'completed' ma senza completed_at
 // (valorizzato solo dal flusso cucina). Per questi lo storno è ammesso entro 5 minuti.
 const CANCEL_WINDOW_MS = 5 * 60 * 1000;
+
+// Un ordine offline si può sincronizzare nella sua sessione fino a 24 ore dalla chiusura.
+const LATE_SYNC_WINDOW = '24 hours';
+
+// Riserva il prossimo numero d'ordine incrementando il contatore della sessione:
+// quella aperta, oppure (ordini offline sincronizzati in ritardo) quella in cui
+// l'ordine è stato battuto. Il lock sulla riga mette in fila gli ordini concorrenti.
+async function reserveOrderNumber(db, sessionId) {
+  const { rows } = sessionId === undefined
+    ? await db.query(
+      `UPDATE sessions SET order_counter = order_counter + 1
+       WHERE end_time IS NULL RETURNING id, order_counter, start_time, end_time`)
+    : await db.query(
+      `UPDATE sessions SET order_counter = order_counter + 1
+       WHERE id = $1 AND (end_time IS NULL OR end_time > now() - $2::interval)
+       RETURNING id, order_counter, start_time, end_time`,
+      [sessionId, LATE_SYNC_WINDOW]);
+  if (rows.length) return rows[0];
+  throw sessionId === undefined
+    ? new HttpError(409, 'Nessuna sessione attiva: apri una sessione prima di inviare ordini', 'NO_ACTIVE_SESSION')
+    : new HttpError(409, "La sessione dell'ordine non esiste o è chiusa da più di 24 ore", 'SESSION_CLOSED');
+}
+
+async function findOrderByClientId(db, clientOrderId) {
+  const { rows } = await db.query('SELECT id, display_code FROM orders WHERE client_order_id = $1', [clientOrderId]);
+  return rows[0] || null;
+}
+
+const duplicateResponse = (order) => ({ success: true, orderId: order.id, displayCode: order.display_code, duplicate: true });
 
 // Stampa: usa semplicemente il display_code già salvato nel DB
 async function printOrder(db, orderData) {
@@ -112,7 +142,14 @@ export default function (broadcast) {
     if (!parsed.success) {
       return res.status(400).json({ error: 'Richiesta non valida', details: parsed.error.flatten() });
     }
-    const { items, status, is_takeaway } = parsed.data;
+    const { items, status, is_takeaway, client_order_id, session_id, client_created_at } = parsed.data;
+
+    // Idempotenza: un ordine già ricevuto (retry dopo un errore di rete o dalla
+    // coda offline) non si duplica, si risponde con quello esistente.
+    if (client_order_id) {
+      const existing = await findOrderByClientId(req.db, client_order_id);
+      if (existing) return res.json(duplicateResponse(existing));
+    }
 
     const productIds = [...new Set(items.map(i => i.id).filter(Boolean))];
     const { rows: dbProducts } = await req.db.query(
@@ -158,40 +195,51 @@ export default function (broadcast) {
     const allGift = verifiedItems.every(i => i.type === 'gift');
     const anyAdjustment = verifiedItems.some(i => i.type !== 'sale');
     const order_type = allGift ? 'gift' : (anyAdjustment ? 'discount' : 'sale');
-    const orderStatus = status || 'pending';
+    const isLateSync = session_id !== undefined;
 
     try {
-      const { order, stockUpdates } = await inTransaction(req.db, async (db) => {
-        // Il contatore della sessione aperta fa da lucchetto: gli ordini concorrenti
-        // dello stesso tenant si mettono in fila qui e ricevono codici distinti.
-        const { rows: sessionRows } = await db.query(
-          `UPDATE sessions SET order_counter = order_counter + 1
-           WHERE end_time IS NULL RETURNING id, order_counter`
-        );
-        if (!sessionRows.length) {
-          throw new HttpError(409, 'Nessuna sessione attiva: apri una sessione prima di inviare ordini', 'NO_ACTIVE_SESSION');
-        }
-        const session = sessionRows[0];
-
+      const { order, orderStatus, sessionOpen, stockUpdates } = await inTransaction(req.db, async (db) => {
+        const session = await reserveOrderNumber(db, session_id);
+        const sessionOpen = !session.end_time;
         const totals = sumQuantitiesByProduct(verifiedItems);
-        const shortages = await lockAndFindShortages(db, totals);
-        if (shortages.length) {
-          throw new HttpError(409, `Prodotto esaurito o insufficiente: ${shortages.map(p => p.name).join(', ')}`, 'OUT_OF_STOCK');
+
+        // Un ordine sincronizzato in ritardo è già stato venduto: non si rifiuta per stock.
+        if (!isLateSync) {
+          const shortages = await lockAndFindShortages(db, totals);
+          if (shortages.length) {
+            throw new HttpError(409, `Prodotto esaurito o insufficiente: ${shortages.map(p => p.name).join(', ')}`, 'OUT_OF_STOCK');
+          }
         }
+
+        // In una sessione già chiusa l'ordine è per forza concluso: entra nel totale
+        // di cassa e non finisce in cucina.
+        const orderStatus = sessionOpen ? (status || 'pending') : 'completed';
+        const createdAt = isLateSync ? clampToSession(client_created_at, session) : null;
 
         const { rows } = await db.query(
-          `INSERT INTO orders (items, total, status, created_by, order_type, is_takeaway, display_code, session_id)
-           VALUES ($1, $2, $3, $4, $5, $6, $7, $8) RETURNING id, created_at, display_code`,
+          `INSERT INTO orders (items, total, status, created_by, order_type, is_takeaway, display_code, session_id, client_order_id, created_at)
+           VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, COALESCE($10, now())) RETURNING id, created_at, display_code`,
           [JSON.stringify(verifiedItems), verifiedTotal, orderStatus, req.user.id, order_type, !!is_takeaway,
-            formatDisplayCode(session.order_counter), session.id]
+            formatDisplayCode(session.order_counter), session.id, client_order_id ?? null, createdAt]
         );
-        return { order: rows[0], stockUpdates: await applyStockChange(db, totals, -1) };
+
+        // Lo stock riguarda la serata in corso: dopo la chiusura non si tocca più
+        // (all'apertura della successiva riparte comunque da disponibilità illimitata).
+        // Per una sessione chiusa si aggiorna invece il totale atteso in cassa.
+        let stockUpdates = [];
+        if (sessionOpen) {
+          stockUpdates = await applyStockChange(db, totals, -1);
+        } else {
+          await db.query('UPDATE sessions SET expected_cash = $1 WHERE id = $2', [await computeExpectedCash(db, session.id), session.id]);
+        }
+        return { order: rows[0], orderStatus, sessionOpen, stockUpdates };
       });
 
       await logAudit(req.db, req.user.id, 'CREATE_ORDER', {
         orderId: order.id,
         total: verifiedTotal,
-        itemCount: verifiedItems.length
+        itemCount: verifiedItems.length,
+        ...(isLateSync && { lateSync: true, sessionId: session_id, sessionClosed: !sessionOpen })
       });
 
       const orderData = {
@@ -206,16 +254,22 @@ export default function (broadcast) {
 
       if (broadcast) {
         stockUpdates.forEach(product => broadcast(req.user.tenantId, { type: 'product_stock_updated', product }));
-        broadcast(req.user.tenantId, { type: 'order_created', order: orderData });
+        if (sessionOpen) broadcast(req.user.tenantId, { type: 'order_created', order: orderData });
       }
 
       res.json({ success: true, orderId: order.id, displayCode: order.display_code });
 
-      // Fire-and-forget: gira DOPO la risposta, quindi req.db è già stato
-      // rilasciato al pool. Serve una connessione scoped indipendente.
-      withTenantClient(req.user.tenantId, (db) => printOrder(db, orderData))
-        .catch(err => logger.error({ err }, 'Errore printOrder'));
+      // Comande solo per la serata in corso. Fire-and-forget: gira DOPO la risposta,
+      // quindi req.db è già stato rilasciato al pool e serve una connessione scoped.
+      if (sessionOpen) {
+        withTenantClient(req.user.tenantId, (db) => printOrder(db, orderData))
+          .catch(err => logger.error({ err }, 'Errore printOrder'));
+      }
     } catch (err) {
+      // Due invii contemporanei dello stesso ordine: il secondo trova il vincolo di unicità.
+      if (err.constraint === 'uniq_orders_client_order_id') {
+        return res.json(duplicateResponse(await findOrderByClientId(req.db, client_order_id)));
+      }
       if (sendHttpError(res, err)) return;
       logger.error({ err }, 'Errore POST /api/orders');
       res.status(500).json({ error: "Errore durante l'invio dell'ordine" });

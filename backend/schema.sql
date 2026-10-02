@@ -153,6 +153,7 @@ CREATE TABLE public.orders (
     tenant_id integer DEFAULT (NULLIF(current_setting('app.tenant_id'::text, true), ''::text))::integer NOT NULL,
     display_code character varying(10),
     session_id integer,
+    client_order_id uuid,
     CONSTRAINT orders_order_type_check CHECK (((order_type)::text = ANY ((ARRAY['sale'::character varying, 'gift'::character varying, 'discount'::character varying])::text[])))
 );
 
@@ -656,6 +657,13 @@ CREATE INDEX idx_sessions_tenant ON public.sessions USING btree (tenant_id);
 --
 
 CREATE INDEX idx_users_tenant ON public.users USING btree (tenant_id);
+
+
+--
+-- Name: uniq_orders_client_order_id; Type: INDEX; Schema: public; Owner: colettas
+--
+
+CREATE UNIQUE INDEX uniq_orders_client_order_id ON public.orders USING btree (tenant_id, client_order_id) WHERE (client_order_id IS NOT NULL);
 
 
 --

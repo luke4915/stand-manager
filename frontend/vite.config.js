@@ -23,15 +23,8 @@ export default defineConfig({
           { src: '/pwa-512.png', sizes: '512x512', type: 'image/png' },
         ],
       },
-      workbox: {
-        runtimeCaching: [
-          {
-            urlPattern: ({ url }) => url.pathname.startsWith('/api'),
-            handler: 'NetworkFirst',
-            options: { cacheName: 'api-cache', networkTimeoutSeconds: 3 },
-          },
-        ],
-      },
+      // Nessuna cache delle risposte API: potrebbe servire dati di un altro utente.
+      // Offline il catalogo e l'ultima sessione arrivano da Dexie/localStorage (src/offline/).
 })
   ],
   server: {

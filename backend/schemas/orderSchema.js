@@ -23,7 +23,15 @@ export const createOrderSchema = z.object({
     items: z.array(orderItemSchema).min(1, 'Ordine vuoto o malformato'),
     status: z.enum(['pending', 'completed']).optional(),
     is_takeaway: z.boolean().optional().default(false),
-});
+    // Chiave di idempotenza generata dalla cassa: un nuovo invio dello stesso ordine non lo duplica.
+    client_order_id: z.uuid().optional(),
+    // Solo per gli ordini creati offline e sincronizzati dopo: sessione e ora in cui sono stati battuti.
+    session_id: z.number().int().positive().optional(),
+    client_created_at: z.iso.datetime().optional(),
+}).refine(
+    (o) => (o.session_id === undefined) === (o.client_created_at === undefined),
+    { message: 'session_id e client_created_at vanno inviati insieme' }
+);
 export const ORDER_STATUSES = ['pending', 'preparing', 'completed', 'canceled'];
 
 export const orderIdSchema = z.coerce.number().int().positive();

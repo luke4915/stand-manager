@@ -13,7 +13,7 @@ import ClearCartModal from './modals/ClearCartModal';
 // ─── Componente Cart Principale (Container Logico) ────────────────
 // Gestisce solo stato/orchestrazione: la UI vera vive in CartDesktopView /
 // CartMobileView, e le modali di business logic sono in ./modals.
-const Cart = ({ cart, setCart, total, addToCart, removeFromCart, removeLastItem, clearCart, sendOrder, sessionActive, children, wsConnected, onClose, setShowReversePopup, updateItemType, applyOrderDiscount, canDiscount }) => {
+const Cart = ({ cart, setCart, total, addToCart, removeFromCart, removeLastItem, clearCart, sendOrder, sessionActive, children, onClose, setShowReversePopup, updateItemType, applyOrderDiscount, canDiscount }) => {
   const [selectedItem, setSelectedItem] = useState(null);
   const [amountReceived, setAmountReceived] = useState('');
   const [change, setChange] = useState(0);
@@ -158,7 +158,6 @@ const Cart = ({ cart, setCart, total, addToCart, removeFromCart, removeLastItem,
     setAmountReceived,
     change,
     sessionActive,
-    wsConnected,
     handleSendOrder,
     setSelectedItem,
     setIsQRScanModalOpen,

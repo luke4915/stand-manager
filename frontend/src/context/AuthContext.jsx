@@ -1,6 +1,7 @@
 import React, { createContext, useContext, useState, useEffect, useRef, useCallback } from 'react';
 
 import { API_URL } from '../config/api';
+import { remember, recall } from '../offline/lastKnown';
 const AuthContext = createContext();
 
 // Refresh silenzioso ogni 6h — il token dura 8h quindi c'è sempre margine
@@ -26,6 +27,7 @@ export const AuthProvider = ({ children }) => {
       if (!res.ok) {
         // Se il server risponde con un errore (es: token revocato o utente eliminato), logout forzato
         setUser(null);
+        remember('user', null);
         if (refreshTimer.current) clearInterval(refreshTimer.current);
         return false;
       }
@@ -50,6 +52,7 @@ export const AuthProvider = ({ children }) => {
         if (res.ok) {
           const userData = await res.json();
           setUser(userData);
+          remember('user', userData);
           
           // 🚀 IL FIX STRATEGICO PER IL REFRESH PAGINA (F5):
           // Non appena l'operatore ricarica la pagina o apre una nuova tab, 
@@ -61,10 +64,14 @@ export const AuthProvider = ({ children }) => {
           startRefreshTimer();
         } else {
           setUser(null);
+          remember('user', null);
         }
       } catch (err) {
-        console.error('Sessione non valida, scaduta o server HTTPS non in ascolto', err);
-        setUser(null);
+        // Server non raggiungibile (rete assente): si riprende l'ultimo utente di questo
+        // dispositivo, così la cassa continua a lavorare e a mettere ordini in coda.
+        // Al ritorno della rete, se il cookie non è più valido, il 401 riporta al login.
+        console.warn('Server non raggiungibile, uso l\'ultimo utente noto', err);
+        setUser(recall('user'));
       } finally {
         setLoading(false);
       }
@@ -76,6 +83,7 @@ export const AuthProvider = ({ children }) => {
 
   const login = (userData) => {
     setUser(userData);
+    remember('user', userData);
     startRefreshTimer();
   };
 
@@ -93,6 +101,7 @@ export const AuthProvider = ({ children }) => {
     }
     // Pulizia immediata e aggressiva dello stato locale (UX istantanea per l'operatore)
     setUser(null);
+    remember('user', null);
     if (refreshTimer.current) clearInterval(refreshTimer.current);
   };
 

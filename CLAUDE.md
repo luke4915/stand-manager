@@ -29,7 +29,7 @@ frontend/           React 19 + Vite 7 + Tailwind v4 + react-router-dom 7 + PWA (
   src/components/   per dominio: cart/, kitchen/, products/, setup/, shared/, layout/
   src/context/      AuthContext (login + refresh), ToastContext
   src/config/api.js API_URL / WS_URL derivati dal sottodominio corrente
-  src/offline/      db Dexie, coda ordini offline, hook useOfflineSync
+  src/offline/      db Dexie, coda ordini offline, hook useOfflineSync, catalogo offline, ultimi valori noti
   src/utils/pricing.js  specchio 1:1 di backend/utils/pricing.js
 ```
 
@@ -99,7 +99,7 @@ L'isolamento tra tenant si basa sulla Row-Level Security di PostgreSQL con la va
 
 ## 6. Database e migrazioni
 
-- Ogni modifica di schema è una nuova migrazione `backend/migrations/NNN_descrizione.sql`, numerata dopo l'ultima esistente (oggi 016; il numero 012 è saltato, non riusarlo).
+- Ogni modifica di schema è una nuova migrazione `backend/migrations/NNN_descrizione.sql`, numerata dopo l'ultima esistente (oggi 017; il numero 012 è saltato, non riusarlo).
 - **Non modificare mai una migrazione già applicata.** Per correggerla, scrivine una nuova.
 - Le migrazioni devono essere idempotenti dove possibile (`IF NOT EXISTS`, `DROP POLICY IF EXISTS`). `run.js` le esegue in transazione.
 - `MIGRATION_DATABASE_URL` serve a eseguire le DDL con un utente privilegiato. L'app gira con l'utente applicativo, soggetto a RLS.
@@ -118,9 +118,11 @@ L'isolamento tra tenant si basa sulla Row-Level Security di PostgreSQL con la va
 ## 8. Offline-first (fase 2, in corso)
 
 - La coda locale è in Dexie (`src/offline/`). Per cambiare lo schema serve una nuova `db.version(n)` con eventuale `upgrade`; non modificare la versione esistente.
-- Ogni ordine creato offline deve essere **idempotente**: va inviato con una chiave generata dal client (UUID) che il server salva con vincolo di unicità. Così un retry non duplica l'ordine.
-- Il server resta la fonte di verità per prezzi, stock e `display_code` anche per gli ordini sincronizzati in ritardo. Il frontend mostra i dati come provvisori finché la sincronizzazione non è confermata.
-- La cache delle risposte API del service worker non deve mai servire dati di un utente o tenant diverso: escludi le route di autenticazione e valuta chiavi per tenant.
+- Ogni ordine ha una chiave di idempotenza generata dalla cassa (`client_order_id`, UUID) con vincolo di unicità per tenant: un nuovo invio dello stesso ordine restituisce quello esistente con `duplicate: true`.
+- Un ordine battuto offline va in coda con `session_id` e `client_created_at`. Alla sincronizzazione il server lo assegna a quella sessione, anche se chiusa da meno di 24 ore (oltre: `409 SESSION_CLOSED`), e riporta l'ora dentro la sessione. Non lo rifiuta per stock, perché è già stato venduto. Se la sessione è chiusa: stato `completed`, niente stock, niente comanda o KDS, `expected_cash` ricalcolato.
+- La coda (`syncQueue.js`) toglie gli ordini accettati, si ferma su rete assente, 5xx e 429, rinnova la sessione sul 401 e marca `failed`, con il motivo, quelli rifiutati per sempre (altri 4xx).
+- Il server resta la fonte di verità per prezzi, stock e `display_code` anche per gli ordini sincronizzati in ritardo.
+- Il service worker non mette in cache le risposte API: potrebbero essere di un altro utente o tenant. Offline il catalogo viene da Dexie (`productsCache.js`), l'ultimo utente e l'ultima sessione da `lastKnown.js`, usati solo quando il server non è raggiungibile. IndexedDB e localStorage sono separati per sottodominio, quindi per tenant.
 
 ## 9. Stampa
 
@@ -165,10 +167,9 @@ Elenco verificato sul codice, ordinato per gravità. Quando ne risolvi una, togl
 - `vite.config.js`: le icone `pwa-192.png` e `pwa-512.png` non sono in `frontend/public`, e `allowedHosts` contiene sottodomini di tenant scritti a mano.
 
 **Frontend e offline**
-- La cache `NetworkFirst` del service worker copre tutto `/api`, autenticazione compresa e senza chiave per tenant (viola §8).
-- `offline/syncQueue.js`: nessuna chiave di idempotenza e nessuna gestione del 401 durante la sincronizzazione. Un ordine offline sincronizzato dopo la chiusura della sessione riceve 409 e resta in coda: va assegnato alla sessione in cui è stato creato.
+- Gli ordini offline rifiutati per sempre (`failed`) sono visibili solo come contatore in testata: manca una schermata per vederli e archiviarli. Gli ordini rimasti in coda da prima dell'aggiornamento non hanno `client_order_id` né `session_id`, quindi vanno nella sessione aperta al momento della sincronizzazione.
 - `npm run lint` fallisce già (11 errori, 6 avvisi, in file non legati alle ultime modifiche): va riportato a zero prima di poterlo usare come controllo.
-- 53 `fetch` sparse in 17 file e nessun `fetchWithAuth` centralizzato. La pagina di test `/dexie-test` è ancora raggiungibile da `App.jsx`.
+- 53 `fetch` sparse in 17 file e nessun `fetchWithAuth` centralizzato.
 
 **Evoluzione (priorità 2)**
 - `orders.items` è un array JSONB dentro l'ordine. Per la ristorazione avanzata (tavoli, stato per singola riga nel KDS, conti divisi) servirà una tabella `order_items`.

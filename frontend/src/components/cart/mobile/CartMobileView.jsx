@@ -15,7 +15,6 @@ const CartMobileView = ({
     setAmountReceived,
     change,
     sessionActive,
-    wsConnected,
     handleSendOrder,
     setSelectedItem,
     setIsQRScanModalOpen,
@@ -227,7 +226,7 @@ const CartMobileView = ({
                 {/* ACTION BUTTON GIGANTE (Invia Ordine) */}
                 <button
                     onClick={handleSendOrder}
-                    disabled={cart.length === 0 || !sessionActive || !wsConnected}
+                    disabled={cart.length === 0 || !sessionActive}
                     className="w-full h-14 bg-[var(--accent)] hover:bg-[var(--accent-hover)] disabled:bg-[var(--bg-input)] disabled:text-[var(--text-muted)] text-white rounded-2xl font-black text-sm uppercase tracking-widest active:scale-[0.97] transition-all flex items-center justify-center gap-2.5 shadow-lg shadow-[var(--accent)]/20"
                 >
                     <Check size={18} /> Invia Ordine
