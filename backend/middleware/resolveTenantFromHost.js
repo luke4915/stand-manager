@@ -1,7 +1,12 @@
 import { pool } from '../db.js';
 import logger from '../logger.js';
 
-const slugCache = new Map();
+// Cache slug → tenantId con scadenza: evita una query a ogni richiesta pubblica,
+// ma le modifiche dal master panel (slug, attivazione) diventano visibili entro il TTL.
+// I tenant "non trovati" non si memorizzano, così un tenant appena creato
+// risponde subito anche se qualcuno aveva già provato quel sottodominio.
+const SLUG_CACHE_TTL_MS = 60 * 1000;
+const slugCache = new Map(); // slug → { tenantId, active, expiresAt }
 
 function extractSlug(hostname) {
   const parts = hostname.split('.');
@@ -17,16 +22,20 @@ export async function resolveTenantFromHost(req, res, next) {
   }
 
   try {
-    let tenantId = slugCache.get(slug);
-    if (tenantId === undefined) {
-      const { rows } = await pool.query('SELECT id FROM tenants WHERE slug = $1', [slug]);
-      tenantId = rows[0]?.id ?? null;
-      slugCache.set(slug, tenantId);
+    let tenant = slugCache.get(slug);
+    if (!tenant || tenant.expiresAt <= Date.now()) {
+      const { rows } = await pool.query('SELECT id, active FROM tenants WHERE slug = $1', [slug]);
+      if (!rows.length) {
+        slugCache.delete(slug);
+        return res.status(404).json({ error: 'Tenant non trovato' });
+      }
+      tenant = { tenantId: rows[0].id, active: rows[0].active, expiresAt: Date.now() + SLUG_CACHE_TTL_MS };
+      slugCache.set(slug, tenant);
     }
-    if (tenantId === null) {
-      return res.status(404).json({ error: 'Tenant non trovato' });
+    if (!tenant.active) {
+      return res.status(403).json({ error: "Account disattivato. Contatta l'assistenza.", code: 'TENANT_INACTIVE' });
     }
-    req.tenantId = tenantId;
+    req.tenantId = tenant.tenantId;
     next();
   } catch (err) {
     logger.error({ err }, 'Errore risoluzione tenant da sottodominio');

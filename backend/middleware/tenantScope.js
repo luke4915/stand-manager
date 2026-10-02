@@ -33,11 +33,12 @@ export async function tenantScope(req, res, next) {
     return res.status(500).json({ error: 'Errore interno' });
   }
 
-  const client = await pool.connect();
+  let client;
   try {
+    client = await pool.connect();
     await client.query('SELECT set_config($1, $2, false)', ['app.tenant_id', String(req.user.tenantId)]);
   } catch (err) {
-    client.release();
+    client?.release();
     logger.error({ err }, 'Errore impostazione tenant scope');
     return res.status(500).json({ error: 'Errore interno' });
   }

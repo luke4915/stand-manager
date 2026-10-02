@@ -45,7 +45,7 @@ app.use(helmet({
 
 // Crash immediato se JWT_SECRET mancante
 if (!process.env.JWT_SECRET) {
-  console.error('FATALE: JWT_SECRET non impostata nel .env');
+  logger.fatal('JWT_SECRET non impostata nel .env');
   process.exit(1);
 }
 

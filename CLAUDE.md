@@ -138,7 +138,6 @@ Elenco verificato sul codice, ordinato per gravità. Quando ne risolvi una, togl
 
 **Critiche (isolamento tenant e sicurezza)**
 - `server.js`: il WebSocket non richiede autenticazione e `broadcast()` invia a **tutti** i client connessi. Ordini, stock e sessioni di un tenant arrivano agli altri tenant e a chiunque si colleghi.
-- `db.js`: se `MIGRATION_DATABASE_URL` è nel `.env`, anche l'app usa l'utente privilegiato e può scavalcare la RLS. Le credenziali delle migrazioni devono servire solo a `run.js`.
 - Endpoint pubblici che violano §3.4: `/orders/kds` fa `SELECT *` sugli ordini (espone `created_by`, totali, ecc.) e `/settings` restituisce tutte le chiavi delle impostazioni.
 - `auth.js` `/refresh`: verifica il token con `ignoreExpiration` senza limite di tempo, quindi un token scaduto da qualsiasi tempo si può rinnovare. Non controlla nemmeno se il tenant è attivo o se la licenza è scaduta.
 - `audit_logs` non ha `tenant_id` e `logAudit` usa `pool.query`: i log non sono isolati per tenant. L'eliminazione di un tenant dal master panel non li cancella.
@@ -148,9 +147,7 @@ Elenco verificato sul codice, ordinato per gravità. Quando ne risolvi una, togl
 - `orders.js` POST: lo stock è verificato fuori dalla transazione e senza `SELECT … FOR UPDATE`, quindi si può vendere oltre la disponibilità.
 - `orders.js` PUT: `status` non è validato e lo storno con ripristino dello stock non è in transazione.
 - Gli ordini non hanno `session_id`: l'appartenenza a una sessione si deduce da `created_at`, sia nei report che nella cassa che nei codici.
-- `resolveTenantFromHost.js`: la cache memorizza anche i tenant "non trovati" e non scade mai. Un tenant creato dopo un tentativo fallito resta in 404 fino al riavvio, e la cache non segue le disattivazioni.
-- `authenticate.js`: `logger.error({ err }, …)` usa `err` non definito nel controllo su `JWT_SECRET`. Inoltre `theme` non finisce in `req.user`, quindi `/auth/me` restituisce sempre `'dark'`.
-- `tenantScope.js`: `pool.connect()` è fuori dal `try`.
+- `settings` ha ancora la PRIMARY KEY solo su `key`: la migrazione 007 ha tolto i vincoli UNIQUE ma non la chiave primaria. Due tenant non possono avere la stessa chiave, per esempio `welcome_message`.
 
 **Validazione e coerenza API**
 - Solo il POST `/orders` usa zod (`schemas/orderSchema.js`). Le altre route validano a mano o non validano: per esempio `PATCH /products/:id/stock` accetta qualsiasi ruolo e qualsiasi valore.
@@ -163,8 +160,8 @@ Elenco verificato sul codice, ordinato per gravità. Quando ne risolvi una, togl
 - Dipendenze backend inutilizzate: `escpos*`, `node-thermal-printer`, `pdfkit`, `bwip-js`, `body-parser`, `undici`. `sharp` è usato a runtime ma è in `devDependencies`.
 - `firebase` è in `frontend/package.json` ma non è usato.
 - `dexie` e `vite-plugin-pwa` sono nel `package.json` di root invece che in `frontend/package.json`.
-- `console.error` in `server.js` e `db.js` invece di `logger`.
-- `.env.example` non elenca `MASTER_PASSWORD_HASH`, `MASTER_JWT_SECRET`, `HTTPS_KEY_PATH`, `HTTPS_CERT_PATH`, `MIGRATION_DATABASE_URL`. `CORS_ORIGIN` è elencata ma il codice non la legge.
+- `theme` nel JWT e in `/auth/me` vale sempre `'dark'`: `users` non ha una colonna `theme` e il tema è solo stato del client.
+- `.env.example` non elenca `MASTER_PASSWORD_HASH`, `MASTER_JWT_SECRET`, `HTTPS_KEY_PATH`, `HTTPS_CERT_PATH`. `CORS_ORIGIN` è elencata ma il codice non la legge.
 - Due dump SQL (`backend/schema.sql` e `stand_manager_db.sql`): tieni come riferimento solo `backend/schema.sql`.
 
 **Deploy e configurazione**

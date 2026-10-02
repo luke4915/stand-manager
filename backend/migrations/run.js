@@ -1,7 +1,16 @@
 import fs from 'fs';
 import path from 'path';
 import { fileURLToPath } from 'url';
-import { pool } from '../db.js';
+import pg from 'pg';
+import { appConnectionConfig } from '../db.js';
+
+// Le DDL girano con l'utente privilegiato se MIGRATION_DATABASE_URL è impostata,
+// altrimenti con l'utente applicativo. Questo pool esiste solo per le migrazioni.
+const pool = new pg.Pool(
+    process.env.MIGRATION_DATABASE_URL
+        ? { connectionString: process.env.MIGRATION_DATABASE_URL }
+        : appConnectionConfig
+);
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
