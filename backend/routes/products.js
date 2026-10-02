@@ -9,9 +9,7 @@ const router = express.Router();
 const VALID_DESTINATIONS = ['bar', 'kitchen', 'both'];
 const LOW_STOCK_THRESHOLD = 10;
 
-// GET /api/products/menu — pubblico
-// ⚠️ TODO multi-tenant: stesso problema del KDS (vedi orders.js) — stop-gap
-// sul tenant "default" finché non c'è un'identificazione reale (slug in URL?).
+// GET /api/products/menu — pubblico, tenant risolto dal sottodominio
 router.get('/menu', resolveTenantFromHost, async (req, res) => {
   try {
     const data = await withTenantClient(req.tenantId, async (db) => {

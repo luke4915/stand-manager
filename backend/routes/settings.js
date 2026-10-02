@@ -1,18 +1,21 @@
 import express from 'express';
-import { pool } from '../db.js';
 import { authenticate, authorizeAdmin } from '../middleware/authenticate.js';
 import { tenantScope, withTenantClient } from '../middleware/tenantScope.js';
 import { resolveTenantFromHost } from '../middleware/resolveTenantFromHost.js';
 import logger from '../logger.js';
+import { logAudit } from '../utils/auditLogger.js';
+import { PUBLIC_SETTINGS_KEYS, settingKeySchema, settingValueSchema } from '../schemas/settingsSchema.js';
 
 const router = express.Router();
 
-// GET /api/settings — pubblico per welcome_message
-// ⚠️ TODO multi-tenant: stesso stop-gap di /kds e /products/menu — vedi orders.js
+// GET /api/settings — pubblico (menu con QR): solo le chiavi in PUBLIC_SETTINGS_KEYS
 router.get('/', resolveTenantFromHost, async (req, res) => {
     try {
         const settings = await withTenantClient(req.tenantId, async (db) => {
-            const { rows } = await db.query('SELECT key, value FROM settings');
+            const { rows } = await db.query(
+                'SELECT key, value FROM settings WHERE key = ANY($1)',
+                [PUBLIC_SETTINGS_KEYS]
+            );
             return Object.fromEntries(rows.map(r => [r.key, r.value]));
         });
         res.json(settings);
@@ -22,16 +25,21 @@ router.get('/', resolveTenantFromHost, async (req, res) => {
     }
 });
 
-// PUT /api/settings/:key — solo admin
+// PUT /api/settings/:key — solo admin, solo chiavi note
 router.put('/:key', authenticate, authorizeAdmin, tenantScope, async (req, res) => {
+    const key = settingKeySchema.safeParse(req.params.key);
+    if (!key.success) return res.status(400).json({ error: 'Impostazione non riconosciuta' });
+    const body = settingValueSchema.safeParse(req.body);
+    if (!body.success) return res.status(400).json({ error: 'Valore non valido (testo, massimo 2000 caratteri)' });
+
     try {
-        const { key } = req.params;
-        const { value } = req.body;
+        const { value } = body.data;
         await req.db.query(
             'INSERT INTO settings (key, value) VALUES ($1, $2) ON CONFLICT (tenant_id, key) DO UPDATE SET value = $2',
-            [key, value]
+            [key.data, value]
         );
-        res.json({ key, value });
+        await logAudit(req.user.id, 'UPDATE_SETTING', { key: key.data });
+        res.json({ key: key.data, value });
     } catch (err) {
         logger.error({ err }, 'Errore PUT /api/settings/:key');
         res.status(500).json({ error: 'Errore salvataggio impostazione' });

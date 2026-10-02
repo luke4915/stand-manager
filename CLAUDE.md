@@ -63,6 +63,8 @@ L'isolamento tra tenant si basa sulla Row-Level Security di PostgreSQL con la va
 - **Ogni payload in ingresso si valida con zod** in `backend/schemas/`. Le route più vecchie validano a mano: quando le tocchi, migrale a zod.
 - Le operazioni con più scritture (ordine + stock, storno + ripristino stock) vanno in transazione `BEGIN/COMMIT/ROLLBACK` sulla stessa connessione.
 - Le azioni sensibili (creazione ordine, storno, ristampa, modifiche admin) si registrano con `logAudit`.
+- Sessione: il token JWT dura 8 ore. `/auth/refresh` lo rinnova solo se è scaduto da meno di 24 ore e se il login (`loginAt` nel token) risale a meno di 7 giorni; oltre serve un nuovo login (`SESSION_EXPIRED`). Il refresh verifica anche tenant attivo e licenza.
+- Impostazioni per tenant (`settings`): le chiavi ammesse sono in `schemas/settingsSchema.js`. Solo quelle in `PUBLIC_SETTINGS_KEYS` escono dall'endpoint pubblico `GET /settings`.
 - Ruoli esistenti: `admin`, `responsabile`, `cassa`, `cucina`. Le autorizzazioni si controllano lato server, non solo nascondendo la UI.
 - Mai segreti nel codice o nei commit. Nuove variabili d'ambiente vanno aggiunte a `.env.example` con un valore fittizio.
 - Il rate limiting è configurato in `middleware/rateLimiter.js`. Gli endpoint nuovi e "costosi" (export, stampa) meritano un limiter dedicato.
@@ -139,8 +141,6 @@ L'isolamento tra tenant si basa sulla Row-Level Security di PostgreSQL con la va
 Elenco verificato sul codice, ordinato per gravità. Quando ne risolvi una, toglila da qui nello stesso commit.
 
 **Critiche (isolamento tenant e sicurezza)**
-- Endpoint pubblico che viola §3.4: `/settings` restituisce tutte le chiavi delle impostazioni. In `products.js` e `settings.js` restano commenti TODO superati sullo stop-gap del tenant "default".
-- `auth.js` `/refresh`: verifica il token con `ignoreExpiration` senza limite di tempo, quindi un token scaduto da qualsiasi tempo si può rinnovare. Non controlla nemmeno se il tenant è attivo o se la licenza è scaduta.
 - `audit_logs` non ha `tenant_id` e `logAudit` usa `pool.query`: i log non sono isolati per tenant. L'eliminazione di un tenant dal master panel non li cancella.
 
 **Correttezza dei dati**
