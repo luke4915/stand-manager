@@ -118,7 +118,7 @@ L'isolamento tra tenant si basa sulla Row-Level Security di PostgreSQL con la va
 - Stile solo con Tailwind v4. Rispetta il tema chiaro/scuro esistente e il doppio layout desktop/mobile (`useBreakpoint`, cartelle `desktop/` e `mobile/`).
 - Messaggi all'utente tramite `ToastContext`, non con `alert()`.
 - `App.jsx` è già molto grande: le nuove funzionalità vanno in componenti, hook o pagine dedicate, non qui.
-- Il frontend usa le PWA icons `pwa-192.png` e `pwa-512.png` dichiarate in `vite.config.js`: se le cambi, aggiorna il manifest.
+- Icone PWA in `frontend/public/` (`pwa-192.png`, `pwa-512.png`, `apple-touch-icon.png`), ricavate dal simbolo di `logo_StandManager_ESC_POS.png` con il simbolo al 56% del lato, così la 512 vale anche come maskable. Se cambi le icone, aggiorna il manifest in `vite.config.js`.
 
 ## 8. Offline-first (fase 2, in corso)
 
@@ -158,7 +158,8 @@ Elenco verificato sul codice, ordinato per gravità. Quando ne risolvi una, togl
 **Codice legacy e dipendenze**
 - `routes/printers.js` (PowerShell, solo Windows) e `GET /profile/copy-types` (lista fissa) sono legacy. `server.js` importa `escpos` senza usarlo.
 - Dipendenze backend inutilizzate: `escpos*`, `node-thermal-printer`, `pdfkit`, `bwip-js`, `body-parser`, `undici`. `sharp` è usato a runtime ma è in `devDependencies`.
-- `firebase` è in `frontend/package.json` ma non è usato.
+- `firebase` è in `frontend/package.json` ma non è usato. `frontend/package.json` ha ancora `description` e `main` del template di Vite.
+- `frontend/public/MainCourse_logo*.png` (circa 1,8 MB) non sono usati da nessuna parte ma finiscono nel build: sono di un altro marchio, da confermare prima di toglierli.
 - `dexie` e `vite-plugin-pwa` sono nel `package.json` di root invece che in `frontend/package.json`.
 - `theme` nel JWT e in `/auth/me` vale sempre `'dark'`: `users` non ha una colonna `theme` e il tema è solo stato del client.
 - `.env.example` non elenca `MASTER_PASSWORD_HASH`, `MASTER_JWT_SECRET`, `HTTPS_KEY_PATH`, `HTTPS_CERT_PATH`. `CORS_ORIGIN` è elencata ma il codice non la legge.
@@ -168,7 +169,6 @@ Elenco verificato sul codice, ordinato per gravità. Quando ne risolvi una, togl
 - `utils/origins.js`: la CORS e il WebSocket accettano solo host locali e `.standmanager.local`. Il dominio di produzione va aggiunto via env. Un Origin rifiutato dalla CORS finisce nel gestore errori globale con un 500 invece di un 403.
 - `rateLimiter.js`: i limiti sono per IP. Le casse della stessa sagra escono spesso dallo stesso IP pubblico, quindi condividono i 60 ordini al minuto di `ordersLimiter`: nei momenti di punta si rischiano 429. Il limite va calcolato per utente o tenant.
 - `config/api.js`: la porta `:3000` è fissa. In produzione l'API passerà da reverse proxy sullo stesso host.
-- `vite.config.js`: le icone `pwa-192.png` e `pwa-512.png` non sono in `frontend/public`, e `allowedHosts` contiene sottodomini di tenant scritti a mano.
 
 **Frontend e offline**
 - Gli ordini offline rifiutati per sempre (`failed`) sono visibili solo come contatore in testata: manca una schermata per vederli e archiviarli. Gli ordini rimasti in coda da prima dell'aggiornamento non hanno `client_order_id` né `session_id`, quindi vanno nella sessione aperta al momento della sincronizzazione.
