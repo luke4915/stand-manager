@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { Save } from 'lucide-react';
-import { useToast } from '../../context/ToastContext';
+import { useToast } from '../../context/useToast';
 
 import { API_URL } from '../../config/api';
 const MenuSettings = () => {

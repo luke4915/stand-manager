@@ -1,4 +1,4 @@
-import { useEffect, useState, useMemo } from 'react';
+import { useEffect, useState, useMemo, useCallback } from 'react';
 import { API_URL } from '../../../config/api';
 
 export const formatEuro = (v) => Number(v || 0).toFixed(2) + ' €';
@@ -63,9 +63,9 @@ export function useStatistics() {
     setSelectedSessionIds(prev => prev.includes(sid) ? prev.filter(s => s !== sid) : [...prev, sid]);
   };
 
-  const getOrdersBySession = (sessionId) => {
-    return orders.filter(o => o.status === 'completed' && String(o.session_id) === String(sessionId));
-  };
+  const getOrdersBySession = useCallback((sessionId) =>
+    orders.filter(o => o.status === 'completed' && String(o.session_id) === String(sessionId)),
+  [orders]);
 
   const availableProducts = useMemo(() => {
     if (!h2hSessionA || !h2hSessionB) {
@@ -74,7 +74,7 @@ export function useStatistics() {
     const productsA = new Set(getOrdersBySession(h2hSessionA).flatMap(o => o.items?.map(i => i.name).filter(Boolean) || []));
     const productsB = new Set(getOrdersBySession(h2hSessionB).flatMap(o => o.items?.map(i => i.name).filter(Boolean) || []));
     return [...productsA].filter(p => productsB.has(p)).sort();
-  }, [orders, sessions, h2hSessionA, h2hSessionB]);
+  }, [orders, getOrdersBySession, h2hSessionA, h2hSessionB]);
 
   useEffect(() => {
     if (h2hProduct && !availableProducts.includes(h2hProduct)) setH2hProduct('');
@@ -94,7 +94,7 @@ export function useStatistics() {
       { metric: 'Quantità venduta', A: a.qty, B: b.qty },
       { metric: 'Incasso (€)', A: a.revenue, B: b.revenue },
     ];
-  }, [h2hProduct, h2hSessionA, h2hSessionB, orders, sessions]);
+  }, [h2hProduct, h2hSessionA, h2hSessionB, getOrdersBySession]);
 
   const sessionAName = sessions.find(s => String(s.id) === String(h2hSessionA))?.name || 'Serata A';
   const sessionBName = sessions.find(s => String(s.id) === String(h2hSessionB))?.name || 'Serata B';

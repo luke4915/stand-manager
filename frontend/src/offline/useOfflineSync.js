@@ -1,7 +1,7 @@
 import { useEffect, useState, useCallback } from 'react';
 import { flushQueue, countByStatus } from './syncQueue';
-import { useAuth } from '../context/AuthContext';
-import { useToast } from '../context/ToastContext';
+import { useAuth } from '../context/useAuth';
+import { useToast } from '../context/useToast';
 
 const RETRY_INTERVAL_MS = 15000;
 

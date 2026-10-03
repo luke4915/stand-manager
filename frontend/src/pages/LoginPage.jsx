@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { API_URL } from '../config/api';
-import { useToast } from '../context/ToastContext'; // Hook globale
+import { useToast } from '../context/useToast'; // Hook globale
 
 // Rimosso showToast dalle props, ora lo prendiamo dal Context
 const Login = ({ onLogin }) => {

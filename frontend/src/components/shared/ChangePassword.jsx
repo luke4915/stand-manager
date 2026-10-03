@@ -1,6 +1,6 @@
 import { useState } from 'react';
-import { useToast } from '../../context/ToastContext';
-import { useAuth } from '../../context/AuthContext';
+import { useToast } from '../../context/useToast';
+import { useAuth } from '../../context/useAuth';
 
 import { API_URL } from '../../config/api';
 const ChangePassword = ({ onPasswordChanged }) => {

@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { Check } from 'lucide-react';
 import { API_URL } from '../../../config/api';
-import { useToast } from '../../../context/ToastContext';
+import { useToast } from '../../../context/useToast';
 
 const QuickEditProductModal = ({ product, onClose, onSaved }) => {
   const { showToast } = useToast();

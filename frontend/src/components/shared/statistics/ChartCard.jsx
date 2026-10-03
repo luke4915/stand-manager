@@ -7,8 +7,4 @@ const ChartCard = ({ title, children, action }) => (
     {children}
   </div>
 );
-export const tooltipStyle = {
-  backgroundColor: 'var(--bg-card)', border: '1px solid var(--border)',
-  borderRadius: 12, color: 'var(--text-main)', fontSize: 12,
-};
 export default ChartCard;

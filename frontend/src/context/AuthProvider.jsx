@@ -1,8 +1,8 @@
-import React, { createContext, useContext, useState, useEffect, useRef, useCallback } from 'react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
+import { AuthContext } from './useAuth';
 
 import { API_URL } from '../config/api';
 import { remember, recall } from '../offline/lastKnown';
-const AuthContext = createContext();
 
 // Refresh silenzioso ogni 6h — il token dura 8h quindi c'è sempre margine
 const REFRESH_INTERVAL_MS = 60 * 60 * 1000;
@@ -40,10 +40,10 @@ export const AuthProvider = ({ children }) => {
     }
   }, []);
 
-  const startRefreshTimer = () => {
+  const startRefreshTimer = useCallback(() => {
     if (refreshTimer.current) clearInterval(refreshTimer.current);
     refreshTimer.current = setInterval(executeRefresh, REFRESH_INTERVAL_MS);
-  };
+  }, [executeRefresh]);
 
   useEffect(() => {
     const checkAuth = async () => {
@@ -79,7 +79,7 @@ export const AuthProvider = ({ children }) => {
     
     checkAuth();
     return () => { if (refreshTimer.current) clearInterval(refreshTimer.current); };
-  }, []);
+  }, [executeRefresh, startRefreshTimer]);
 
   const login = (userData) => {
     setUser(userData);
@@ -111,5 +111,3 @@ export const AuthProvider = ({ children }) => {
     </AuthContext.Provider>
   );
 };
-
-export const useAuth = () => useContext(AuthContext);

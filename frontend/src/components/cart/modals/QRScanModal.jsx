@@ -22,9 +22,12 @@ const QRScanModal = ({ currentCart, onMerge, onReplace, onClose }) => {
     const animFrameRef = useRef(null);
     const streamRef = useRef(null);
 
+    // Avvio e arresto della fotocamera solo all'apertura e alla chiusura del modale:
+    // le funzioni usano soltanto ref e setter di stato, che non cambiano tra i render.
     useEffect(() => {
         startScanner();
         return () => stopScanner();
+        // eslint-disable-next-line react-hooks/exhaustive-deps
     }, []);
 
     const startScanner = async () => {

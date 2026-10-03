@@ -1,8 +1,8 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { Routes, Route, Navigate, useNavigate } from 'react-router-dom';
 
-import { useAuth } from './context/AuthContext';
-import { useToast } from './context/ToastContext';
+import { useAuth } from './context/useAuth';
+import { useToast } from './context/useToast';
 import { useIsMobile } from './hooks/useBreakpoint';
 
 import Header from './components/layout/Header';
@@ -87,7 +87,7 @@ const App = () => {
 
   useEffect(() => {
     if (user?.role === 'cucina') { setView('kitchen'); navigate('/kitchen'); }
-  }, [user]);
+  }, [user, navigate]);
 
   // Su mobile chiude sidebar dopo navigazione
   const handleSetView = (newView) => {

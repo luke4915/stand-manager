@@ -1,6 +1,6 @@
 import React, { useEffect, useState, useCallback } from 'react';
 import { X, AlertTriangle, Clock } from 'lucide-react';
-import { useToast } from '../../context/ToastContext';
+import { useToast } from '../../context/useToast';
 
 import { API_URL } from '../../config/api';
 const CANCEL_WINDOW_MS = 5 * 60 * 1000; // deve combaciare con il backend

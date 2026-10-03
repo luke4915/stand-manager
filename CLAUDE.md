@@ -27,7 +27,7 @@ frontend/           React 19 + Vite 7 + Tailwind v4 + react-router-dom 7 + PWA (
   src/App.jsx       shell autenticata, routing, WebSocket, carrello, sessioni
   src/pages/        pagine pubbliche/di livello alto (Login, Menu, KDS, Master)
   src/components/   per dominio: cart/, kitchen/, products/, setup/, shared/, layout/
-  src/context/      AuthContext (login + refresh), ToastContext
+  src/context/      AuthProvider + useAuth (login, refresh), ToastProvider + useToast
   src/config/api.js API_URL / WS_URL derivati dal sottodominio corrente
   src/offline/      db Dexie, coda ordini offline, hook useOfflineSync, catalogo offline, ultimi valori noti
   src/utils/pricing.js  specchio 1:1 di backend/utils/pricing.js
@@ -107,7 +107,7 @@ L'isolamento tra tenant si basa sulla Row-Level Security di PostgreSQL con la va
 
 ## 7. Convenzioni frontend
 
-- Componenti funzionali con hook. Un componente per file, file `.jsx` in PascalCase; hook `useXxx`; utility in camelCase `.js`.
+- Componenti funzionali con hook. Un componente per file, file `.jsx` in PascalCase; hook `useXxx`; utility in camelCase `.js`. Un file `.jsx` esporta solo componenti: contesti, hook e costanti condivise vanno in un `.js` a parte (es. `useAuth.js` accanto ad `AuthProvider.jsx`), come chiede la regola di fast refresh.
 - Le chiamate API usano `API_URL` da `src/config/api.js`, con `credentials: 'include'` (JWT in cookie). Mai URL scritti a mano.
 - Gestisci sempre il 401 (`TOKEN_EXPIRED`) passando per il refresh di `AuthContext`. Obiettivo: centralizzare in un helper `fetchWithAuth` e migrarci gradualmente le `fetch` sparse.
 - Stile solo con Tailwind v4. Rispetta il tema chiaro/scuro esistente e il doppio layout desktop/mobile (`useBreakpoint`, cartelle `desktop/` e `mobile/`).
@@ -168,7 +168,6 @@ Elenco verificato sul codice, ordinato per gravità. Quando ne risolvi una, togl
 
 **Frontend e offline**
 - Gli ordini offline rifiutati per sempre (`failed`) sono visibili solo come contatore in testata: manca una schermata per vederli e archiviarli. Gli ordini rimasti in coda da prima dell'aggiornamento non hanno `client_order_id` né `session_id`, quindi vanno nella sessione aperta al momento della sincronizzazione.
-- `npm run lint` fallisce già (11 errori, 6 avvisi, in file non legati alle ultime modifiche): va riportato a zero prima di poterlo usare come controllo.
 - 53 `fetch` sparse in 17 file e nessun `fetchWithAuth` centralizzato.
 
 **Evoluzione (priorità 2)**

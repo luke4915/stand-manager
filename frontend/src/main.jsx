@@ -4,8 +4,8 @@ import { BrowserRouter } from 'react-router-dom';
 import App from './App';
 import './index.css';
 import ErrorBoundary from './components/layout/ErrorBoundary';
-import { AuthProvider } from './context/AuthContext';
-import { ToastProvider } from './context/ToastContext';
+import { AuthProvider } from './context/AuthProvider';
+import { ToastProvider } from './context/ToastProvider';
 
 const root = createRoot(document.getElementById('root'));
 root.render(

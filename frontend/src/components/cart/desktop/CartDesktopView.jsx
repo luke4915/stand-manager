@@ -27,7 +27,6 @@ const CartDesktopView = ({
     derivedOrderPercent,
     isTakeaway,
     setIsTakeaway,
-    children
 }) => {
     return (
         <div className="flex flex-col h-full bg-[var(--bg-card)] rounded-xl border border-[var(--border)] overflow-hidden">

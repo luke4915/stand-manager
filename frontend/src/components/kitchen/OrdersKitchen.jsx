@@ -1,8 +1,8 @@
 import React, { useEffect, useState, useRef, useCallback } from 'react';
 import { Check, Camera, ChefHat } from 'lucide-react';
 import { BrowserMultiFormatReader, NotFoundException } from '@zxing/library';
-import { useToast } from '../../context/ToastContext';
-import { useAuth } from '../../context/AuthContext';
+import { useToast } from '../../context/useToast';
+import { useAuth } from '../../context/useAuth';
 
 import { API_URL, WS_URL, WS_CLOSE_UNAUTHORIZED } from '../../config/api';
 
@@ -149,7 +149,7 @@ const OrdersKitchen = () => {
         wsRef.current.close();
       }
     };
-  }, [user, loading, loadOrders, refreshSession]);
+  }, [user, loading, loadOrders, refreshSession, showToast]);
 
   const markAsCompleted = async (targetOrderOrId) => {
     const targetId = typeof targetOrderOrId === 'object' ? targetOrderOrId.id : targetOrderOrId;

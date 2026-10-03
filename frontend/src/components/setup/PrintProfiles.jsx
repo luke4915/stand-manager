@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { GripVertical, Wifi, Usb, Pencil, Trash2, Plus, X, Printer } from 'lucide-react';
-import { useAuth } from '../../context/AuthContext';
+import { useAuth } from '../../context/useAuth';
 
 import { API_URL } from '../../config/api';
 const BACKEND_TEMPLATES = ['Cliente', 'Associazione', 'Cucina', 'Ritiro Bar', 'Ritiro Gastronomia', 'Numeretto'];
@@ -48,7 +48,7 @@ const PrintProfiles = () => {
       if (sRes.ok) setSettings(await sRes.json());
       if (pRes.ok) setUsbPrinters((await pRes.json()) || []);
       if (ctRes.ok) setCopyTypes(await ctRes.json());
-    } catch (err) {
+    } catch {
       setError('Errore caricamento impostazioni');
     } finally {
       setLoading(false);
@@ -101,7 +101,7 @@ const PrintProfiles = () => {
 
     const handle = e.currentTarget;
     if (handle.setPointerCapture) {
-      try { handle.setPointerCapture(e.pointerId); } catch (_) { }
+      try { handle.setPointerCapture(e.pointerId); } catch { /* puntatore già rilasciato */ }
     }
 
     const currentIndex = settingsRef.current.findIndex(s => s.id === id);
@@ -157,7 +157,7 @@ const PrintProfiles = () => {
 
     const { pointerId, draggedIndex, centers } = dragInfo.current;
     if (e && e.currentTarget && e.currentTarget.releasePointerCapture && pointerId != null) {
-      try { e.currentTarget.releasePointerCapture(pointerId); } catch (_) { }
+      try { e.currentTarget.releasePointerCapture(pointerId); } catch { /* puntatore già rilasciato */ }
     }
 
     const finalTargetIndex = targetIndexRef.current;

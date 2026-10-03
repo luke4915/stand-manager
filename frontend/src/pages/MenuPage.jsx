@@ -1,4 +1,4 @@
-import { useEffect, useState, useMemo, useRef } from 'react';
+import { useEffect, useState, useMemo } from 'react';
 import { QRCodeSVG } from 'qrcode.react';
 import { QRCodeCanvas } from 'qrcode.react';
 import { ShoppingCart, Plus, Minus, X, ChefHat, Trash2, Download, QrCode } from 'lucide-react';
@@ -42,7 +42,6 @@ export default function MenuPage() {
     const [enlargedQR, setEnlargedQR] = useState(false);
     const [showCart, setShowCart] = useState(false)
     const [showClearConfirm, setShowClearConfirm] = useState(false);
-    const qrCanvasRef = useRef(null);
 
     useEffect(() => {
         const load = async () => {
