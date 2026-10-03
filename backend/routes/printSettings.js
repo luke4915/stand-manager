@@ -1,6 +1,5 @@
 // routes/printSettings.js
 import express from 'express';
-import { pool } from '../db.js';
 import { authenticate, authorizeAdmin } from '../middleware/authenticate.js';
 import { tenantScope } from '../middleware/tenantScope.js';
 import logger from '../logger.js';

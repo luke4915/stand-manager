@@ -1,12 +1,9 @@
 import express from 'express';
-import { pool } from '../db.js';
 import { authenticate } from '../middleware/authenticate.js';
 import { tenantScope } from '../middleware/tenantScope.js';
 import logger from '../logger.js';
 
 const router = express.Router();
-
-const COPY_TYPES = ['Cliente', 'Cucina', 'Ritiro Bar', 'Ritiro Gastronomia'];
 
 router.patch('/username', authenticate, tenantScope, async (req, res) => {
   const { newUsername } = req.body;
@@ -22,10 +19,6 @@ router.patch('/username', authenticate, tenantScope, async (req, res) => {
     logger.error({ err }, 'Errore server')
     res.status(500).json({ error: 'Errore server' });
   }
-});
-
-router.get('/copy-types', authenticate, (_req, res) => {
-  res.json(COPY_TYPES.map(name => ({ copy_type: name })));
 });
 
 export default router;

@@ -6,7 +6,7 @@ Le regole marcate **MUST** non si negoziano; il resto è la prassi del progetto.
 ## 1. Cos'è il progetto
 
 SaaS multi-tenant per la gestione di sagre ed eventi: cassa (POS), ordini, stampa comande su stampanti termiche, Kitchen Display System, magazzino, statistiche, menu pubblico con QR.
-Ex "SagraManager V2": nei nomi di package, path e documenti trovi ancora `sagra-manager` / `SagraManager`.
+Ex "SagraManager V2": in alcuni documenti trovi ancora `sagra-manager` / `SagraManager`.
 
 Lingua: **UI, messaggi di errore, log e commenti in italiano.** Nomi di variabili, funzioni, tabelle e colonne in inglese.
 
@@ -32,7 +32,10 @@ frontend/           React 19 + Vite 7 + Tailwind v4 + react-router-dom 7 + PWA (
   src/offline/      db Dexie, coda ordini offline, hook useOfflineSync, catalogo offline, ultimi valori noti
   src/utils/apiClient.js  client unico per le API: apiFetch, fetchWithAuth, ApiError, NetworkError
   src/utils/pricing.js  specchio 1:1 di backend/utils/pricing.js
+branding/           loghi di altri marchi, tenuti fuori dal build del frontend
 ```
+
+Ogni parte ha il suo `package.json` (`backend/`, `frontend/`): nella radice non ci sono dipendenze.
 
 Comandi:
 
@@ -131,7 +134,7 @@ L'isolamento tra tenant si basa sulla Row-Level Security di PostgreSQL con la va
 
 ## 9. Stampa
 
-- Il percorso funzionante è ePOS-Print XML via HTTPS verso Epson TM-T20IV (`utils/eposXmlPrinter.js` + `utils/receiptTemplates.js`). Raw TCP sulla porta 9100 e le librerie `escpos*` sono legacy: non usarle per codice nuovo.
+- Il percorso funzionante è ePOS-Print XML via HTTPS verso Epson TM-T20IV (`utils/eposXmlPrinter.js` + `utils/receiptTemplates.js`). Le librerie `escpos*` sono state rimosse: non reintrodurle.
 - Le copie destinate alla stessa stampante si raggruppano in un'unica richiesta con `printOrderBatch()`.
 - La stampa non deve mai bloccare la risposta dell'ordine: si avvia dopo la risposta, dentro `withTenantClient`, e gli errori si loggano senza propagarli.
 - `backend/debug_epos.js` è uno script di diagnostica, non codice applicativo.
@@ -156,14 +159,9 @@ Elenco verificato sul codice, ordinato per gravità. Quando ne risolvi una, togl
 - `orders.js`: `logoPath` punta a `assets/logo_5calzoni.png`, che non esiste ed è un logo specifico di un cliente. Il logo dovrebbe venire dalle impostazioni del tenant.
 
 **Codice legacy e dipendenze**
-- `routes/printers.js` (PowerShell, solo Windows) e `GET /profile/copy-types` (lista fissa) sono legacy. `server.js` importa `escpos` senza usarlo.
-- Dipendenze backend inutilizzate: `escpos*`, `node-thermal-printer`, `pdfkit`, `bwip-js`, `body-parser`, `undici`. `sharp` è usato a runtime ma è in `devDependencies`.
-- `firebase` è in `frontend/package.json` ma non è usato. `frontend/package.json` ha ancora `description` e `main` del template di Vite.
-- `frontend/public/MainCourse_logo*.png` (circa 1,8 MB) non sono usati da nessuna parte ma finiscono nel build: sono di un altro marchio, da confermare prima di toglierli.
-- `dexie` e `vite-plugin-pwa` sono nel `package.json` di root invece che in `frontend/package.json`.
+- `routes/printers.js` (PowerShell, solo Windows) è legacy: va rivisto con il passaggio alla stampa locale.
 - `theme` nel JWT e in `/auth/me` vale sempre `'dark'`: `users` non ha una colonna `theme` e il tema è solo stato del client.
 - `.env.example` non elenca `MASTER_PASSWORD_HASH`, `MASTER_JWT_SECRET`, `HTTPS_KEY_PATH`, `HTTPS_CERT_PATH`. `CORS_ORIGIN` è elencata ma il codice non la legge.
-- Due dump SQL (`backend/schema.sql` e `stand_manager_db.sql`): tieni come riferimento solo `backend/schema.sql`.
 
 **Deploy e configurazione**
 - `utils/origins.js`: la CORS e il WebSocket accettano solo host locali e `.standmanager.local`. Il dominio di produzione va aggiunto via env. Un Origin rifiutato dalla CORS finisce nel gestore errori globale con un 500 invece di un 403.

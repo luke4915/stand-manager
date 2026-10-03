@@ -6,8 +6,6 @@ import dotenv from 'dotenv';
 import cookieParser from 'cookie-parser';
 import { fileURLToPath } from 'url';
 import path from 'path';
-import escpos from 'escpos';
-// import escposUsb from 'escpos-usb';
 import helmet from 'helmet';
 import fs from 'fs'; // 🔴 NUOVO: Necessario per leggere i file .pem di mkcert
 
@@ -27,7 +25,6 @@ import masterRoutes from './routes/master.js';
 import { attachWebSocket } from './ws.js';
 import { isAllowedOrigin } from './utils/origins.js';
 
-// escpos.USB = escposUsb;
 dotenv.config();
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
