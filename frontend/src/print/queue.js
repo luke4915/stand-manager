@@ -1,4 +1,4 @@
-import { db } from '../offline/db';
+import { db } from '../offline/db.js';
 import { getDriver } from './print.js';
 
 // Coda di stampa locale: ogni lavoro è l'XML di una stampante per un ordine. Resta in coda finché

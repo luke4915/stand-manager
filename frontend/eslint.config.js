@@ -26,4 +26,9 @@ export default defineConfig([
       'no-unused-vars': ['error', { varsIgnorePattern: '^[A-Z_]' }],
     },
   },
+  {
+    // Script di sviluppo e test: girano in Node, non nel browser
+    files: ['scripts/**/*.js', 'src/**/*.test.js'],
+    languageOptions: { globals: { ...globals.node } },
+  },
 ])

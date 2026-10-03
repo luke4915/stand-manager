@@ -43,3 +43,9 @@ export const ORDER_STATUSES = ['pending', 'preparing', 'completed', 'canceled'];
 export const updateOrderStatusSchema = z.object({
     status: z.enum(ORDER_STATUSES),
 });
+
+// Ristampe fatte offline da una cassa, comunicate al server quando torna la rete (solo per l'audit).
+export const reprintAuditSchema = z.object({
+    client_order_id: z.uuid(),
+    reprinted_at: z.array(z.iso.datetime()).min(1).max(50),
+});

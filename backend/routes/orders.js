@@ -6,7 +6,7 @@ import { resolveTenantFromHost } from '../middleware/resolveTenantFromHost.js';
 import { computeEffectivePrice, sanitizeAdjustment } from '../utils/pricing.js';
 import logger from '../logger.js';
 import { logAudit } from '../utils/auditLogger.js';
-import { createOrderSchema, updateOrderStatusSchema } from '../schemas/orderSchema.js';
+import { createOrderSchema, updateOrderStatusSchema, reprintAuditSchema } from '../schemas/orderSchema.js';
 import { idParamsSchema } from '../schemas/common.js';
 import { validate } from '../middleware/validate.js';
 import { toPublicOrder } from '../utils/publicOrder.js';
@@ -289,6 +289,23 @@ export default function (broadcast) {
       if (sendHttpError(res, err)) return;
       logger.error({ err }, 'Errore PUT /api/orders/:id');
       res.status(500).json({ error: 'Errore aggiornamento ordine' });
+    }
+  });
+
+  // POST /orders/reprints — ristampe fatte offline: la cassa le comunica al ritorno della rete.
+  // Il 404 (ordine non ancora sincronizzato) è temporaneo: la cassa riprova dopo.
+  router.post('/reprints', authenticate, validate({ body: reprintAuditSchema }), tenantScope, async (req, res) => {
+    const { client_order_id, reprinted_at } = req.body;
+    try {
+      const order = await findOrderByClientId(req.db, client_order_id);
+      if (!order) return res.status(404).json({ error: 'Ordine non ancora sincronizzato', code: 'ORDER_NOT_SYNCED' });
+      for (const at of reprinted_at) {
+        await logAudit(req.db, req.user.id, 'REPRINT_ORDER', { orderId: order.id, offline: true, reprintedAt: at });
+      }
+      res.json({ success: true });
+    } catch (err) {
+      logger.error({ err }, 'Errore registrazione ristampe offline');
+      res.status(500).json({ error: 'Errore registrazione ristampe' });
     }
   });
 

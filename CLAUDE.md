@@ -51,7 +51,8 @@ Comandi:
 | backend | `npm run test:integration` | test di integrazione (serve `backend/.env.test`, vedi `.env.test.example`) |
 | frontend | `npm run dev` | Vite su https://*.standmanager.local:5173 |
 | frontend | `npm run lint` | ESLint — deve passare prima di ogni commit |
-| frontend | `npm test` | test unitari (`node --test`) del motore di stampa in `src/print/` |
+| frontend | `npm test` | test (`node --test`) del motore di stampa in `src/print/`, anche contro la stampante simulata |
+| frontend | `npm run mock:epos` | stampante Epson simulata su https://localhost:9443: disegna le copie nel terminale e può rifiutare i lavori (`-- --fail EPTR_COVER_OPEN`) |
 | frontend | `npm run build` | build di produzione |
 
 Lo sviluppo locale usa certificati mkcert per `*.standmanager.local` e un sottodominio per tenant (es. `default.standmanager.local`). Gli script in `backend/scripts/*.ps1` configurano host e wildcard su Windows.
@@ -151,7 +152,8 @@ La stampa è **del client**, non del server: la cassa che batte l'ordine stampa 
 - **Coda:** un lavoro per stampante e ordine (`printJobs`, chiave unica), con l'XML già pronto; resta finché la stampante non lo accetta, si riprova ogni 15 s e in testata c'è il contatore. L'operatore è avvisato una volta sola per lavoro.
 - **Configurazione offline:** copie→stampanti (`print_settings`) e testi dello scontrino (chiavi `receipt_*` in `settings`, private: `GET /settings/all`) si scaricano e si tengono in Dexie (`meta.printConfig`); si aggiornano all'avvio, al ritorno online e dopo ogni modifica.
 - **Certificato:** la stampante ha un certificato autofirmato che il browser non può ignorare: ogni dispositivo lo accetta una volta aprendo `https://IP` (pulsanti "Autorizza" e "Stampa di prova" in `PrinterCheck.jsx`). Sulla stampante va attivato il CORS.
-- **Ristampa:** `POST /orders/:id/reprint` registra l'audit e restituisce l'ordine; le copie le rende il client.
+- **Ristampa:** online `POST /orders/:id/reprint` registra l'audit e restituisce l'ordine. Offline si ristampa dall'archivio locale (`printedOrders`, ultimi 100 ordini, `localOrders.js` e `reprint.js`): la ristampa resta annotata e `POST /orders/reprints` la comunica al server al ritorno della rete (404 `ORDER_NOT_SYNCED` finché l'ordine non è sincronizzato: si riprova). Le copie le rende sempre il client.
+- **Simulatore:** `scripts/mock-epos.js` imita la stampante (HTTPS autofirmato, CORS, risposta `success`) e serve sia ai test (`offline.test.js`, con IndexedDB finto) sia alle prove a mano con l'app: indirizzo `localhost:9443`. Non sostituisce la prova su una stampante vera (certificato e CORS reali).
 - Nome organizzazione, codice fiscale, titoli e testo legale sono per tenant (`receipt_*`): non scriverli nei template.
 - `backend/debug_epos.js` è uno script di diagnostica, non codice applicativo.
 
@@ -172,9 +174,9 @@ Elenco verificato sul codice, ordinato per gravità. Quando ne risolvi una, togl
 
 **Stampa**
 - Logo e immagine laterale del numeretto non hanno ancora una sorgente per tenant: `createBrowserImages()` (`print/raster.js`) accetta `logoUrl` e `sideImageUrl`, ma nessuno li passa, quindi si stampa solo testo.
-- La ristampa funziona solo online (l'ordine si rilegge dal server): offline si può solo riprovare la coda.
+- La ristampa offline copre solo gli ordini battuti da questa cassa nella sessione aperta (non quelli di altre casse).
 - Gli indirizzi stampante si salvano ancora come `printer_address` con `printer_type` `'network'`; il valore `'usb'` della colonna non si usa più.
-- `queue.js` e `config.js` non hanno test automatici (richiedono IndexedDB): sono da provare su un dispositivo.
+- `config.js`, `printOrder.js` e `usePrintQueue.js` (che dipendono da `apiClient` e React) non hanno test automatici; coda, archivio locale e driver sì (`offline.test.js`).
 - La scritta "COPIA INTERNA ASSOCIAZIONE" e i nomi delle copie sono fissi nei template.
 
 **Codice legacy**

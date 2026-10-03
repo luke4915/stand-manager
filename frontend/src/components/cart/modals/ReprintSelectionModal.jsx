@@ -1,8 +1,28 @@
 import React, { useState, useEffect } from 'react';
 import { X, Printer } from 'lucide-react';
-import { fetchWithAuth } from '../../../utils/apiClient';
+import { fetchWithAuth, NetworkError } from '../../../utils/apiClient';
 import { useToast } from '../../../context/useToast';
-import { reprintOrder } from '../../../print/printOrder';
+import { reprintOrder, reprintLocal } from '../../../print/printOrder';
+import { recentLocalOrders } from '../../../print/localOrders';
+import { recall } from '../../../offline/lastKnown';
+
+const MAX_ORDERS = 10;
+
+// Elenco ordini ristampabili: quelli del server (se raggiungibile) e quelli archiviati su questa cassa,
+// che coprono anche gli ordini non ancora sincronizzati. Dallo stesso ordine si tiene un solo elemento.
+async function loadReprintable() {
+    const sessionId = recall('activeSession')?.id;
+    const [serverRes, local] = await Promise.all([
+        fetchWithAuth('/orders?session=active').then(rows => rows.filter(o => o.status !== 'canceled'), () => null),
+        sessionId ? recentLocalOrders(sessionId, MAX_ORDERS * 3) : [],
+    ]);
+    const localByCode = new Map(local.map(o => [o.display_code, o]));
+    const entries = (serverRes ?? []).map(o => ({ ...o, serverId: o.id, clientOrderId: localByCode.get(o.display_code)?.clientOrderId }));
+    const known = new Set(entries.map(o => o.display_code));
+    for (const o of local) if (!known.has(o.display_code)) entries.push(o);
+    entries.sort((a, b) => new Date(b.created_at) - new Date(a.created_at));
+    return { orders: entries.slice(0, MAX_ORDERS).map(o => ({ ...o, key: o.serverId ?? o.clientOrderId })), offline: serverRes === null };
+}
 
 // ─── Modale Ristampa ────────────────────────────────────────────
 const ReprintSelectionModal = ({ onClose }) => {
@@ -12,25 +32,29 @@ const ReprintSelectionModal = ({ onClose }) => {
     const [error, setError] = useState(null);
     const [reprintingId, setReprintingId] = useState(null);
 
+    const [offline, setOffline] = useState(false);
+
     useEffect(() => {
-        fetchWithAuth('/orders?session=active')
-            .then(data => {
-                // Filtra escludendo gli ordini stornati, poi prende i primi 10
-                const activeOrders = data
-                    .filter(o => o.status !== 'canceled')
-                    .slice(0, 10);
-                setRecentOrders(activeOrders);
-            })
+        loadReprintable()
+            .then(({ orders, offline }) => { setRecentOrders(orders); setOffline(offline); })
             .catch(() => setError('Impossibile recuperare gli ordini'))
             .finally(() => setLoading(false));
     }, []);
 
-    const handleReprint = async (orderId) => {
-        setReprintingId(orderId);
+    const handleReprint = async (order) => {
+        setReprintingId(order.key);
         try {
-            // Il server registra la ristampa e restituisce l'ordine; la stampa parte da questa cassa
-            const saved = await fetchWithAuth(`/orders/${orderId}/reprint`, { method: 'POST' });
-            if (!await reprintOrder(saved)) throw new Error('nessuna stampante configurata');
+            let printed = 0;
+            try {
+                if (!order.serverId) throw new NetworkError();
+                // Il server registra la ristampa e restituisce l'ordine; la stampa parte da questa cassa
+                printed = await reprintOrder(await fetchWithAuth(`/orders/${order.serverId}/reprint`, { method: 'POST' }));
+            } catch (err) {
+                // Senza server (o ordine non ancora sincronizzato) si ristampa dall'archivio locale
+                if (!(err instanceof NetworkError) || !order.clientOrderId) throw err;
+                printed = await reprintLocal(order.clientOrderId);
+            }
+            if (!printed) throw new Error('nessuna stampante configurata');
             onClose();
         } catch (err) {
             showToast(`Errore durante la ristampa: ${err.message}`, 'error');
@@ -53,9 +77,10 @@ const ReprintSelectionModal = ({ onClose }) => {
                 <div className="flex-1 overflow-y-auto p-4 space-y-2 no-scrollbar">
                     {loading && <p className="text-xs text-center py-4 text-[var(--text-muted)]">Caricamento...</p>}
                     {error && <p className="text-xs text-center py-4 text-red-500">{error}</p>}
+                    {offline && !loading && <p className="text-[10px] text-center text-amber-500">Sei offline: sono disponibili gli ordini battuti da questa cassa.</p>}
                     {!loading && !error && recentOrders.length === 0 && <p className="text-xs text-center py-4 text-[var(--text-muted)]">Nessun ordine trovato.</p>}
                     {!loading && !error && recentOrders.map(order => (
-                        <div key={order.id} className="flex items-center justify-between p-3 rounded-xl bg-[var(--bg-card-2)] border border-[var(--border)]">
+                        <div key={order.key} className="flex items-center justify-between p-3 rounded-xl bg-[var(--bg-card-2)] border border-[var(--border)]">
                             <div className="min-w-0 flex-1 pr-2">
                                 <div className="flex items-center gap-2">
                                     <span className="font-black text-xs text-[var(--text-main)]">#{order.display_code || order.id}</span>
@@ -65,7 +90,7 @@ const ReprintSelectionModal = ({ onClose }) => {
                             </div>
                             <div className="flex items-center gap-3 shrink-0">
                                 <span className="font-black text-xs text-[var(--accent)] tabular-nums">{Number(order.total).toFixed(2)} €</span>
-                                <button disabled={reprintingId !== null} onClick={() => handleReprint(order.id)}
+                                <button disabled={reprintingId !== null} onClick={() => handleReprint(order)}
                                     className="p-2 rounded-lg bg-[var(--accent)] border-[var(--border-accent)] cursor-pointer hover:bg-[var(--accent-hover)] disabled:opacity-40 text-white transition-colors">
                                     <Printer size={14} />
                                 </button>

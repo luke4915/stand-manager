@@ -1,6 +1,7 @@
 // Contenuto degli scontrini per tenant e ristampa: impostazioni private, audit, isolamento.
 import { describe, it, before, after } from 'node:test';
 import assert from 'node:assert/strict';
+import { randomUUID } from 'crypto';
 import { startServer, createTenant, deleteTenants, closePools, apiClient, adminDb } from './helpers.js';
 
 describe('scontrini: impostazioni e ristampa', () => {
@@ -68,5 +69,22 @@ describe('scontrini: impostazioni e ristampa', () => {
     assert.equal(rows.length, 1);
 
     assert.equal((await api2.post(`/orders/${created.body.orderId}/reprint`)).status, 404);
+  });
+
+  it('le ristampe offline si registrano in differita nell\'audit; ordine non ancora sincronizzato: 404', async () => {
+    const key = randomUUID();
+    const body = { client_order_id: key, reprinted_at: ['2026-10-03T20:00:00.000Z', '2026-10-03T20:05:00.000Z'] };
+    const early = await api1.post('/orders/reprints', body);
+    assert.equal(early.status, 404);
+    assert.equal(early.body.code, 'ORDER_NOT_SYNCED');
+
+    await api1.post('/orders', { items: [{ id: t1.productId, name: 'Panino', quantity: 1 }], status: 'completed', client_order_id: key });
+    assert.equal((await api1.post('/orders/reprints', body)).status, 200);
+    const { rows } = await adminDb.query(
+      `SELECT details FROM audit_logs WHERE tenant_id = $1 AND action = 'REPRINT_ORDER' AND details->>'offline' = 'true'`, [t1.id]);
+    assert.equal(rows.length, 2);
+
+    assert.equal((await api2.post('/orders/reprints', body)).status, 404); // un altro tenant non vede l'ordine
+    assert.equal((await api1.post('/orders/reprints', { client_order_id: key, reprinted_at: [] })).status, 400);
   });
 });

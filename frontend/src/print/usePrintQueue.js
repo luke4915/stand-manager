@@ -1,12 +1,15 @@
 import { useEffect, useState, useCallback } from 'react';
 import { useToast } from '../context/useToast';
+import { fetchWithAuth } from '../utils/apiClient';
 import { refreshPrintConfig } from './config.js';
+import { syncReprintAudits } from './localOrders.js';
 import { flushPrintQueue, countPrintJobs, onQueueChanged, onJobsAdded } from './queue.js';
 
 const RETRY_INTERVAL_MS = 15000;
 
 // Tiene viva la stampa: aggiorna la configurazione quando c'è rete, svuota la coda a intervalli
-// e al ritorno online, e avvisa una volta sola quando una stampante non risponde.
+// e al ritorno online (comunicando al server le ristampe fatte offline), e avvisa una volta sola
+// quando una stampante non risponde.
 export function usePrintQueue() {
   const { showToast } = useToast();
   const [pending, setPending] = useState(0);
@@ -16,6 +19,7 @@ export function usePrintQueue() {
   const flush = useCallback(async () => {
     const failed = await flushPrintQueue();
     failed.forEach(job => showToast(`Stampa ${job.displayCode} non riuscita: ${job.error}. Riprovo in automatico.`, 'error'));
+    if (navigator.onLine) await syncReprintAudits((body) => fetchWithAuth('/orders/reprints', { method: 'POST', body })).catch(() => {});
   }, [showToast]);
 
   useEffect(() => {

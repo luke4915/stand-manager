@@ -306,7 +306,7 @@ const App = () => {
     // dal server, oppure quando va in coda perché il server non c'è.
     const printTickets = (code) => {
       if (!code) return showToast('Stampa non disponibile: dispositivo non ancora abbinato, serve una connessione.', 'warning');
-      printOrderTickets({ cart, displayCode: code, clientOrderId: payload.client_order_id, isTakeaway })
+      printOrderTickets({ cart, displayCode: code, clientOrderId: payload.client_order_id, sessionId: activeSession.id, isTakeaway })
         .catch(err => showToast(`Errore di stampa: ${err.message}`, 'error'));
     };
     const queueOffline = async () => {

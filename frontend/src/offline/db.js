@@ -18,3 +18,10 @@ db.version(2).stores({
 db.version(3).stores({
   printJobs: '++id, &key, status, createdAt',
 });
+
+
+// Ultimi ordini stampati da questa cassa, per ristamparli anche senza server. `pendingReprints`
+// elenca le ristampe fatte offline, da comunicare al server (audit) al ritorno della rete.
+db.version(4).stores({
+  printedOrders: 'clientOrderId, createdAt',
+});
