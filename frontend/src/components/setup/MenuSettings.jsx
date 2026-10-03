@@ -1,8 +1,8 @@
 import { useState, useEffect } from 'react';
 import { Save } from 'lucide-react';
 import { useToast } from '../../context/useToast';
+import { apiFetch, fetchWithAuth } from '../../utils/apiClient';
 
-import { API_URL } from '../../config/api';
 const MenuSettings = () => {
     const { showToast } = useToast();
     const [welcomeMessage, setWelcomeMessage] = useState('');
@@ -10,25 +10,20 @@ const MenuSettings = () => {
     const [saving, setSaving] = useState(false);
 
     useEffect(() => {
-        fetch(`${API_URL}/settings`)
-            .then(res => res.json())
+        // Stesso endpoint pubblico letto dal menu con QR.
+        apiFetch('/settings')
             .then(data => setWelcomeMessage(data.welcome_message || ''))
+            .catch(err => showToast(`Errore caricamento messaggio: ${err.message}`, 'error'))
             .finally(() => setLoading(false));
-    }, []);
+    }, [showToast]);
 
     const handleSave = async () => {
         setSaving(true);
         try {
-            const res = await fetch(`${API_URL}/settings/welcome_message`, {
-                method: 'PUT',
-                headers: { 'Content-Type': 'application/json' },
-                credentials: 'include',
-                body: JSON.stringify({ value: welcomeMessage })
-            });
-            if (!res.ok) throw new Error();
+            await fetchWithAuth('/settings/welcome_message', { method: 'PUT', body: { value: welcomeMessage } });
             showToast('Messaggio salvato!', 'success');
-        } catch {
-            showToast('Errore salvataggio', 'error');
+        } catch (err) {
+            showToast(`Errore salvataggio: ${err.message}`, 'error');
         } finally {
             setSaving(false);
         }

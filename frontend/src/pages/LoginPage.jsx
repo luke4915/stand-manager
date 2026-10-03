@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { API_URL } from '../config/api';
+import { apiFetch } from '../utils/apiClient';
 import { useToast } from '../context/useToast'; // Hook globale
 
 // Rimosso showToast dalle props, ora lo prendiamo dal Context
@@ -19,16 +19,8 @@ const Login = ({ onLogin }) => {
 
     setLoading(true);
     try {
-      const res = await fetch(`${API_URL}/auth/login`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        credentials: "include", // Fondamentale per ricevere il cookie dal server
-        body: JSON.stringify({ username, password }),
-      });
-
-      const data = await res.json();
-
-      if (!res.ok) throw new Error(data.error || "Errore login");
+      // apiFetch e non fetchWithAuth: qui un 401 significa credenziali errate, non sessione scaduta.
+      const data = await apiFetch('/auth/login', { method: 'POST', body: { username, password } });
 
       // ✅ Login effettuato con successo
       showToast("Login effettuato!", "success");
@@ -44,8 +36,7 @@ const Login = ({ onLogin }) => {
       });
 
     } catch (err) {
-      console.error("Login Error:", err);
-      showToast(err.message || "Errore durante il login", "error");
+      showToast(err.message, "error");
     } finally {
       setLoading(false);
     }

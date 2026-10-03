@@ -1,6 +1,7 @@
 import { useEffect, useState, useRef, useMemo } from 'react';
 import { ChefHat, Wifi, WifiOff } from 'lucide-react';
-import { API_URL, WS_URL } from '../config/api';
+import { WS_URL } from '../config/api';
+import { apiFetch } from '../utils/apiClient';
 
 const mergeOrders = (existing, incoming) => {
     const map = new Map();
@@ -116,11 +117,10 @@ export default function KDS() {
 
         const loadOrders = async () => {
             try {
-                const res = await fetch(`${API_URL}/orders/kds`);
-                if (res.ok) {
-                    const data = await res.json();
-                    setOrders(prev => mergeOrders(prev, data));
-                }
+                const data = await apiFetch('/orders/kds');
+                setOrders(prev => mergeOrders(prev, data));
+            } catch (err) {
+                console.warn('KDS: caricamento ordini non riuscito, si attendono gli aggiornamenti in tempo reale', err);
             } finally {
                 setLoading(false);
             }

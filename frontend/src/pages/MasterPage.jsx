@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback } from 'react';
 import { ShieldCheck, LogOut, Building2, Users, Clock, Power, Trash2, Plus } from 'lucide-react';
-import { API_URL } from '../config/api';
+import { apiFetch, ApiError } from '../utils/apiClient';
 
 const StatCard = ({ label, value }) => (
   <div className="bg-[var(--bg-card)] rounded-xl p-4 border border-[var(--border)]">
@@ -66,9 +66,12 @@ const MasterPage = () => {
   const [creating, setCreating] = useState(false);
 
   const loadTenants = useCallback(async () => {
-    const res = await fetch(`${API_URL}/master/tenants`, { credentials: 'include' });
-    if (res.status === 401) { setAuthed(false); return; }
-    setTenants(await res.json());
+    try {
+      setTenants(await apiFetch('/master/tenants'));
+    } catch (err) {
+      if (err instanceof ApiError && err.status === 401) setAuthed(false);
+      else setError(err.message);
+    }
   }, []);
 
   useEffect(() => { if (authed) loadTenants(); }, [authed, loadTenants]);
@@ -76,31 +79,21 @@ const MasterPage = () => {
   const handleLogin = async () => {
     setLoading(true); setError('');
     try {
-      const res = await fetch(`${API_URL}/master/login`, {
-        method: 'POST', headers: { 'Content-Type': 'application/json' }, credentials: 'include',
-        body: JSON.stringify({ password }),
-      });
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.error || 'Errore login');
+      await apiFetch('/master/login', { method: 'POST', body: { password } });
       setAuthed(true);
     } catch (err) { setError(err.message); }
     finally { setLoading(false); }
   };
 
   const handleLogout = async () => {
-    await fetch(`${API_URL}/master/logout`, { method: 'POST', credentials: 'include' });
+    await apiFetch('/master/logout', { method: 'POST' }).catch(() => {});
     setAuthed(false); setPassword(''); setTenants([]);
   };
 
   const handleCreateTenant = async () => {
     setCreating(true); setError('');
     try {
-      const res = await fetch(`${API_URL}/master/tenants`, {
-        method: 'POST', headers: { 'Content-Type': 'application/json' }, credentials: 'include',
-        body: JSON.stringify(form),
-      });
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.error || 'Errore creazione tenant');
+      await apiFetch('/master/tenants', { method: 'POST', body: form });
       setForm({ slug: '', name: '', plan: 'trial', expiresInDays: 7, adminUsername: '' });
       loadTenants();
     } catch (err) { setError(err.message); }
@@ -110,11 +103,7 @@ const MasterPage = () => {
   const handleExtend = async (id, days) => {
     setError('');
     try {
-      const res = await fetch(`${API_URL}/master/tenants/${id}/extend`, {
-        method: 'PATCH', headers: { 'Content-Type': 'application/json' }, credentials: 'include',
-        body: JSON.stringify({ days }),
-      });
-      if (!res.ok) throw new Error((await res.json()).error || 'Errore estensione');
+      await apiFetch(`/master/tenants/${id}/extend`, { method: 'PATCH', body: { days } });
       loadTenants();
     } catch (err) { setError(err.message); }
   };
@@ -122,11 +111,7 @@ const MasterPage = () => {
   const handleToggleActive = async (id, active) => {
     setError('');
     try {
-      const res = await fetch(`${API_URL}/master/tenants/${id}/active`, {
-        method: 'PATCH', headers: { 'Content-Type': 'application/json' }, credentials: 'include',
-        body: JSON.stringify({ active }),
-      });
-      if (!res.ok) throw new Error((await res.json()).error || 'Errore');
+      await apiFetch(`/master/tenants/${id}/active`, { method: 'PATCH', body: { active } });
       loadTenants();
     } catch (err) { setError(err.message); }
   };
@@ -134,11 +119,7 @@ const MasterPage = () => {
   const handleDelete = async () => {
     setError('');
     try {
-      const res = await fetch(`${API_URL}/master/tenants/${deleteTarget.id}`, {
-        method: 'DELETE', headers: { 'Content-Type': 'application/json' }, credentials: 'include',
-        body: JSON.stringify({ confirmSlug: deleteTarget.slug }),
-      });
-      if (!res.ok) throw new Error((await res.json()).error || 'Errore eliminazione');
+      await apiFetch(`/master/tenants/${deleteTarget.id}`, { method: 'DELETE', body: { confirmSlug: deleteTarget.slug } });
       setDeleteTarget(null);
       loadTenants();
     } catch (err) { setError(err.message); }

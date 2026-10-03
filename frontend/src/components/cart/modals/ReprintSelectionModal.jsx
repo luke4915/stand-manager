@@ -1,17 +1,18 @@
 import React, { useState, useEffect } from 'react';
 import { X, Printer } from 'lucide-react';
-import { API_URL } from '../../../config/api';
+import { fetchWithAuth } from '../../../utils/apiClient';
+import { useToast } from '../../../context/useToast';
 
 // ─── Modale Ristampa ────────────────────────────────────────────
 const ReprintSelectionModal = ({ onClose }) => {
+    const { showToast } = useToast();
     const [recentOrders, setRecentOrders] = useState([]);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState(null);
     const [reprintingId, setReprintingId] = useState(null);
 
     useEffect(() => {
-        fetch(`${API_URL}/orders?session=active`, { credentials: 'include' })
-            .then(r => r.ok ? r.json() : Promise.reject())
+        fetchWithAuth('/orders?session=active')
             .then(data => {
                 // Filtra escludendo gli ordini stornati, poi prende i primi 10
                 const activeOrders = data
@@ -26,11 +27,10 @@ const ReprintSelectionModal = ({ onClose }) => {
     const handleReprint = async (orderId) => {
         setReprintingId(orderId);
         try {
-            const res = await fetch(`${API_URL}/orders/${orderId}/reprint`, { method: 'POST', credentials: 'include' });
-            if (!res.ok) throw new Error();
+            await fetchWithAuth(`/orders/${orderId}/reprint`, { method: 'POST' });
             onClose();
-        } catch {
-            alert('Errore durante la ristampa');
+        } catch (err) {
+            showToast(`Errore durante la ristampa: ${err.message}`, 'error');
         } finally {
             setReprintingId(null);
         }

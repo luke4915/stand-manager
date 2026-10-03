@@ -3,7 +3,7 @@ import { QRCodeSVG } from 'qrcode.react';
 import { QRCodeCanvas } from 'qrcode.react';
 import { ShoppingCart, Plus, Minus, X, ChefHat, Trash2, Download, QrCode } from 'lucide-react';
 
-import { API_URL } from '../config/api';
+import { apiFetch } from '../utils/apiClient';
 const ProductCard = ({ product, quantity, onAdd, onRemove }) => (
     <div className="flex items-center justify-between gap-3 p-4 rounded-2xl bg-[var(--bg-card)] border border-[var(--border)]">
         <div className="flex items-center gap-3 flex-1 min-w-0">
@@ -46,13 +46,11 @@ export default function MenuPage() {
     useEffect(() => {
         const load = async () => {
             try {
-                const [menuRes, settingsRes] = await Promise.all([
-                    fetch(`${API_URL}/products/menu`),
-                    fetch(`${API_URL}/settings`)
+                // Il messaggio di benvenuto è facoltativo: se non arriva il menu si mostra comunque.
+                const [menuData, settingsData] = await Promise.all([
+                    apiFetch('/products/menu'),
+                    apiFetch('/settings').catch(() => ({})),
                 ]);
-                if (!menuRes.ok) throw new Error();
-                const menuData = await menuRes.json();
-                const settingsData = settingsRes.ok ? await settingsRes.json() : {};
                 setSessionName(menuData.sessionName || 'Menu');
                 setProducts(menuData.products);
                 setWelcomeMessage(settingsData.welcome_message || '');

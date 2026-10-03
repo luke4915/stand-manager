@@ -1,5 +1,5 @@
 import { useEffect, useState, useMemo, useCallback } from 'react';
-import { API_URL } from '../../../config/api';
+import { fetchWithAuth } from '../../../utils/apiClient';
 
 export const formatEuro = (v) => Number(v || 0).toFixed(2) + ' €';
 export const formatMin = (v) => Number(v || 0).toFixed(1) + ' min';
@@ -39,13 +39,11 @@ export function useStatistics() {
   useEffect(() => {
     const fetchData = async () => {
       try {
-        const [resO, resS, resP] = await Promise.all([
-          fetch(`${API_URL}/orders`, { credentials: 'include' }),
-          fetch(`${API_URL}/sessions`, { credentials: 'include' }),
-          fetch(`${API_URL}/products`, { credentials: 'include' }),
+        const [ordersData, sessionsData, productsData] = await Promise.all([
+          fetchWithAuth('/orders'),
+          fetchWithAuth('/sessions'),
+          fetchWithAuth('/products'),
         ]);
-        if (!resO.ok || !resS.ok || !resP.ok) throw new Error('Errore nel caricamento dati');
-        const [ordersData, sessionsData, productsData] = await Promise.all([resO.json(), resS.json(), resP.json()]);
         setOrders(Array.isArray(ordersData) ? ordersData : []);
         setSessions(Array.isArray(sessionsData) ? sessionsData : []);
         setProducts(Array.isArray(productsData) ? productsData : []);

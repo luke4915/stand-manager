@@ -1,17 +1,17 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { BarChart, Bar, XAxis, YAxis, Tooltip, Legend, ResponsiveContainer, LineChart, Line } from 'recharts';
-import { Download, X, CheckSquare, Square } from 'lucide-react';
+import { Download, X, CheckSquare, Square, FileText } from 'lucide-react';
 
-import { useState } from 'react';
-import { API_URL } from '../../config/api';
+import { fetchWithAuth } from '../../utils/apiClient';
+import { useToast } from '../../context/useToast';
 import StatCard from './statistics/StatCard';
 import ChartCard from './statistics/ChartCard';
 import { tooltipStyle } from './statistics/chartStyles';
 import { useStatistics, formatEuro, formatMin, activeHours, reorderHours } from './statistics/useStatistics';
-import { FileText } from 'lucide-react';
 import { exportStatsPdf } from './statistics/pdfExport';
 
 const Statistics = () => {
+  const { showToast } = useToast();
   const {
     sessions, loading, error,
     selectedSessionIds, toggleSession, setSelectedSessionIds,
@@ -24,9 +24,8 @@ const Statistics = () => {
 
   const handleExportCSV = async (session) => {
     try {
-      const res = await fetch(`${API_URL}/exports/session/${session.id}/csv`, { credentials: 'include' });
-      if (!res.ok) throw new Error();
-      const blob = new Blob([await res.text()], { type: 'text/csv;charset=utf-8;' });
+      const res = await fetchWithAuth(`/exports/session/${session.id}/csv`, { raw: true });
+      const blob = await res.blob();
       const url = URL.createObjectURL(blob);
       const a = document.createElement('a');
       a.href = url;
@@ -36,8 +35,8 @@ const Statistics = () => {
       document.body.removeChild(a);
       URL.revokeObjectURL(url);
       setIsExportModalOpen(false);
-    } catch {
-      alert('Impossibile scaricare il CSV.');
+    } catch (err) {
+      showToast(`Impossibile scaricare il CSV: ${err.message}`, 'error');
     }
   };
 

@@ -1,10 +1,9 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { AuthContext } from './useAuth';
-
-import { API_URL } from '../config/api';
+import { apiFetch, fetchWithAuth, setAuthHandlers, NetworkError } from '../utils/apiClient';
 import { remember, recall } from '../offline/lastKnown';
 
-// Refresh silenzioso ogni 6h — il token dura 8h quindi c'è sempre margine
+// Rinnovo silenzioso ogni ora: il token dura 8 ore, quindi c'è sempre margine.
 const REFRESH_INTERVAL_MS = 60 * 60 * 1000;
 
 export const AuthProvider = ({ children }) => {
@@ -12,74 +11,69 @@ export const AuthProvider = ({ children }) => {
   const [loading, setLoading] = useState(true);
   const refreshTimer = useRef(null);
 
-  // Ritorna false solo se la sessione è persa (il server ha rifiutato il refresh).
-  // Stabile tra i render (useCallback): i componenti possono metterla nelle dipendenze degli effect.
-  const executeRefresh = useCallback(async () => {
-    try {
-      const res = await fetch(`${API_URL}/auth/refresh`, {
-        method: 'POST',
-        credentials: 'include',
-        headers: {
-          'Content-Type': 'application/json'
-        }
-      });
-      
-      if (!res.ok) {
-        // Se il server risponde con un errore (es: token revocato o utente eliminato), logout forzato
-        setUser(null);
-        remember('user', null);
-        if (refreshTimer.current) clearInterval(refreshTimer.current);
-        return false;
-      }
-      return true;
-    } catch (err) {
-      // Se il server è temporaneamente offline o c'è un calo di Wi-Fi durante la sagra,
-      // non buttiamo fuori l'utente! Generiamo solo un avviso in console.
-      console.warn('Refresh token momentaneamente fallito (problema di rete o server occupato):', err);
-      return true; // sessione non persa: chi chiama può riprovare più tardi
-    }
+  // Sessione chiusa (logout, rinnovo rifiutato, licenza scaduta): si torna al login.
+  const clearSession = useCallback(() => {
+    setUser(null);
+    remember('user', null);
+    clearInterval(refreshTimer.current);
   }, []);
 
+  // Ritorna false solo se la sessione è persa (il server ha rifiutato il rinnovo).
+  // Con la rete assente non si butta fuori l'operatore: si riproverà più tardi.
+  const executeRefresh = useCallback(async () => {
+    try {
+      await apiFetch('/auth/refresh', { method: 'POST' });
+      return true;
+    } catch (err) {
+      if (err instanceof NetworkError) {
+        console.warn('Rinnovo sessione rimandato: server non raggiungibile', err);
+        return true;
+      }
+      clearSession();
+      return false;
+    }
+  }, [clearSession]);
+
   const startRefreshTimer = useCallback(() => {
-    if (refreshTimer.current) clearInterval(refreshTimer.current);
+    clearInterval(refreshTimer.current);
     refreshTimer.current = setInterval(executeRefresh, REFRESH_INTERVAL_MS);
   }, [executeRefresh]);
+
+  // Il client API usa queste azioni per rinnovare la sessione e per uscire.
+  useEffect(() => {
+    setAuthHandlers({ refresh: executeRefresh, onAccessDenied: clearSession });
+  }, [executeRefresh, clearSession]);
 
   useEffect(() => {
     const checkAuth = async () => {
       try {
-        const res = await fetch(`${API_URL}/auth/me`, { credentials: 'include' });
-        if (res.ok) {
-          const userData = await res.json();
-          setUser(userData);
-          remember('user', userData);
-          
-          // 🚀 IL FIX STRATEGICO PER IL REFRESH PAGINA (F5):
-          // Non appena l'operatore ricarica la pagina o apre una nuova tab, 
-          // forziamo SUBITO un refresh preventivo del cookie.
-          // In questo modo il token viene esteso a 8 ore piene a partire da QUESTO ESATTO MOMENTO.
-          await executeRefresh();
-          
-          // Ora che il token è fresco al 100%, facciamo partire il timer orario di mantenimento
-          startRefreshTimer();
-        } else {
-          setUser(null);
-          remember('user', null);
-        }
+        // fetchWithAuth: con un token scaduto da poco (tablet rimasto in standby) la sessione
+        // si rinnova invece di tornare al login. Le azioni di rinnovo sono già registrate
+        // dall'effect precedente, che React esegue prima di questo.
+        const userData = await fetchWithAuth('/auth/me');
+        setUser(userData);
+        remember('user', userData);
+        // A ogni apertura o ricaricamento della pagina il token riparte da 8 ore piene.
+        await executeRefresh();
+        startRefreshTimer();
       } catch (err) {
-        // Server non raggiungibile (rete assente): si riprende l'ultimo utente di questo
-        // dispositivo, così la cassa continua a lavorare e a mettere ordini in coda.
-        // Al ritorno della rete, se il cookie non è più valido, il 401 riporta al login.
-        console.warn('Server non raggiungibile, uso l\'ultimo utente noto', err);
-        setUser(recall('user'));
+        if (err instanceof NetworkError) {
+          // Server non raggiungibile: si riprende l'ultimo utente di questo dispositivo,
+          // così la cassa continua a lavorare e a mettere ordini in coda. Al ritorno
+          // della rete, se il cookie non è più valido, il 401 riporta al login.
+          console.warn('Server non raggiungibile, uso l\'ultimo utente noto', err);
+          setUser(recall('user'));
+        } else {
+          clearSession();
+        }
       } finally {
         setLoading(false);
       }
     };
-    
+
     checkAuth();
-    return () => { if (refreshTimer.current) clearInterval(refreshTimer.current); };
-  }, [executeRefresh, startRefreshTimer]);
+    return () => clearInterval(refreshTimer.current);
+  }, [executeRefresh, startRefreshTimer, clearSession]);
 
   const login = (userData) => {
     setUser(userData);
@@ -89,20 +83,11 @@ export const AuthProvider = ({ children }) => {
 
   const logout = async () => {
     try {
-      await fetch(`${API_URL}/auth/logout`, {
-        method: 'POST',
-        credentials: 'include',
-        headers: {
-          'Content-Type': 'application/json'
-        }
-      });
+      await apiFetch('/auth/logout', { method: 'POST' });
     } catch (err) {
-      console.warn('Chiamata di logout al server fallita, pulizia stato locale in corso...', err);
+      console.warn('Logout sul server non riuscito, pulizia dello stato locale', err);
     }
-    // Pulizia immediata e aggressiva dello stato locale (UX istantanea per l'operatore)
-    setUser(null);
-    remember('user', null);
-    if (refreshTimer.current) clearInterval(refreshTimer.current);
+    clearSession();
   };
 
   return (

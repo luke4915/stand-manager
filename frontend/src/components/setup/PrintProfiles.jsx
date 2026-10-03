@@ -2,7 +2,7 @@ import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { GripVertical, Wifi, Usb, Pencil, Trash2, Plus, X, Printer } from 'lucide-react';
 import { useAuth } from '../../context/useAuth';
 
-import { API_URL } from '../../config/api';
+import { fetchWithAuth } from '../../utils/apiClient';
 const BACKEND_TEMPLATES = ['Cliente', 'Associazione', 'Cucina', 'Ritiro Bar', 'Ritiro Gastronomia', 'Numeretto'];
 
 const PrintProfiles = () => {
@@ -39,20 +39,17 @@ const PrintProfiles = () => {
 
   const fetchAll = async () => {
     setLoading(true);
-    try {
-      const [sRes, pRes, ctRes] = await Promise.all([
-        fetch(`${API_URL}/print-settings`, { credentials: 'include' }),
-        fetch(`${API_URL}/printers`, { credentials: 'include' }),
-        fetch(`${API_URL}/print-settings/copy-types`, { credentials: 'include' }),
-      ]);
-      if (sRes.ok) setSettings(await sRes.json());
-      if (pRes.ok) setUsbPrinters((await pRes.json()) || []);
-      if (ctRes.ok) setCopyTypes(await ctRes.json());
-    } catch {
-      setError('Errore caricamento impostazioni');
-    } finally {
-      setLoading(false);
-    }
+    // Ogni elenco si carica per conto suo: se uno fallisce gli altri restano utilizzabili.
+    const [sRes, pRes, ctRes] = await Promise.allSettled([
+      fetchWithAuth('/print-settings'),
+      fetchWithAuth('/printers'),
+      fetchWithAuth('/print-settings/copy-types'),
+    ]);
+    if (sRes.status === 'fulfilled') setSettings(sRes.value);
+    else setError(`Errore caricamento impostazioni: ${sRes.reason.message}`);
+    if (pRes.status === 'fulfilled') setUsbPrinters(pRes.value || []);
+    if (ctRes.status === 'fulfilled') setCopyTypes(ctRes.value);
+    setLoading(false);
   };
 
   const updateSetting = async (id, patch) => {
@@ -61,14 +58,10 @@ const PrintProfiles = () => {
     const current = settings.find(s => s.id === id);
     const updated = { ...current, ...patch };
     try {
-      const res = await fetch(`${API_URL}/print-settings/${id}`, {
+      const saved = await fetchWithAuth(`/print-settings/${id}`, {
         method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
-        credentials: 'include',
-        body: JSON.stringify({ printer_type: updated.printer_type, printer_address: updated.printer_address, enabled: updated.enabled }),
+        body: { printer_type: updated.printer_type, printer_address: updated.printer_address, enabled: updated.enabled },
       });
-      if (!res.ok) throw new Error('Errore salvataggio');
-      const saved = await res.json();
       setSettings(prev => prev.map(s => s.id === id ? { ...s, ...saved } : s));
     } catch (err) {
       setError(err.message);
@@ -80,13 +73,7 @@ const PrintProfiles = () => {
   const persistOrder = useCallback(async (newSettings) => {
     const originalSettings = settingsRef.current;
     try {
-      const res = await fetch(`${API_URL}/print-settings/reorder`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        credentials: 'include',
-        body: JSON.stringify({ order: newSettings.map(s => s.id) }),
-      });
-      if (!res.ok) throw new Error('Errore nel salvataggio del nuovo ordine');
+      await fetchWithAuth('/print-settings/reorder', { method: 'POST', body: { order: newSettings.map(s => s.id) } });
     } catch (err) {
       setError(err.message);
       setSettings(originalSettings); // rollback
@@ -207,13 +194,7 @@ const PrintProfiles = () => {
 
   const createCopyType = async ({ name, label }) => {
     try {
-      const res = await fetch(`${API_URL}/print-settings/copy-types`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        credentials: 'include',
-        body: JSON.stringify({ name, label }),
-      });
-      if (!res.ok) throw new Error((await res.json()).error || 'Errore creazione');
+      await fetchWithAuth('/print-settings/copy-types', { method: 'POST', body: { name, label } });
       setModal(null);
       await fetchAll();
     } catch (err) { setError(err.message); }
@@ -221,13 +202,7 @@ const PrintProfiles = () => {
 
   const editCopyType = async ({ name, label }) => {
     try {
-      const res = await fetch(`${API_URL}/print-settings/copy-types/${modal.id}`, {
-        method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
-        credentials: 'include',
-        body: JSON.stringify({ name, label }),
-      });
-      if (!res.ok) throw new Error((await res.json()).error || 'Errore modifica');
+      await fetchWithAuth(`/print-settings/copy-types/${modal.id}`, { method: 'PUT', body: { name, label } });
       setModal(null);
       await fetchAll();
     } catch (err) { setError(err.message); }
@@ -235,10 +210,7 @@ const PrintProfiles = () => {
 
   const deleteCopyType = async (id) => {
     try {
-      const res = await fetch(`${API_URL}/print-settings/copy-types/${id}`, {
-        method: 'DELETE', credentials: 'include',
-      });
-      if (!res.ok) throw new Error('Errore eliminazione');
+      await fetchWithAuth(`/print-settings/copy-types/${id}`, { method: 'DELETE' });
       setConfirmDelete(null);
       await fetchAll();
     } catch (err) { setError(err.message); }

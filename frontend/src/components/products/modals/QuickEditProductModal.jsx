@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { Check } from 'lucide-react';
-import { API_URL } from '../../../config/api';
+import { fetchWithAuth } from '../../../utils/apiClient';
 import { useToast } from '../../../context/useToast';
 
 const QuickEditProductModal = ({ product, onClose, onSaved }) => {
@@ -39,37 +39,19 @@ const QuickEditProductModal = ({ product, onClose, onSaved }) => {
       const parsedPrice = parseFloat(String(price).replace(',', '.')) || 0;
       
       // 1. Aggiornamento Prodotto (Prezzo)
-      const res = await fetch(`${API_URL}/products/${product.id}`, {
+      const updated = await fetchWithAuth(`/products/${product.id}`, {
         method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
-        credentials: 'include',
-        body: JSON.stringify({ ...product, price: parsedPrice }),
+        body: { ...product, price: parsedPrice },
       });
 
-      if (!res.ok) {
-        const errData = await res.json().catch(() => ({}));
-        throw new Error(errData.error || "Errore durante l'aggiornamento del prezzo");
-      }
-
-      const updated = await res.json();
-
-      // 2. Aggiornamento Stock
-      const stockRes = await fetch(`${API_URL}/products/${product.id}/stock`, {
+      // 2. Aggiornamento Stock: se fallisce il prezzo resta salvato, lo si segnala a parte
+      const stockData = await fetchWithAuth(`/products/${product.id}/stock`, {
         method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' },
-        credentials: 'include',
-        body: JSON.stringify({
-          stock: stockEnabled ? parseInt(stock, 10) : null,
-          stock_enabled: !!stockEnabled,
-        }),
+        body: { stock: stockEnabled ? parseInt(stock, 10) : null, stock_enabled: !!stockEnabled },
+      }).catch(err => {
+        showToast(`Prezzo aggiornato, ma errore nella gestione dello stock: ${err.message}`, 'error');
+        return {};
       });
-
-      if (!stockRes.ok) {
-        const stockErrData = await stockRes.json().catch(() => ({}));
-        showToast(stockErrData.error || "Prezzo aggiornato, ma errore nella gestione dello stock", 'error');
-      }
-
-      const stockData = stockRes.ok ? await stockRes.json() : {};
 
       // Notifica di successo e chiusura
       showToast(`Prodotto "${product.name}" aggiornato con successo`, 'success');

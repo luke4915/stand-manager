@@ -1,10 +1,8 @@
 import { useState } from 'react';
 import { useToast } from '../../context/useToast';
-import { useAuth } from '../../context/useAuth';
+import { fetchWithAuth } from '../../utils/apiClient';
 
-import { API_URL } from '../../config/api';
 const ChangePassword = ({ onPasswordChanged }) => {
-  const { user } = useAuth();
   const { showToast } = useToast();
   const [newPassword, setNewPassword] = useState('');
   const [loading, setLoading] = useState(false);
@@ -13,18 +11,11 @@ const ChangePassword = ({ onPasswordChanged }) => {
     if (!newPassword.trim()) return showToast("Inserisci la nuova password", "error");
     setLoading(true);
     try {
-      const res = await fetch(`${API_URL}/auth/change-password`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        credentials: "include",
-        body: JSON.stringify({ userId: user.id, oldPassword: '', newPassword }),
-      });
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.message || "Errore cambio password");
+      await fetchWithAuth('/auth/change-password', { method: 'POST', body: { newPassword } });
       showToast("Password impostata", "success");
       onPasswordChanged();
     } catch (err) {
-      showToast(err.message || "Errore durante il cambio password", "error");
+      showToast(err.message, "error");
     } finally {
       setLoading(false);
       setNewPassword('');

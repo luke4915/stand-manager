@@ -4,7 +4,8 @@ import { BrowserMultiFormatReader, NotFoundException } from '@zxing/library';
 import { useToast } from '../../context/useToast';
 import { useAuth } from '../../context/useAuth';
 
-import { API_URL, WS_URL, WS_CLOSE_UNAUTHORIZED } from '../../config/api';
+import { WS_URL, WS_CLOSE_UNAUTHORIZED } from '../../config/api';
+import { fetchWithAuth } from '../../utils/apiClient';
 
 const mergeOrders = (existing, incoming) => {
   const map = new Map();
@@ -89,11 +90,8 @@ const OrdersKitchen = () => {
 
   const loadOrders = useCallback(async () => {
     try {
-      const res = await fetch(`${API_URL}/orders?session=active`, { credentials: 'include' });
-      if (res.ok) {
-        const data = await res.json();
-        setOrders(prev => mergeOrders(prev, data));
-      }
+      const data = await fetchWithAuth('/orders?session=active');
+      setOrders(prev => mergeOrders(prev, data));
     } catch {
       showToast('Errore caricamento ordini', 'error');
     }
@@ -160,17 +158,11 @@ const OrdersKitchen = () => {
     const displayCode = orderObj?.display_code || targetId;
 
     try {
-      const res = await fetch(`${API_URL}/orders/${targetId}`, {
-        method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
-        credentials: 'include',
-        body: JSON.stringify({ status: 'completed' }),
-      });
-      if (!res.ok) throw new Error();
+      await fetchWithAuth(`/orders/${targetId}`, { method: 'PUT', body: { status: 'completed' } });
       setOrders(prev => prev.map(o => o.id === targetId ? { ...o, status: 'completed' } : o));
       showToast(`Ordine #${displayCode} completato!`, 'success');
-    } catch {
-      showToast('Errore aggiornamento ordine', 'error');
+    } catch (err) {
+      showToast(`Errore aggiornamento ordine: ${err.message}`, 'error');
     }
   };
 

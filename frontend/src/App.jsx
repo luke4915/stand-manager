@@ -29,7 +29,8 @@ import { enqueueOrder } from './offline/syncQueue';
 import { saveProducts, loadCachedProducts } from './offline/productsCache';
 import { remember, recall } from './offline/lastKnown';
 
-import { API_URL, WS_URL, WS_CLOSE_UNAUTHORIZED } from './config/api';
+import { WS_URL, WS_CLOSE_UNAUTHORIZED } from './config/api';
+import { apiFetch, fetchWithAuth, NetworkError } from './utils/apiClient';
 // Ruoli abilitati ad applicare sconti/omaggi (specchio di DISCOUNT_ROLES nel backend)
 const DISCOUNT_ROLES = ['admin', 'responsabile'];
 
@@ -107,8 +108,7 @@ const App = () => {
     try {
       const ctx = getAudioContext();
       if (!audioBuffers.current[soundName]) {
-        const res = await fetch(`${API_URL}/assets/${soundName}.mp3`, { credentials: 'include' });
-        if (!res.ok) throw new Error();
+        const res = await apiFetch(`/assets/${soundName}.mp3`, { raw: true });
         const arrayBuffer = await res.arrayBuffer();
         audioBuffers.current[soundName] = await ctx.decodeAudioData(arrayBuffer);
       }
@@ -128,27 +128,23 @@ const App = () => {
 
   useEffect(() => {
     if (loading || !user) return;
-    fetch(`${API_URL}/sessions/latest`, { credentials: 'include' })
-      .then(async (r) => {
-        if (!r.ok) return;
-        const data = await r.json();
-        applySession(data && !data.end_time ? { id: data.id, name: data.name } : null);
-      })
-      // Senza rete si riprende l'ultima sessione nota, per continuare a battere ordini in coda.
-      .catch(() => setActiveSession(recall('activeSession')));
+    fetchWithAuth('/sessions/latest')
+      .then(data => applySession(data && !data.end_time ? { id: data.id, name: data.name } : null))
+      .catch(err => {
+        // Senza rete si riprende l'ultima sessione nota, per continuare a battere ordini in coda.
+        if (err instanceof NetworkError) setActiveSession(recall('activeSession'));
+      });
   }, [user, loading, applySession]);
 
   // Catalogo dal server; senza connessione si usa l'ultima copia salvata in locale.
   const loadProducts = useCallback(async () => {
     const normalize = (list) => list.map(p => ({ ...p, price: parseFloat(p.price) }));
     try {
-      const res = await fetch(`${API_URL}/products`, { credentials: 'include' });
-      if (!res.ok) return;
-      const data = await res.json();
+      const data = await fetchWithAuth('/products');
       setProducts(normalize(data));
       saveProducts(data).catch(console.error);
-    } catch {
-      setProducts(normalize(await loadCachedProducts()));
+    } catch (err) {
+      if (err instanceof NetworkError) setProducts(normalize(await loadCachedProducts()));
     }
   }, []);
 
@@ -285,35 +281,25 @@ const App = () => {
       client_order_id: crypto.randomUUID(),
     };
 
-    if (!navigator.onLine) {
+    const confirmOrder = (message, type) => {
+      playSagraSound('order_confirm_sound');
+      clearCart();
+      showToast(message, type);
+      if (isMobile) setIsMobileCartOpen(false);
+    };
+    const queueOffline = async () => {
       await enqueueOrder(payload, activeSession.id);
-      playSagraSound('order_confirm_sound');
-      clearCart();
-      showToast('Sei offline: ordine salvato, verrà inviato al ritorno della connessione', 'warning');
-      if (isMobile) setIsMobileCartOpen(false);
-      return;
-    }
+      confirmOrder('Sei offline: ordine salvato, verrà inviato al ritorno della connessione', 'warning');
+    };
 
+    if (!navigator.onLine) return queueOffline();
     try {
-      const res = await fetch(`${API_URL}/orders`, {
-        method: 'POST', headers: { 'Content-Type': 'application/json' }, credentials: 'include',
-        body: JSON.stringify(payload)
-      });
-      if (!res.ok) { const d = await res.json().catch(() => ({})); throw new Error(d.error || 'Errore server'); }
-      playSagraSound('order_confirm_sound');
-      clearCart();
-      showToast('Ordine inviato!', 'success');
-      if (isMobile) setIsMobileCartOpen(false);
+      await fetchWithAuth('/orders', { method: 'POST', body: payload });
+      confirmOrder('Ordine inviato!', 'success');
     } catch (err) {
-      // fetch fallita per motivi di rete (non un errore applicativo del server) -> coda offline
-      if (err instanceof TypeError) {
-        await enqueueOrder(payload, activeSession.id);
-        playSagraSound('order_confirm_sound');
-        clearCart();
-        showToast('Connessione assente: ordine salvato, verrà inviato al ritorno della connessione', 'warning');
-        if (isMobile) setIsMobileCartOpen(false);
-        return;
-      }
+      // Rete caduta durante l'invio: l'ordine va in coda con la stessa chiave, quindi
+      // se il server l'aveva già ricevuto non viene duplicato.
+      if (err instanceof NetworkError) return queueOffline();
       showToast(`Errore: ${err.message}`, 'error');
     }
   };
@@ -322,8 +308,7 @@ const App = () => {
   const shouldActivate = typeof targetState === 'boolean' ? targetState : !sessionActive;
     if (shouldActivate) { setInputSessionName(''); setShowStartSessionModal(true); }
     else {
-      fetch(`${API_URL}/sessions/expected-cash`, { credentials: 'include' })
-        .then(res => res.json())
+      fetchWithAuth('/sessions/expected-cash')
         .then(data => setExpectedCash(data.expected || 0))
         .catch(() => setExpectedCash(0));
       setShowEndSessionModal(true);
@@ -334,9 +319,7 @@ const App = () => {
     e.preventDefault();
     if (!inputSessionName.trim()) return showToast('Inserisci un nome valido!', 'warning');
     try {
-      const res = await fetch(`${API_URL}/sessions/start`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, credentials: 'include', body: JSON.stringify({ name: inputSessionName.trim() }) });
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.error || 'Errore db');
+      const data = await fetchWithAuth('/sessions/start', { method: 'POST', body: { name: inputSessionName.trim() } });
       applySession({ id: data.id, name: data.name }); setShowStartSessionModal(false);
       showToast(`Sessione "${data.name}" avviata!`, 'success');
     } catch (err) { showToast(err.message || 'Impossibile avviare la sessione', 'error'); }
@@ -344,14 +327,7 @@ const App = () => {
 
   const handleEndSessionConfirm = async (declaredCash) => {
     try {
-      const res = await fetch(`${API_URL}/sessions/end`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        credentials: 'include',
-        body: JSON.stringify({ declaredCash })
-      });
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.error || 'Errore db');
+      await fetchWithAuth('/sessions/end', { method: 'POST', body: { declaredCash } });
       applySession(null); setShowEndSessionModal(false);
       showToast('Sessione terminata.', 'info');
     } catch (err) { showToast(err.message || 'Impossibile chiudere la sessione', 'error'); }

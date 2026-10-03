@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef } from 'react';
 import { X, Edit, Trash2, Search, Plus, CheckSquare, Square, Eye, EyeOff } from 'lucide-react';
 
-import { API_URL } from '../../config/api';
+import { fetchWithAuth } from '../../utils/apiClient';
 import { useToast } from '../../context/useToast';
 
 const Combobox = ({ name, value, onChange, options, placeholder }) => {
@@ -154,16 +154,7 @@ const ProductConfig = ({ products, setProducts }) => {
   const handleToggleSingleVisibility = async (product) => {
     const updatedStatus = !product.visible;
     try {
-      const res = await fetch(`${API_URL}/products/${product.id}`, {
-        method: "PUT",
-        headers: { "Content-Type": "application/json" },
-        credentials: "include",
-        body: JSON.stringify({ ...product, visible: updatedStatus }),
-      });
-      if (!res.ok) {
-        const errData = await res.json().catch(() => ({}));
-        throw new Error(errData.error || "Errore nel cambio visibilità");
-      }
+      await fetchWithAuth(`/products/${product.id}`, { method: 'PUT', body: { ...product, visible: updatedStatus } });
 
       setProducts(prev => prev.map(p => p.id === product.id ? { ...p, visible: updatedStatus } : p));
       showToast(`Visibilità "${product.name}" aggiornata`, 'success');
@@ -180,16 +171,7 @@ const ProductConfig = ({ products, setProducts }) => {
   const handleBulkVisibilityChange = async (visibleStatus) => {
     if (selectedIds.length === 0) return;
     try {
-      const res = await fetch(`${API_URL}/products/bulk-visibility`, {
-        method: "PATCH",
-        headers: { "Content-Type": "application/json" },
-        credentials: "include",
-        body: JSON.stringify({ ids: selectedIds, visible: visibleStatus }),
-      });
-      if (!res.ok) {
-        const errData = await res.json().catch(() => ({}));
-        throw new Error(errData.error || "Errore nell'aggiornamento di massa");
-      }
+      await fetchWithAuth('/products/bulk-visibility', { method: 'PATCH', body: { ids: selectedIds, visible: visibleStatus } });
 
       setProducts(prev => prev.map(p => selectedIds.includes(p.id) ? { ...p, visible: visibleStatus } : p));
       showToast(`Visibilità aggiornata per ${selectedIds.length} prodotti`, 'success');
@@ -217,35 +199,23 @@ const ProductConfig = ({ products, setProducts }) => {
         price: parsedPrice
       };
 
-      const res = await fetch(editingProduct ? `${API_URL}/products/${editingProduct.id}` : `${API_URL}/products`, {
-        method: editingProduct ? "PUT" : "POST",
-        headers: { "Content-Type": "application/json" },
-        credentials: "include",
-        body: JSON.stringify(payload),
+      const updatedProduct = await fetchWithAuth(editingProduct ? `/products/${editingProduct.id}` : '/products', {
+        method: editingProduct ? 'PUT' : 'POST',
+        body: payload,
       });
-      if (!res.ok) {
-        const errData = await res.json().catch(() => ({}));
-        throw new Error(errData.error || "Errore durante il salvataggio del prodotto");
-      }
-
-      const updatedProduct = await res.json();
 
       if (formData.stock_enabled !== undefined) {
-        const stockRes = await fetch(`${API_URL}/products/${updatedProduct.id}/stock`, {
-          method: 'PATCH',
-          headers: { 'Content-Type': 'application/json' },
-          credentials: 'include',
-          body: JSON.stringify({
-            stock: formData.stock_enabled ? parseInt(formData.stock, 10) : null,
-            stock_enabled: !!formData.stock_enabled
-          })
-        });
-        if (stockRes.ok) {
-          const stockData = await stockRes.json();
+        try {
+          const stockData = await fetchWithAuth(`/products/${updatedProduct.id}/stock`, {
+            method: 'PATCH',
+            body: {
+              stock: formData.stock_enabled ? parseInt(formData.stock, 10) : null,
+              stock_enabled: !!formData.stock_enabled,
+            },
+          });
           Object.assign(updatedProduct, { stock: stockData.stock, stock_enabled: stockData.stock_enabled });
-        } else {
-          const stockErrData = await stockRes.json().catch(() => ({}));
-          showToast(stockErrData.error || "Prodotto salvato, ma errore nell'aggiornamento dello stock", 'error');
+        } catch (err) {
+          showToast(`Prodotto salvato, ma errore nell'aggiornamento dello stock: ${err.message}`, 'error');
         }
       }
 
@@ -305,11 +275,7 @@ const ProductConfig = ({ products, setProducts }) => {
 
   const confirmDelete = async () => {
     try {
-      const res = await fetch(`${API_URL}/products/${deleteTarget.id}`, { method: "DELETE", credentials: "include" });
-      if (!res.ok) {
-        const errData = await res.json().catch(() => ({}));
-        throw new Error(errData.error || "Errore durante l'eliminazione");
-      }
+      await fetchWithAuth(`/products/${deleteTarget.id}`, { method: 'DELETE' });
 
       setProducts(prev => prev.filter(p => p.id !== deleteTarget.id));
       showToast(`Prodotto "${deleteTarget.name}" eliminato`, 'success');

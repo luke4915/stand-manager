@@ -30,6 +30,7 @@ frontend/           React 19 + Vite 7 + Tailwind v4 + react-router-dom 7 + PWA (
   src/context/      AuthProvider + useAuth (login, refresh), ToastProvider + useToast
   src/config/api.js API_URL / WS_URL derivati dal sottodominio corrente
   src/offline/      db Dexie, coda ordini offline, hook useOfflineSync, catalogo offline, ultimi valori noti
+  src/utils/apiClient.js  client unico per le API: apiFetch, fetchWithAuth, ApiError, NetworkError
   src/utils/pricing.js  specchio 1:1 di backend/utils/pricing.js
 ```
 
@@ -108,8 +109,12 @@ L'isolamento tra tenant si basa sulla Row-Level Security di PostgreSQL con la va
 ## 7. Convenzioni frontend
 
 - Componenti funzionali con hook. Un componente per file, file `.jsx` in PascalCase; hook `useXxx`; utility in camelCase `.js`. Un file `.jsx` esporta solo componenti: contesti, hook e costanti condivise vanno in un `.js` a parte (es. `useAuth.js` accanto ad `AuthProvider.jsx`), come chiede la regola di fast refresh.
-- Le chiamate API usano `API_URL` da `src/config/api.js`, con `credentials: 'include'` (JWT in cookie). Mai URL scritti a mano.
-- Gestisci sempre il 401 (`TOKEN_EXPIRED`) passando per il refresh di `AuthContext`. Obiettivo: centralizzare in un helper `fetchWithAuth` e migrarci gradualmente le `fetch` sparse.
+- Le chiamate API passano **solo** da `src/utils/apiClient.js`, mai da `fetch` diretta:
+  - `fetchWithAuth(path, { method, body })` per tutto ciò che richiede login: su 401 rinnova la sessione una volta (un solo rinnovo anche per più chiamate insieme) e ripete la richiesta; licenza scaduta o tenant disattivato riportano al login;
+  - `apiFetch` dove un 401 non significa sessione scaduta: login, pagine pubbliche (menu, KDS), master panel;
+  - `body` oggetto viene inviato come JSON; `raw: true` restituisce la Response (file, audio);
+  - gli errori arrivano come `ApiError` (`message` in italiano dal server, `status`, `code`) o `NetworkError` (server non raggiungibile). Mostra `err.message` con un toast.
+- Lato server un 401 significa solo "sessione assente o scaduta": per credenziali o dati errati usa 400 o 403, altrimenti il frontend tenterebbe un rinnovo inutile.
 - Stile solo con Tailwind v4. Rispetta il tema chiaro/scuro esistente e il doppio layout desktop/mobile (`useBreakpoint`, cartelle `desktop/` e `mobile/`).
 - Messaggi all'utente tramite `ToastContext`, non con `alert()`.
 - `App.jsx` è già molto grande: le nuove funzionalità vanno in componenti, hook o pagine dedicate, non qui.
@@ -147,8 +152,7 @@ L'isolamento tra tenant si basa sulla Row-Level Security di PostgreSQL con la va
 Elenco verificato sul codice, ordinato per gravità. Quando ne risolvi una, toglila da qui nello stesso commit.
 
 **Validazione e coerenza API**
-- Solo il POST `/orders` usa zod (`schemas/orderSchema.js`). Le altre route validano a mano o non validano: per esempio `PATCH /products/:id/stock` accetta qualsiasi ruolo e qualsiasi valore.
-- `auth.js` `/change-password` risponde con `{ message }` invece di `{ error }`.
+- Validano ancora a mano, o non validano, invece di usare zod: `products.js`, `printSettings.js`, `master.js`, `profile.js`, login e creazione utente in `auth.js`. Per esempio `PATCH /products/:id/stock` accetta qualsiasi ruolo e qualsiasi valore.
 - `orders.js`: `logoPath` punta a `assets/logo_5calzoni.png`, che non esiste ed è un logo specifico di un cliente. Il logo dovrebbe venire dalle impostazioni del tenant.
 
 **Codice legacy e dipendenze**
@@ -168,7 +172,6 @@ Elenco verificato sul codice, ordinato per gravità. Quando ne risolvi una, togl
 
 **Frontend e offline**
 - Gli ordini offline rifiutati per sempre (`failed`) sono visibili solo come contatore in testata: manca una schermata per vederli e archiviarli. Gli ordini rimasti in coda da prima dell'aggiornamento non hanno `client_order_id` né `session_id`, quindi vanno nella sessione aperta al momento della sincronizzazione.
-- 53 `fetch` sparse in 17 file e nessun `fetchWithAuth` centralizzato.
 
 **Evoluzione (priorità 2)**
 - `orders.items` è un array JSONB dentro l'ordine. Per la ristorazione avanzata (tavoli, stato per singola riga nel KDS, conti divisi) servirà una tabella `order_items`.

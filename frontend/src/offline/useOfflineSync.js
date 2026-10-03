@@ -1,12 +1,10 @@
 import { useEffect, useState, useCallback } from 'react';
 import { flushQueue, countByStatus } from './syncQueue';
-import { useAuth } from '../context/useAuth';
 import { useToast } from '../context/useToast';
 
 const RETRY_INTERVAL_MS = 15000;
 
 export function useOfflineSync() {
-  const { refreshSession } = useAuth();
   const { showToast } = useToast();
   const [pending, setPending] = useState(0);
   const [failed, setFailed] = useState(0);
@@ -18,10 +16,10 @@ export function useOfflineSync() {
   }, []);
 
   const sync = useCallback(async () => {
-    const newlyFailed = await flushQueue({ refreshSession });
+    const newlyFailed = await flushQueue();
     newlyFailed.forEach(o => showToast(`Ordine offline non sincronizzato: ${o.error}`, 'error'));
     refreshCounts();
-  }, [refreshSession, showToast, refreshCounts]);
+  }, [showToast, refreshCounts]);
 
   useEffect(() => {
     refreshCounts();

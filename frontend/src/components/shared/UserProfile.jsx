@@ -1,9 +1,9 @@
 import { useState } from 'react';
 import { X } from 'lucide-react';
-import { useToast } from '../../context/useToast'
+import { useToast } from '../../context/useToast';
 import { useAuth } from '../../context/useAuth';
+import { fetchWithAuth } from '../../utils/apiClient';
 
-import { API_URL } from '../../config/api';
 const UserProfile = ({ onClose }) => {
   const { user, login } = useAuth();
   const { showToast } = useToast();
@@ -23,28 +23,14 @@ const UserProfile = ({ onClose }) => {
   const handleSave = async () => {
     try {
       if (username !== user.username) {
-        const res = await fetch(`${API_URL}/profile/username`, {
-          method: "PATCH",
-          headers: { "Content-Type": "application/json" },
-          credentials: "include",
-          body: JSON.stringify({ newUsername: username }),
-        });
-        const data = await res.json();
-        if (!res.ok) throw new Error(data.error || "Errore aggiornamento username");
+        await fetchWithAuth('/profile/username', { method: 'PATCH', body: { newUsername: username } });
         login({ ...user, username });
       }
 
       if (newPassword) {
         if (!oldPassword) return showToast("Inserisci la vecchia password", "error");
         if (newPassword !== confirmPassword) return showToast("Le password non coincidono", "error");
-        const res = await fetch(`${API_URL}/auth/change-password`, {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          credentials: "include",
-          body: JSON.stringify({ userId: user.id, oldPassword, newPassword }),
-        });
-        const data = await res.json();
-        if (!res.ok) throw new Error(data.error || "Errore aggiornamento password");
+        await fetchWithAuth('/auth/change-password', { method: 'POST', body: { oldPassword, newPassword } });
       }
 
       showToast("Profilo aggiornato", "success");
@@ -58,14 +44,7 @@ const UserProfile = ({ onClose }) => {
     if (!newUserName.trim()) return showToast("Inserisci un nome utente", "error");
     setIsCreating(true);
     try {
-      const res = await fetch(`${API_URL}/auth/admin/createUser`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        credentials: "include",
-        body: JSON.stringify({ username: newUserName, role: newUserRole }),
-      });
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.error || "Errore creazione utente");
+      const data = await fetchWithAuth('/auth/admin/createUser', { method: 'POST', body: { username: newUserName, role: newUserRole } });
       showToast(`Utente "${data.user.username}" creato`, "success");
       setNewUserName('');
       setShowCreateUser(false);

@@ -2,7 +2,7 @@ import React, { useEffect, useState, useCallback } from 'react';
 import { X, AlertTriangle, Clock } from 'lucide-react';
 import { useToast } from '../../context/useToast';
 
-import { API_URL } from '../../config/api';
+import { fetchWithAuth } from '../../utils/apiClient';
 const CANCEL_WINDOW_MS = 5 * 60 * 1000; // deve combaciare con il backend
 
 // Un ordine è stornabile se: è ancora pending/preparing (avanzata, sempre stornabile
@@ -24,8 +24,7 @@ const ReverseOrder = ({ onClose }) => {
 
   const load = useCallback(async () => {
     try {
-      const res = await fetch(`${API_URL}/orders?session=active`, { credentials: 'include' });
-      const data = await res.json();
+      const data = await fetchWithAuth('/orders?session=active');
       setOrders(data.filter(o => cancelDeadline(o) > Date.now()));
     } catch {
       showToast("Errore caricamento ordini", "error");
@@ -46,20 +45,11 @@ const ReverseOrder = ({ onClose }) => {
 
   const cancelOrder = async (orderId) => {
     try {
-      const res = await fetch(`${API_URL}/orders/${orderId}`, {
-        method: "PUT",
-        headers: { "Content-Type": "application/json" },
-        credentials: "include",
-        body: JSON.stringify({ status: 'canceled' })
-      });
-      if (!res.ok) {
-        const err = await res.json().catch(() => ({}));
-        throw new Error(err.error || 'Errore');
-      }
+      await fetchWithAuth(`/orders/${orderId}`, { method: 'PUT', body: { status: 'canceled' } });
       setOrders(prev => prev.filter(o => o.id !== orderId));
       showToast("Ordine stornato", "success");
     } catch (err) {
-      showToast(err.message === 'Errore' ? "Errore durante lo storno" : err.message, "error");
+      showToast(`Errore durante lo storno: ${err.message}`, "error");
     }
   };
 

@@ -6,6 +6,7 @@ import { authenticate, authorizeAdmin } from '../middleware/authenticate.js';
 import { tenantScope, lookupUserForLogin, withTenantClient, checkTenantAccess } from '../middleware/tenantScope.js';
 import { resolveTenantFromHost } from '../middleware/resolveTenantFromHost.js';
 import logger from '../logger.js';
+import { changePasswordSchema } from '../schemas/authSchema.js';
 
 const router = express.Router();
 
@@ -136,28 +137,31 @@ router.post('/refresh', async (req, res) => {
 });
 
 // CHANGE PASSWORD
+// Una password attuale errata è un dato non valido (400), non una sessione scaduta (401):
+// il frontend su 401 tenterebbe di rinnovare la sessione.
 router.post('/change-password', authenticate, tenantScope, async (req, res) => {
-  try {
-    const userId = req.user.id;
-    const { oldPassword, newPassword } = req.body;
-    if (!newPassword) return res.status(400).json({ message: 'Nuova password richiesta' });
-    if (newPassword.length < 6) return res.status(400).json({ message: 'Password troppo corta (min 6 caratteri)' });
+  const parsed = changePasswordSchema.safeParse(req.body);
+  if (!parsed.success) {
+    return res.status(400).json({ error: parsed.error.issues[0]?.message || 'Dati non validi' });
+  }
+  const { oldPassword, newPassword } = parsed.data;
 
-    const { rows } = await req.db.query('SELECT password_hash FROM users WHERE id=$1', [userId]);
-    if (!rows.length) return res.status(404).json({ message: 'Utente non trovato' });
+  try {
+    const { rows } = await req.db.query('SELECT password_hash FROM users WHERE id=$1', [req.user.id]);
+    if (!rows.length) return res.status(404).json({ error: 'Utente non trovato' });
 
     const currentHash = rows[0].password_hash;
     if (currentHash) {
-      if (!oldPassword) return res.status(400).json({ message: 'Vecchia password richiesta' });
+      if (!oldPassword) return res.status(400).json({ error: 'Vecchia password richiesta' });
       if (!await bcrypt.compare(oldPassword, currentHash))
-        return res.status(401).json({ message: 'Password attuale errata' });
+        return res.status(400).json({ error: 'Password attuale errata' });
     }
-    await req.db.query('UPDATE users SET password_hash=$1 WHERE id=$2', [await bcrypt.hash(newPassword, 10), userId]);
+    await req.db.query('UPDATE users SET password_hash=$1 WHERE id=$2', [await bcrypt.hash(newPassword, 10), req.user.id]);
 
     res.json({ message: 'Password aggiornata con successo' });
   } catch (err) {
     logger.error({ err }, 'Errore cambio password');
-    res.status(500).json({ message: 'Errore server' });
+    res.status(500).json({ error: 'Errore durante il cambio password' });
   }
 });
 
