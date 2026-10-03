@@ -14,14 +14,16 @@ Lingua: **UI, messaggi di errore, log e commenti in italiano.** Nomi di variabil
 
 ```
 backend/            Node.js (ESM) + Express 5 + pg + ws (WSS) + pino + zod
-  server.js         entrypoint: helmet, CORS, rate limit, HTTPS, mount delle route
-  ws.js             WebSocket (WSS) isolato per tenant: handshake autenticato, broadcast(tenantId, msg)
+  server.js         avvio: certificati HTTPS, server, WebSocket
+  app.js            createApp(): helmet, CORS, rate limit, route (usata da server.js e dai test)
+  ws.js             createWebSocketHub(): WebSocket isolato per tenant, broadcast(tenantId, msg), attach(server)
   db.js             Pool PostgreSQL condiviso
   middleware/       authenticate, tenantScope, resolveTenantFromHost, rateLimiter, authenticateMaster
   routes/           una route per dominio (orders, products, sessions, printSettings, master, …)
   schemas/          schemi zod per validare i payload
   utils/            pricing (fonte di verità server), stock, displayCode, httpError, eposXmlPrinter, receiptTemplates, auditLogger
   tests/            test unitari node:test (*.test.js) sulla logica pura
+  tests/integration/  test di integrazione: app in memoria + PostgreSQL locale con RLS
   migrations/       NNN_descrizione.sql + run.js (tabella _migrations)
 frontend/           React 19 + Vite 7 + Tailwind v4 + react-router-dom 7 + PWA (vite-plugin-pwa) + Dexie
   src/App.jsx       shell autenticata, routing, WebSocket, carrello, sessioni
@@ -44,6 +46,7 @@ Comandi:
 | backend | `npm run dev` | nodemon su server.js (HTTPS, porta 3000) |
 | backend | `npm run migrate` | applica le migrazioni mancanti |
 | backend | `npm test` | test unitari (`node --test`) |
+| backend | `npm run test:integration` | test di integrazione (serve `backend/.env.test`, vedi `.env.test.example`) |
 | frontend | `npm run dev` | Vite su https://*.standmanager.local:5173 |
 | frontend | `npm run lint` | ESLint — deve passare prima di ogni commit |
 | frontend | `npm run build` | build di produzione |
@@ -145,7 +148,7 @@ L'isolamento tra tenant si basa sulla Row-Level Security di PostgreSQL con la va
 2. Modifiche piccole e focalizzate. Niente refactoring non richiesti mescolati alla feature: segnalali a parte.
 3. Riusa i pattern esistenti (vedi `routes/products.js` e il POST in `routes/orders.js` come riferimento).
 4. Dopo ogni modifica: `npm run lint` nel frontend e verifica che il backend parta. Se tocchi una migrazione, eseguila su un DB locale.
-5. I test unitari sono in `backend/tests/` (`npm test`). Quando aggiungi logica critica (prezzi, stock, RLS) aggiungi test mirati; la logica pura va in funzioni separate, testabili senza database.
+5. Test: unitari in `backend/tests/` (`npm test`), di integrazione in `backend/tests/integration/` (`npm run test:integration`). Quelli di integrazione avviano l'app in memoria su un database locale vero (con RLS), creano tenant di prova con nomi casuali e li cancellano alla fine. Quando aggiungi logica critica (prezzi, stock, RLS) aggiungi test mirati: la logica pura va in funzioni separate con test unitari, i flussi tra API e database nei test di integrazione.
 6. Commit in italiano, all'imperativo, con un ambito: `feat(orders): …`, `fix(rls): …`, `chore: …`.
 7. Se una richiesta contraddice queste regole (soprattutto §3 e §4), fermati e chiedi.
 8. A fine feature, aggiorna questo file se è nata una convenzione nuova.

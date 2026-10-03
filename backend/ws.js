@@ -76,12 +76,13 @@ async function authorizeUpgrade(req) {
   };
 }
 
-// Aggancia il server WebSocket al server HTTPS e restituisce broadcast/close.
-// Ogni client appartiene a un solo tenant: broadcast(tenantId, msg) non esce mai da lì.
-export function attachWebSocket(server) {
+// Hub WebSocket: si crea prima dell'app (che riceve broadcast) e si aggancia al
+// server HTTP(S) con attach(server). Ogni client appartiene a un solo tenant:
+// broadcast(tenantId, msg) non esce mai da lì.
+export function createWebSocketHub() {
   const wss = new WebSocketServer({ noServer: true });
 
-  server.on('upgrade', async (req, socket, head) => {
+  const handleUpgrade = async (req, socket, head) => {
     socket.on('error', (err) => logger.warn({ err }, 'WS: errore socket durante handshake'));
     let ctx;
     try {
@@ -113,7 +114,7 @@ export function attachWebSocket(server) {
       logger.info({ tenantId: ctx.tenantId, audience: ctx.audience, userId: ctx.userId }, 'WS: client connesso');
       ws.send(JSON.stringify({ type: 'connected' }));
     });
-  });
+  };
 
   // Chiude le connessioni morte (Wi-Fi caduto, tablet in standby) che non rispondono al ping.
   const heartbeat = setInterval(() => {
@@ -150,5 +151,7 @@ export function attachWebSocket(server) {
     wss.close();
   }
 
-  return { broadcast, close };
+  const attach = (server) => server.on('upgrade', handleUpgrade);
+
+  return { broadcast, close, attach };
 }
