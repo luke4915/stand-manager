@@ -5,6 +5,9 @@ import { pool, inTransaction } from '../db.js';
 import { withTenantClient } from '../middleware/tenantScope.js';
 import { authenticateMaster } from '../middleware/authenticateMaster.js';
 import logger from '../logger.js';
+import { validate } from '../middleware/validate.js';
+import { idParamsSchema } from '../schemas/common.js';
+import { masterLoginSchema, createTenantSchema, extendLicenseSchema, tenantActiveSchema, deleteTenantSchema } from '../schemas/masterSchema.js';
 
 const router = express.Router();
 
@@ -17,9 +20,8 @@ const setMasterCookie = (res, token) => res.cookie('master_token', token, {
 });
 
 // LOGIN — password singola (solo tu), hash in env, mai in chiaro nel codice
-router.post('/login', async (req, res) => {
+router.post('/login', validate({ body: masterLoginSchema }), async (req, res) => {
   const { password } = req.body;
-  if (!password) return res.status(400).json({ error: 'Password richiesta' });
   if (!process.env.MASTER_PASSWORD_HASH || !process.env.MASTER_JWT_SECRET) {
     return res.status(500).json({ error: 'Pannello master non configurato' });
   }
@@ -52,12 +54,8 @@ router.get('/tenants', authenticateMaster, async (req, res) => {
 });
 
 // CREA TENANT + primo utente admin
-router.post('/tenants', authenticateMaster, async (req, res) => {
+router.post('/tenants', authenticateMaster, validate({ body: createTenantSchema }), async (req, res) => {
   const { slug, name, plan, expiresInDays, adminUsername } = req.body;
-  if (!slug?.trim() || !name?.trim() || !adminUsername?.trim())
-    return res.status(400).json({ error: 'slug, name e adminUsername sono richiesti' });
-  if (!/^[a-z0-9-]+$/.test(slug))
-    return res.status(400).json({ error: 'slug: solo lettere minuscole, numeri e trattini' });
 
   const client = await pool.connect();
   try {
@@ -69,7 +67,7 @@ router.post('/tenants', authenticateMaster, async (req, res) => {
 
     const { rows: tenantRows } = await client.query(
       `INSERT INTO tenants (slug, name, plan, expires_at) VALUES ($1, $2, $3, $4) RETURNING *`,
-      [slug.trim(), name.trim(), plan || 'trial', expiresAt]
+      [slug, name, plan, expiresAt]
     );
     const tenant = tenantRows[0];
 
@@ -78,7 +76,7 @@ router.post('/tenants', authenticateMaster, async (req, res) => {
     await client.query('SELECT set_config($1, $2, false)', ['app.tenant_id', String(tenant.id)]);
     const { rows: userRows } = await client.query(
       `INSERT INTO users (username, role, tenant_id) VALUES ($1, 'admin', $2) RETURNING id, username, role`,
-      [adminUsername.trim(), tenant.id]
+      [adminUsername, tenant.id]
     );
 
     await client.query('COMMIT');
@@ -95,9 +93,8 @@ router.post('/tenants', authenticateMaster, async (req, res) => {
 });
 
 // ESTENDI LICENZA — aggiunge N giorni partendo da oggi o dalla scadenza attuale, quella più lontana
-router.patch('/tenants/:id/extend', authenticateMaster, async (req, res) => {
-  const days = Number(req.body.days);
-  if (!days || days <= 0) return res.status(400).json({ error: 'days deve essere un numero positivo' });
+router.patch('/tenants/:id/extend', authenticateMaster, validate({ params: idParamsSchema, body: extendLicenseSchema }), async (req, res) => {
+  const { days } = req.body;
   try {
     const { rows } = await pool.query(
       `UPDATE tenants SET expires_at = GREATEST(COALESCE(expires_at, now()), now()) + ($1 || ' days')::interval
@@ -113,11 +110,11 @@ router.patch('/tenants/:id/extend', authenticateMaster, async (req, res) => {
 });
 
 // ATTIVA/DISATTIVA — reversibile, non tocca i dati
-router.patch('/tenants/:id/active', authenticateMaster, async (req, res) => {
+router.patch('/tenants/:id/active', authenticateMaster, validate({ params: idParamsSchema, body: tenantActiveSchema }), async (req, res) => {
   try {
     const { rows } = await pool.query(
       'UPDATE tenants SET active = $1 WHERE id = $2 RETURNING *',
-      [!!req.body.active, req.params.id]
+      [req.body.active, req.params.id]
     );
     if (!rows.length) return res.status(404).json({ error: 'Tenant non trovato' });
     res.json(rows[0]);
@@ -132,7 +129,7 @@ router.patch('/tenants/:id/active', authenticateMaster, async (req, res) => {
 // Tutto in un'unica transazione sulla connessione scoped al tenant: o sparisce
 // tutto o non sparisce niente. L'ordine rispetta le foreign key (audit_logs → users).
 const TENANT_SCOPED_TABLES = ['audit_logs', 'orders', 'products', 'sessions', 'print_settings', 'copy_types', 'settings', 'users'];
-router.delete('/tenants/:id', authenticateMaster, async (req, res) => {
+router.delete('/tenants/:id', authenticateMaster, validate({ params: idParamsSchema, body: deleteTenantSchema }), async (req, res) => {
   const { id } = req.params;
   try {
     const { rows: check } = await pool.query('SELECT slug FROM tenants WHERE id = $1', [id]);

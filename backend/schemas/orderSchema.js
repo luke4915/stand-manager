@@ -34,8 +34,6 @@ export const createOrderSchema = z.object({
 );
 export const ORDER_STATUSES = ['pending', 'preparing', 'completed', 'canceled'];
 
-export const orderIdSchema = z.coerce.number().int().positive();
-
 export const updateOrderStatusSchema = z.object({
     status: z.enum(ORDER_STATUSES),
 });

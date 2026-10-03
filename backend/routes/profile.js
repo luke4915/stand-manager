@@ -1,23 +1,22 @@
 import express from 'express';
 import { authenticate } from '../middleware/authenticate.js';
 import { tenantScope } from '../middleware/tenantScope.js';
+import { validate } from '../middleware/validate.js';
+import { changeUsernameSchema } from '../schemas/authSchema.js';
 import logger from '../logger.js';
 
 const router = express.Router();
 
-router.patch('/username', authenticate, tenantScope, async (req, res) => {
+router.patch('/username', authenticate, validate({ body: changeUsernameSchema }), tenantScope, async (req, res) => {
   const { newUsername } = req.body;
-  if (!newUsername?.trim()) return res.status(400).json({ error: 'Nome utente mancante' });
   try {
-    const { rows: existing } = await req.db.query(
-      'SELECT id FROM users WHERE username=$1 AND id!=$2', [newUsername.trim(), req.user.id]
-    );
-    if (existing.length) return res.status(409).json({ error: 'Username già in uso' });
-    await req.db.query('UPDATE users SET username=$1 WHERE id=$2', [newUsername.trim(), req.user.id]);
-    res.json({ success: true, username: newUsername.trim() });
+    await req.db.query('UPDATE users SET username=$1 WHERE id=$2', [newUsername, req.user.id]);
+    res.json({ success: true, username: newUsername });
   } catch (err) {
-    logger.error({ err }, 'Errore server')
-    res.status(500).json({ error: 'Errore server' });
+    // username unico in tutto il sistema, anche se di un altro tenant (invisibile per RLS)
+    if (err.code === '23505') return res.status(409).json({ error: 'Username già in uso' });
+    logger.error({ err }, 'Errore cambio username');
+    res.status(500).json({ error: 'Errore durante il cambio username' });
   }
 });
 

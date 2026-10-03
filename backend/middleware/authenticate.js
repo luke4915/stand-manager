@@ -31,6 +31,18 @@ export function authorizeAdmin(req, res, next) {
   next();
 }
 
+// Ruoli che possono gestire lo stock dalla cassa (la cucina no).
+export const STOCK_ROLES = ['admin', 'responsabile', 'cassa'];
+
+export function authorizeStock(req, res, next) {
+  if (!STOCK_ROLES.includes(req.user?.role))
+    return res.status(403).json({ error: 'Non hai i permessi per modificare lo stock' });
+  next();
+}
+
+// Ruoli degli utenti di un tenant.
+export const ROLES = ['admin', 'responsabile', 'cassa', 'cucina'];
+
 // Ruoli abilitati ad applicare sconti/omaggi su ordini e singoli prodotti.
 // Esportato anche come array riutilizzabile per validazioni inline (non solo middleware di route).
 export const DISCOUNT_ROLES = ['admin', 'responsabile'];

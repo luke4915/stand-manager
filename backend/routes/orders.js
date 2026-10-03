@@ -9,7 +9,9 @@ import { printOrderBatch } from '../utils/receiptTemplates.js';
 import { computeEffectivePrice, sanitizeAdjustment } from '../utils/pricing.js';
 import logger from '../logger.js';
 import { logAudit } from '../utils/auditLogger.js';
-import { createOrderSchema, orderIdSchema, updateOrderStatusSchema } from '../schemas/orderSchema.js';
+import { createOrderSchema, updateOrderStatusSchema } from '../schemas/orderSchema.js';
+import { idParamsSchema } from '../schemas/common.js';
+import { validate } from '../middleware/validate.js';
 import { toPublicOrder } from '../utils/publicOrder.js';
 import { formatDisplayCode } from '../utils/displayCode.js';
 import { sumQuantitiesByProduct, lockAndFindShortages, applyStockChange } from '../utils/stock.js';
@@ -137,12 +139,8 @@ export default function (broadcast) {
   });
 
   // POST /orders (Creazione Ordine)
-  router.post('/', authenticate, tenantScope, async (req, res) => {
-    const parsed = createOrderSchema.safeParse(req.body);
-    if (!parsed.success) {
-      return res.status(400).json({ error: 'Richiesta non valida', details: parsed.error.flatten() });
-    }
-    const { items, status, is_takeaway, client_order_id, session_id, client_created_at } = parsed.data;
+  router.post('/', authenticate, validate({ body: createOrderSchema }), tenantScope, async (req, res) => {
+    const { items, status, is_takeaway, client_order_id, session_id, client_created_at } = req.body;
 
     // Idempotenza: un ordine già ricevuto (retry dopo un errore di rete o dalla
     // coda offline) non si duplica, si risponde con quello esistente.
@@ -277,17 +275,15 @@ export default function (broadcast) {
   });
 
   // PUT /orders/:id — cambio stato; lo storno ripristina lo stock nella stessa transazione
-  router.put('/:id', authenticate, tenantScope, async (req, res) => {
-    const id = orderIdSchema.safeParse(req.params.id);
-    const body = updateOrderStatusSchema.safeParse(req.body);
-    if (!id.success || !body.success) return res.status(400).json({ error: 'Richiesta non valida' });
-    const { status } = body.data;
+  router.put('/:id', authenticate, validate({ params: idParamsSchema, body: updateOrderStatusSchema }), tenantScope, async (req, res) => {
+    const { id } = req.params;
+    const { status } = req.body;
 
     try {
       const { previousStatus, updated, stockUpdates } = await inTransaction(req.db, async (db) => {
         const { rows: current } = await db.query(
           'SELECT status, completed_at, created_at FROM orders WHERE id = $1 FOR UPDATE',
-          [id.data]
+          [id]
         );
         if (!current.length) throw new HttpError(404, 'Ordine non trovato');
         const order = current[0];
@@ -304,7 +300,7 @@ export default function (broadcast) {
           `UPDATE orders SET status = $1,
              completed_at = CASE WHEN $1 = 'completed' THEN now() ELSE completed_at END
            WHERE id = $2 RETURNING *`,
-          [status, id.data]
+          [status, id]
         );
         const updated = { ...rows[0], items: safeParseJSON(rows[0].items) };
         const stockUpdates = status === 'canceled'
@@ -314,7 +310,7 @@ export default function (broadcast) {
       });
 
       await logAudit(req.db, req.user.id, 'UPDATE_ORDER_STATUS', {
-        orderId: id.data,
+        orderId: id,
         oldStatus: previousStatus,
         newStatus: status
       });
@@ -332,7 +328,7 @@ export default function (broadcast) {
   });
 
   // POST /orders/:id/reprint
-  router.post('/:id/reprint', authenticate, tenantScope, async (req, res) => {
+  router.post('/:id/reprint', authenticate, validate({ params: idParamsSchema }), tenantScope, async (req, res) => {
     try {
       const { rows } = await req.db.query('SELECT * FROM orders WHERE id=$1', [req.params.id]);
       if (!rows.length) return res.status(404).json({ error: 'Ordine non trovato' });

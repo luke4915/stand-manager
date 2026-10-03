@@ -5,6 +5,7 @@ import { tenantScope } from '../middleware/tenantScope.js';
 import logger from '../logger.js';
 import { logAudit } from '../utils/auditLogger.js';
 import { startSessionSchema, endSessionSchema } from '../schemas/sessionSchema.js';
+import { validate } from '../middleware/validate.js';
 import { computeExpectedCash } from '../utils/session.js';
 
 const router = express.Router();
@@ -44,15 +45,12 @@ export default function (broadcast) {
 
   // POST /start — apre la sessione e riparte con disponibilità illimitata:
   // si presume che i prodotti siano stati riforniti, lo stock va reimpostato se serve.
-  router.post('/start', authenticate, authorizeAdmin, tenantScope, async (req, res) => {
-    const parsed = startSessionSchema.safeParse(req.body);
-    if (!parsed.success) return res.status(400).json({ error: 'Nome obbligatorio (massimo 100 caratteri)' });
-
+  router.post('/start', authenticate, authorizeAdmin, validate({ body: startSessionSchema }), tenantScope, async (req, res) => {
     try {
       const session = await inTransaction(req.db, async (db) => {
         const { rows } = await db.query(
           'INSERT INTO sessions (name, start_time) VALUES ($1, NOW()) RETURNING *',
-          [parsed.data.name]
+          [req.body.name]
         );
         // I prodotti nascosti perché esauriti (stock 0) tornano visibili;
         // quelli nascosti a mano dall'admin restano nascosti.
@@ -80,10 +78,8 @@ export default function (broadcast) {
   // POST /end — chiude la sessione con il conto cassa.
   // Il lock sulla sessione mette in attesa gli ordini in arrivo: o entrano nel
   // totale atteso, o trovano la sessione chiusa e vengono rifiutati.
-  router.post('/end', authenticate, authorizeAdmin, tenantScope, async (req, res) => {
-    const parsed = endSessionSchema.safeParse(req.body ?? {});
-    if (!parsed.success) return res.status(400).json({ error: 'Importo dichiarato non valido' });
-    const declared = parsed.data.declaredCash ?? null;
+  router.post('/end', authenticate, authorizeAdmin, validate({ body: endSessionSchema }), tenantScope, async (req, res) => {
+    const declared = req.body.declaredCash ?? null;
 
     try {
       const result = await inTransaction(req.db, async (db) => {

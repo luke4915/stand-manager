@@ -6,7 +6,8 @@ import { authenticate, authorizeAdmin } from '../middleware/authenticate.js';
 import { tenantScope, lookupUserForLogin, withTenantClient, checkTenantAccess } from '../middleware/tenantScope.js';
 import { resolveTenantFromHost } from '../middleware/resolveTenantFromHost.js';
 import logger from '../logger.js';
-import { changePasswordSchema } from '../schemas/authSchema.js';
+import { validate } from '../middleware/validate.js';
+import { loginSchema, createUserSchema, changePasswordSchema } from '../schemas/authSchema.js';
 
 const router = express.Router();
 
@@ -47,11 +48,10 @@ const clearCookie = (res) => res.cookie('token', '', {
 });
 
 // LOGIN
-router.post('/login', resolveTenantFromHost, async (req, res) => {
+router.post('/login', validate({ body: loginSchema }), resolveTenantFromHost, async (req, res) => {
   const { username, password } = req.body;
-  if (!username?.trim()) return res.status(400).json({ error: 'Username richiesto' });
   try {
-    const user = await lookupUserForLogin(username.trim());
+    const user = await lookupUserForLogin(username);
     if (!user) return res.status(401).json({ error: 'Utente non trovato' });
     // L'username è unico a livello globale, ma l'accesso deve avvenire dal
     // sottodominio del proprio tenant: altrimenti un utente valido di un
@@ -72,7 +72,7 @@ router.post('/login', resolveTenantFromHost, async (req, res) => {
 
     user.tenant_name = tenant.name;
     const needsPassword = !user.password_hash?.trim();
-    if (!needsPassword && !await bcrypt.compare(password || '', user.password_hash))
+    if (!needsPassword && !await bcrypt.compare(password, user.password_hash))
       return res.status(401).json({ error: 'Password errata' });
 
     setCookie(res, signToken(user));
@@ -139,12 +139,8 @@ router.post('/refresh', async (req, res) => {
 // CHANGE PASSWORD
 // Una password attuale errata è un dato non valido (400), non una sessione scaduta (401):
 // il frontend su 401 tenterebbe di rinnovare la sessione.
-router.post('/change-password', authenticate, tenantScope, async (req, res) => {
-  const parsed = changePasswordSchema.safeParse(req.body);
-  if (!parsed.success) {
-    return res.status(400).json({ error: parsed.error.issues[0]?.message || 'Dati non validi' });
-  }
-  const { oldPassword, newPassword } = parsed.data;
+router.post('/change-password', authenticate, validate({ body: changePasswordSchema }), tenantScope, async (req, res) => {
+  const { oldPassword, newPassword } = req.body;
 
   try {
     const { rows } = await req.db.query('SELECT password_hash FROM users WHERE id=$1', [req.user.id]);
@@ -166,23 +162,17 @@ router.post('/change-password', authenticate, tenantScope, async (req, res) => {
 });
 
 // CREATE USER (admin only)
-router.post('/admin/createUser', authenticate, authorizeAdmin, tenantScope, async (req, res) => {
+router.post('/admin/createUser', authenticate, authorizeAdmin, validate({ body: createUserSchema }), tenantScope, async (req, res) => {
   const { username, role } = req.body;
-  if (!username?.trim()) return res.status(400).json({ error: 'Username richiesto' });
-  const VALID_ROLES = ['admin', 'cassa', 'cucina', 'responsabile'];
-  if (role && !VALID_ROLES.includes(role))
-    return res.status(400).json({ error: `Ruolo non valido. Valori accettati: ${VALID_ROLES.join(', ')}` });
   try {
-    const existing = await req.db.query('SELECT id FROM users WHERE username = $1', [username.trim()]);
-    if (existing.rows.length) return res.status(409).json({ error: 'Username già esistente' });
     const { rows } = await req.db.query(
       'INSERT INTO users (username, role, tenant_id) VALUES ($1, $2, $3) RETURNING id, username, role',
-      [username.trim(), role || 'cassa', req.user.tenantId]
+      [username, role, req.user.tenantId]
     );
 
     res.status(201).json({ message: 'Utente creato con successo', user: rows[0] });
   } catch (err) {
-    if (err.code === '23505') // unique_violation: username già usato (magari da un altro tenant, non visibile via RLS)
+    if (err.code === '23505') // username unico in tutto il sistema, anche se di un altro tenant (invisibile per RLS)
       return res.status(409).json({ error: 'Username già esistente' });
     logger.error({ err }, 'Errore createUser');
     res.status(500).json({ error: 'Errore server' });

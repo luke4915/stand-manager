@@ -18,9 +18,9 @@ backend/            Node.js (ESM) + Express 5 + pg + ws (WSS) + pino + zod
   app.js            createApp(): helmet, CORS, rate limit, route (usata da server.js e dai test)
   ws.js             createWebSocketHub(): WebSocket isolato per tenant, broadcast(tenantId, msg), attach(server)
   db.js             Pool PostgreSQL condiviso
-  middleware/       authenticate, tenantScope, resolveTenantFromHost, rateLimiter, authenticateMaster
+  middleware/       authenticate, tenantScope, resolveTenantFromHost, validate, rateLimiter, authenticateMaster
   routes/           una route per dominio (orders, products, sessions, printSettings, master, …)
-  schemas/          schemi zod per validare i payload
+  schemas/          schemi zod per body e parametri (common.js: messaggi in italiano, idParamsSchema)
   utils/            pricing (fonte di verità server), stock, displayCode, httpError, eposXmlPrinter, receiptTemplates, auditLogger
   tests/            test unitari node:test (*.test.js) sulla logica pura
   tests/integration/  test di integrazione: app in memoria + PostgreSQL locale con RLS
@@ -69,14 +69,14 @@ L'isolamento tra tenant si basa sulla Row-Level Security di PostgreSQL con la va
 
 - **Il server ricalcola sempre i prezzi.** Dal client sono affidabili solo `id` e `quantity` di ogni riga. Usa `computeEffectivePrice` e `sanitizeAdjustment` in `utils/pricing.js`. Sconti e omaggi solo per `DISCOUNT_ROLES`.
 - Se cambi la logica di prezzo, aggiorna **entrambi** i file `pricing.js` (backend e frontend) nello stesso commit.
-- **Ogni payload in ingresso si valida con zod** in `backend/schemas/`. Le route più vecchie validano a mano: quando le tocchi, migrale a zod.
+- **Ogni input si valida con zod** (schemi in `backend/schemas/`) tramite il middleware `validate({ body, params })`, messo prima di `tenantScope`. In caso di errore risponde 400 con `campo: motivo` in italiano; altrimenti `req.body` contiene solo i campi dello schema, già convertiti, e `req.params` i valori convertiti. Niente validazioni scritte a mano negli handler.
 - Le operazioni con più scritture (ordine + stock, storno + ripristino stock) vanno in transazione con `inTransaction(req.db, async (db) => { … })` da `db.js`. Per uscire con un errore di business (404, 409) lancia `new HttpError(status, messaggio, CODICE)` e nel `catch` della route usa `sendHttpError(res, err)`.
 - Ordini e sessioni: ogni ordine appartiene a una sessione (`orders.session_id`) e senza sessione aperta non si creano ordini (`409 NO_ACTIVE_SESSION`). Esiste al massimo una sessione aperta per tenant. Il `display_code` viene da `sessions.order_counter`, incrementato nella transazione dell'ordine; report e cassa filtrano per `session_id`, mai per orario.
 - Stock: conta solo con `stock_enabled = true` e `stock` valorizzato, altrimenti la disponibilità è illimitata. Si modifica solo con `utils/stock.js`, che somma le righe dello stesso prodotto e blocca i prodotti con `FOR UPDATE`. L'apertura di una sessione riporta tutti i prodotti a disponibilità illimitata.
 - Le azioni sensibili (creazione ordine, storno, ristampa, modifiche admin) si registrano con `logAudit(req.db, req.user.id, 'AZIONE', dettagli)`: usa la connessione del tenant, quindi i log sono isolati dalla RLS. Chiamala fuori da transazioni aperte.
 - Sessione: il token JWT dura 8 ore. `/auth/refresh` lo rinnova solo se è scaduto da meno di 24 ore e se il login (`loginAt` nel token) risale a meno di 7 giorni; oltre serve un nuovo login (`SESSION_EXPIRED`). Il refresh verifica anche tenant attivo e licenza.
 - Impostazioni per tenant (`settings`): le chiavi ammesse sono in `schemas/settingsSchema.js`. Solo quelle in `PUBLIC_SETTINGS_KEYS` escono dall'endpoint pubblico `GET /settings`.
-- Ruoli esistenti: `admin`, `responsabile`, `cassa`, `cucina`. Le autorizzazioni si controllano lato server, non solo nascondendo la UI.
+- Ruoli esistenti (`ROLES` in `authenticate.js`): `admin`, `responsabile`, `cassa`, `cucina`. Gruppi con permessi specifici: `DISCOUNT_ROLES` (sconti e omaggi), `STOCK_ROLES` (stock dalla cassa). Le autorizzazioni si controllano lato server, non solo nascondendo la UI.
 - Mai segreti nel codice o nei commit. Nuove variabili d'ambiente vanno aggiunte a `.env.example` con un valore fittizio.
 - Il rate limiting è configurato in `middleware/rateLimiter.js`. Gli endpoint nuovi e "costosi" (export, stampa) meritano un limiter dedicato.
 
@@ -86,9 +86,8 @@ L'isolamento tra tenant si basa sulla Row-Level Security di PostgreSQL con la va
 - Una route per dominio. Le route che devono notificare via WebSocket sono factory: `export default function (broadcast) { … }`.
 - Struttura di un handler:
   ```js
-  router.post('/', authenticate, tenantScope, async (req, res) => {
-    const parsed = schema.safeParse(req.body);
-    if (!parsed.success) return res.status(400).json({ error: '…' });
+  router.post('/', authenticate, validate({ body: schema }), tenantScope, async (req, res) => {
+    const { … } = req.body; // già validato
     try {
       const { rows } = await req.db.query('…', [ … ]);
       res.status(201).json(rows[0]);
@@ -158,7 +157,6 @@ L'isolamento tra tenant si basa sulla Row-Level Security di PostgreSQL con la va
 Elenco verificato sul codice, ordinato per gravità. Quando ne risolvi una, toglila da qui nello stesso commit.
 
 **Validazione e coerenza API**
-- Validano ancora a mano, o non validano, invece di usare zod: `products.js`, `printSettings.js`, `master.js`, `profile.js`, login e creazione utente in `auth.js`. Per esempio `PATCH /products/:id/stock` accetta qualsiasi ruolo e qualsiasi valore.
 - `orders.js`: `logoPath` punta a `assets/logo_5calzoni.png`, che non esiste ed è un logo specifico di un cliente. Il logo dovrebbe venire dalle impostazioni del tenant.
 
 **Codice legacy e dipendenze**

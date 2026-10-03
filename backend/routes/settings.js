@@ -4,7 +4,8 @@ import { tenantScope, withTenantClient } from '../middleware/tenantScope.js';
 import { resolveTenantFromHost } from '../middleware/resolveTenantFromHost.js';
 import logger from '../logger.js';
 import { logAudit } from '../utils/auditLogger.js';
-import { PUBLIC_SETTINGS_KEYS, settingKeySchema, settingValueSchema } from '../schemas/settingsSchema.js';
+import { PUBLIC_SETTINGS_KEYS, settingParamsSchema, settingValueSchema } from '../schemas/settingsSchema.js';
+import { validate } from '../middleware/validate.js';
 
 const router = express.Router();
 
@@ -26,20 +27,16 @@ router.get('/', resolveTenantFromHost, async (req, res) => {
 });
 
 // PUT /api/settings/:key — solo admin, solo chiavi note
-router.put('/:key', authenticate, authorizeAdmin, tenantScope, async (req, res) => {
-    const key = settingKeySchema.safeParse(req.params.key);
-    if (!key.success) return res.status(400).json({ error: 'Impostazione non riconosciuta' });
-    const body = settingValueSchema.safeParse(req.body);
-    if (!body.success) return res.status(400).json({ error: 'Valore non valido (testo, massimo 2000 caratteri)' });
-
+router.put('/:key', authenticate, authorizeAdmin, validate({ params: settingParamsSchema, body: settingValueSchema }), tenantScope, async (req, res) => {
+    const { key } = req.params;
+    const { value } = req.body;
     try {
-        const { value } = body.data;
         await req.db.query(
             'INSERT INTO settings (key, value) VALUES ($1, $2) ON CONFLICT (tenant_id, key) DO UPDATE SET value = $2',
-            [key.data, value]
+            [key, value]
         );
-        await logAudit(req.db, req.user.id, 'UPDATE_SETTING', { key: key.data });
-        res.json({ key: key.data, value });
+        await logAudit(req.db, req.user.id, 'UPDATE_SETTING', { key: key });
+        res.json({ key: key, value });
     } catch (err) {
         logger.error({ err }, 'Errore PUT /api/settings/:key');
         res.status(500).json({ error: 'Errore salvataggio impostazione' });
