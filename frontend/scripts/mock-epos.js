@@ -3,7 +3,7 @@
 //   node scripts/mock-epos.js [--port 9443] [--fail EPTR_COVER_OPEN]
 //
 // Espone https://localhost:<porta>/cgi-bin/epos/service.cgi come una TM con ePOS-Print:
-// certificato autofirmato (si accetta dal browser come con la stampante vera), CORS attivo,
+// certificato mkcert (o autofirmato, da accettare come con la stampante vera), CORS attivo,
 // risposta <response success="true"/> e lo scontrino disegnato in testo nel terminale.
 // In app, come indirizzo della stampante usa  localhost:9443  (o l'IP del Mac dagli altri dispositivi).
 import https from 'node:https';
@@ -49,13 +49,24 @@ export function renderReceipt(xml) {
   return [edge, ...lines, edge].join('\n');
 }
 
-function selfSignedCert() {
+// Certificato della stampante finta. Con mkcert (già usato per il frontend) il browser si fida senza
+// avvisi; altrimenti ne crea uno autofirmato, che va accettato una volta dal browser.
+function serverCert() {
   const dir = mkdtempSync(join(tmpdir(), 'mock-epos-'));
   const key = join(dir, 'key.pem');
   const cert = join(dir, 'cert.pem');
+  try {
+    execFileSync('mkcert', ['-key-file', key, '-cert-file', cert, 'localhost', '127.0.0.1', '::1'], { stdio: 'ignore' });
+    return { key: readFileSync(key), cert: readFileSync(cert), trusted: true };
+  } catch { /* mkcert non installato: ripiego su OpenSSL */ }
+  // Safari e i browser più severi richiedono SAN, keyUsage ed extendedKeyUsage=serverAuth
   execFileSync('openssl', ['req', '-x509', '-newkey', 'rsa:2048', '-nodes', '-days', '30', '-subj', '/CN=localhost',
-    '-addext', 'subjectAltName=DNS:localhost,IP:127.0.0.1', '-keyout', key, '-out', cert], { stdio: 'ignore' });
-  return { key: readFileSync(key), cert: readFileSync(cert) };
+    '-addext', 'subjectAltName=DNS:localhost,IP:127.0.0.1,IP:::1',
+    '-addext', 'basicConstraints=critical,CA:FALSE',
+    '-addext', 'keyUsage=critical,digitalSignature,keyEncipherment',
+    '-addext', 'extendedKeyUsage=serverAuth',
+    '-keyout', key, '-out', cert], { stdio: 'ignore' });
+  return { key: readFileSync(key), cert: readFileSync(cert), trusted: false };
 }
 
 const CORS = {
@@ -68,8 +79,15 @@ const CORS = {
 // `printer.jobs` raccoglie quelli ricevuti, `onJob` li segnala (il terminale li disegna).
 export function startMockEpos({ port = 0, failWith = null, onJob } = {}) {
   const printer = { failWith, jobs: [], server: null, port: null, close: () => new Promise(r => printer.server.close(r)) };
-  printer.server = https.createServer(selfSignedCert(), (req, res) => {
+  const { trusted, ...tls } = serverCert();
+  printer.trusted = trusted;
+  printer.server = https.createServer(tls, (req, res) => {
     if (req.method === 'OPTIONS') return res.writeHead(204, CORS).end();
+    // Come la pagina web della stampante vera: serve a vedere nel browser che il certificato è accettato
+    if (req.method === 'GET' && req.url === '/') {
+      return res.writeHead(200, { ...CORS, 'Content-Type': 'text/html; charset=utf-8' })
+        .end('<!doctype html><meta charset="utf-8"><title>Stampante simulata</title><body style="font:18px system-ui;padding:2rem"><h1>Stampante Epson simulata</h1><p>Attiva. Puoi tornare all\'app e premere "Stampa di prova".</p>');
+    }
     if (req.method !== 'POST' || !req.url.startsWith('/cgi-bin/epos/service.cgi')) return res.writeHead(404, CORS).end();
     let xml = '';
     req.on('data', (c) => { xml += c; });
@@ -96,5 +114,7 @@ if (import.meta.url === pathToFileURL(process.argv[1] ?? '').href) {
     onJob: (job) => console.log(`\n── lavoro ricevuto alle ${job.receivedAt.toLocaleTimeString('it-IT')} ──\n${job.receipt}`),
   });
   console.log(`Stampante Epson simulata su https://localhost:${printer.port}  ${printer.failWith ? `(rifiuta con ${printer.failWith})` : ''}`);
-  console.log('Apri quell\'indirizzo nel browser e accetta il certificato, poi usa "localhost:%d" come IP della stampante.', printer.port);
+  console.log(printer.trusted
+    ? `Certificato mkcert: il browser lo accetta da solo. In app usa come indirizzo  localhost:${printer.port}`
+    : `Certificato autofirmato: apri https://localhost:${printer.port} nel browser e accetta l'avviso una volta. In app usa  localhost:${printer.port}`);
 }
