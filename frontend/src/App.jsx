@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef, useCallback } from 'react';
+import React, { useState, useEffect, useRef, useCallback, lazy, Suspense } from 'react';
 import { Routes, Route, Navigate, useNavigate } from 'react-router-dom';
 
 import { useAuth } from './context/useAuth';
@@ -10,7 +10,6 @@ import Sidebar from './components/layout/Sidebar';
 import Cart from './components/cart/Cart';
 import ProductList from './components/products/ProductList';
 import ProductConfig from './components/products/ProductConfig';
-import OrdersKitchen from './components/kitchen/OrdersKitchen';
 import AppearanceSettings from './components/setup/AppearanceSettings';
 import OrderSettings from './components/setup/OrderSettings';
 import PrintProfiles from './components/setup/PrintProfiles';
@@ -18,11 +17,7 @@ import MenuSettings from './components/setup/MenuSettings';
 import ReverseOrder from './components/shared/ReverseOrder';
 import ChangePassword from './components/shared/ChangePassword';
 import UserProfile from './components/shared/UserProfile';
-import Statistics from './components/shared/Statistics';
-import KDS from './pages/KDSPage';
 import Login from './pages/LoginPage';
-import MenuPage from './pages/MenuPage';
-import MasterPage from './pages/MasterPage';
 import { getDiscountedTotal } from './utils/pricing';
 import CashCountModal from './components/shared/CashCountModal';
 import { enqueueOrder } from './offline/syncQueue';
@@ -34,6 +29,18 @@ import { apiFetch, fetchWithAuth, NetworkError } from './utils/apiClient';
 // Ruoli abilitati ad applicare sconti/omaggi (specchio di DISCOUNT_ROLES nel backend)
 const DISCOUNT_ROLES = ['admin', 'responsabile'];
 
+// Schermate pesanti o non usate alla cassa (grafici, PDF, lettore codici, pagine pubbliche):
+// si caricano a richiesta, così il bundle della cassa resta leggero. Il service worker le
+// mette comunque in cache, quindi funzionano anche offline.
+const OrdersKitchen = lazy(() => import('./components/kitchen/OrdersKitchen'));
+const Statistics = lazy(() => import('./components/shared/Statistics'));
+const KDS = lazy(() => import('./pages/KDSPage'));
+const MenuPage = lazy(() => import('./pages/MenuPage'));
+const MasterPage = lazy(() => import('./pages/MasterPage'));
+
+const PageLoading = () => (
+  <div className="h-full min-h-[50vh] flex items-center justify-center text-[var(--text-main)]">Caricamento...</div>
+);
 
 const App = () => {
   const { user, loading, login, logout, refreshSession } = useAuth();
@@ -340,15 +347,17 @@ const App = () => {
 
   if (loading) return <div className="h-screen flex items-center justify-center bg-[var(--bg-main)] text-[var(--text-main)]">Caricamento...</div>;
 
-  if (window.location.pathname === '/kds') return <KDS />;
+  if (window.location.pathname === '/kds') return <Suspense fallback={<PageLoading />}><KDS /></Suspense>;
 
   if (!user) return (
-    <Routes>
-      <Route path="/login" element={<Login onLogin={login} />} />
-      <Route path="/menu" element={<MenuPage />} />
-      <Route path="/master" element={<MasterPage />} />
-      <Route path="*" element={<Navigate to="/login" replace />} />
-    </Routes>
+    <Suspense fallback={<PageLoading />}>
+      <Routes>
+        <Route path="/login" element={<Login onLogin={login} />} />
+        <Route path="/menu" element={<MenuPage />} />
+        <Route path="/master" element={<MasterPage />} />
+        <Route path="*" element={<Navigate to="/login" replace />} />
+      </Routes>
+    </Suspense>
   );
 
   if (needsPasswordChange) return <ChangePassword user={user} onPasswordChanged={() => setNeedsPasswordChange(false)} />;
@@ -414,22 +423,24 @@ const App = () => {
             {user.role === 'cucina' ? (
               <OrdersKitchen />
             ) : (
-              <Routes>
-                <Route path="/dashboard" element={<ProductList setProducts={setProducts} products={products} addToCart={addToCart} cart={cart} />} />
-                <Route path="/kitchen" element={<OrdersKitchen />} />
-                <Route path="/statistics" element={<Statistics />} />
-                <Route path="/config" element={<ProductConfig products={products} setProducts={setProducts} />} />
-                <Route path="/setup" element={
-                  <div className="space-y-6">
-                    <AppearanceSettings theme={theme} setTheme={setTheme} isSoundEnabled={isSoundEnabled} setIsSoundEnabled={setIsSoundEnabled} />
-                    <MenuSettings />
-                    <OrderSettings orderMode={orderMode} setOrderMode={setOrderMode} />
-                    <PrintProfiles />
-                  </div>
-                } />
-                <Route path="/" element={<Navigate to="/dashboard" replace />} />
-                <Route path="*" element={<Navigate to="/dashboard" replace />} />
-              </Routes>
+              <Suspense fallback={<PageLoading />}>
+                <Routes>
+                  <Route path="/dashboard" element={<ProductList setProducts={setProducts} products={products} addToCart={addToCart} cart={cart} />} />
+                  <Route path="/kitchen" element={<OrdersKitchen />} />
+                  <Route path="/statistics" element={<Statistics />} />
+                  <Route path="/config" element={<ProductConfig products={products} setProducts={setProducts} />} />
+                  <Route path="/setup" element={
+                    <div className="space-y-6">
+                      <AppearanceSettings theme={theme} setTheme={setTheme} isSoundEnabled={isSoundEnabled} setIsSoundEnabled={setIsSoundEnabled} />
+                      <MenuSettings />
+                      <OrderSettings orderMode={orderMode} setOrderMode={setOrderMode} />
+                      <PrintProfiles />
+                    </div>
+                  } />
+                  <Route path="/" element={<Navigate to="/dashboard" replace />} />
+                  <Route path="*" element={<Navigate to="/dashboard" replace />} />
+                </Routes>
+              </Suspense>
             )}
           </div>
 
