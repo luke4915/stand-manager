@@ -41,14 +41,14 @@ export function createApp({ broadcast, rateLimit = true }) {
   app.set('trust proxy', 1); // necessario per il rate limiter dietro proxy/nginx
 
   app.use(cookieParser());
-  app.use(cors({
-    origin: (origin, cb) => {
-      if (!origin) return cb(null, true);
-      const ok = isAllowedOrigin(origin);
-      cb(ok ? null : new Error('CORS non consentito'), ok);
-    },
-    credentials: true,
-  }));
+  // Richieste dal browser da un'origine non ammessa: 403 prima di eseguire qualsiasi cosa.
+  // Senza Origin (app native, script, stesso sito in GET) si prosegue normalmente.
+  app.use((req, res, next) => {
+    const { origin } = req.headers;
+    if (origin && !isAllowedOrigin(origin)) return res.status(403).json({ error: 'Origine non consentita' });
+    next();
+  });
+  app.use(cors({ origin: true, credentials: true }));
   app.use(express.json({ limit: '1mb' }));
   app.use('/api/assets', express.static(path.join(__dirname, 'assets')));
 

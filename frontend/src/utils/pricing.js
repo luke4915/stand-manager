@@ -1,5 +1,5 @@
 // ─── Pricing helper condiviso (frontend) ──────────────────────────────
-// Specchia 1:1 la logica del backend (sagra-manager-backend/utils/pricing.js).
+// Specchia 1:1 la logica del backend (backend/utils/pricing.js).
 // Serve solo per calcolare in tempo reale il totale mostrato in cassa;
 // il valore "di verità" resta sempre quello ricalcolato dal server.
 //

@@ -37,6 +37,17 @@ async function run() {
             return;
         }
 
+        // --baseline: database appena creato da schema.sql, che contiene già tutte le
+        // migrazioni presenti. Le registra come applicate senza eseguirle.
+        if (process.argv.includes('--baseline')) {
+            await client.query(
+                'INSERT INTO _migrations (name) SELECT unnest($1::text[]) ON CONFLICT (name) DO NOTHING',
+                [files]
+            );
+            console.log(`Baseline: ${files.length} migrazioni registrate come già applicate.`);
+            return;
+        }
+
         for (const file of files) {
             if (appliedNames.has(file)) {
                 console.log(`⏭  ${file} già applicata, salto`);

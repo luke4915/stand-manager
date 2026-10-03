@@ -76,7 +76,7 @@ export async function deleteTenants(...tenants) {
 // Client HTTP verso l'app di prova: imposta il sottodominio del tenant e tiene il cookie.
 export function apiClient(port, host) {
   let cookie = null;
-  const request = (method, apiPath, body) => new Promise((resolve, reject) => {
+  const request = (method, apiPath, body, extraHeaders = {}) => new Promise((resolve, reject) => {
     const data = body === undefined ? null : JSON.stringify(body);
     const req = http.request({
       host: '127.0.0.1', port, method, path: `/api${apiPath}`,
@@ -84,6 +84,7 @@ export function apiClient(port, host) {
         host,
         ...(cookie && { cookie }),
         ...(data && { 'content-type': 'application/json', 'content-length': Buffer.byteLength(data) }),
+        ...extraHeaders,
       },
     }, (res) => {
       let raw = '';

@@ -1,11 +1,13 @@
-// URL di API/WebSocket calcolati dal sottodominio corrente, non fissi in .env.
-// Così "default.standmanager.local" e "prova.standmanager.local" (o qualsiasi
-// tenant futuro) chiamano automaticamente il backend giusto senza rebuild.
-const { protocol, hostname } = window.location;
-const isSecure = protocol === 'https:';
+// URL di API e WebSocket ricavati dall'indirizzo corrente, non fissi: ogni tenant
+// ha il suo sottodominio ("default.standmanager.local", "prova.standmanager.local"…)
+// e chiama automaticamente il backend giusto, senza rebuild.
+// In sviluppo Vite gira sulla 5173 e il backend sulla 3000; in produzione il frontend
+// è servito dal backend stesso (o da un reverse proxy), quindi stessa origine.
+const { protocol, hostname, host } = window.location;
+const apiHost = import.meta.env.DEV ? `${hostname}:3000` : host;
 
-export const API_URL = `${isSecure ? 'https' : 'http'}://${hostname}:3000/api`;
-export const WS_URL = `${isSecure ? 'wss' : 'ws'}://${hostname}:3000`;
+export const API_URL = `${protocol}//${apiHost}/api`;
+export const WS_URL = `${protocol === 'https:' ? 'wss' : 'ws'}://${apiHost}`;
 
 // Codici con cui il server chiude il WebSocket (vedi backend/ws.js).
 // 4401: token mancante o scaduto → rinnovare la sessione prima di riconnettersi.

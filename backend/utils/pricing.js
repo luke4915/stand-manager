@@ -1,5 +1,5 @@
 // ─── Pricing helper condiviso (backend) ──────────────────────────────
-// Specchia 1:1 la logica del frontend (sagra-manager/src/utils/pricing.js).
+// Specchia 1:1 la logica del frontend (frontend/src/utils/pricing.js).
 // Unica fonte di verità server-side per il calcolo del prezzo effettivo
 // di una riga carrello, in base al tipo di adjustment applicato.
 //

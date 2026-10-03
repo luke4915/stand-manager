@@ -6,7 +6,7 @@ Le regole marcate **MUST** non si negoziano; il resto è la prassi del progetto.
 ## 1. Cos'è il progetto
 
 SaaS multi-tenant per la gestione di sagre ed eventi: cassa (POS), ordini, stampa comande su stampanti termiche, Kitchen Display System, magazzino, statistiche, menu pubblico con QR.
-Ex "SagraManager V2": in alcuni documenti trovi ancora `sagra-manager` / `SagraManager`.
+Ex "SagraManager V2". Installazione e avvio sono descritti nel `README.md`.
 
 Lingua: **UI, messaggi di errore, log e commenti in italiano.** Nomi di variabili, funzioni, tabelle e colonne in inglese.
 
@@ -45,6 +45,7 @@ Comandi:
 |---|---|---|
 | backend | `npm run dev` | nodemon su server.js (HTTPS, porta 3000) |
 | backend | `npm run migrate` | applica le migrazioni mancanti |
+| backend | `npm run db:baseline` | solo su un database appena creato da `schema.sql`: registra le migrazioni come già applicate |
 | backend | `npm test` | test unitari (`node --test`) |
 | backend | `npm run test:integration` | test di integrazione (serve `backend/.env.test`, vedi `.env.test.example`) |
 | frontend | `npm run dev` | Vite su https://*.standmanager.local:5173 |
@@ -78,7 +79,8 @@ L'isolamento tra tenant si basa sulla Row-Level Security di PostgreSQL con la va
 - Impostazioni per tenant (`settings`): le chiavi ammesse sono in `schemas/settingsSchema.js`. Solo quelle in `PUBLIC_SETTINGS_KEYS` escono dall'endpoint pubblico `GET /settings`.
 - Ruoli esistenti (`ROLES` in `authenticate.js`): `admin`, `responsabile`, `cassa`, `cucina`. Gruppi con permessi specifici: `DISCOUNT_ROLES` (sconti e omaggi), `STOCK_ROLES` (stock dalla cassa). Le autorizzazioni si controllano lato server, non solo nascondendo la UI.
 - Mai segreti nel codice o nei commit. Nuove variabili d'ambiente vanno aggiunte a `.env.example` con un valore fittizio.
-- Il rate limiting è configurato in `middleware/rateLimiter.js`. Gli endpoint nuovi e "costosi" (export, stampa) meritano un limiter dedicato.
+- Il rate limiting è in `middleware/rateLimiter.js`. Le API e gli ordini contano per utente se c'è una sessione valida, altrimenti per IP: le casse dietro lo stesso IP non si dividono il limite. Gli endpoint nuovi e "costosi" (export, stampa) meritano un limiter dedicato.
+- Origini ammesse (`utils/origins.js`): `APP_DOMAIN` e i suoi sottodomini; localhost e IP LAN solo fuori dalla produzione. Un'origine non ammessa riceve 403 prima di qualsiasi elaborazione.
 
 ## 5. Convenzioni backend
 
@@ -109,11 +111,12 @@ L'isolamento tra tenant si basa sulla Row-Level Security di PostgreSQL con la va
 - **Non modificare mai una migrazione già applicata.** Per correggerla, scrivine una nuova.
 - Le migrazioni devono essere idempotenti dove possibile (`IF NOT EXISTS`, `DROP POLICY IF EXISTS`). `run.js` le esegue in transazione.
 - `MIGRATION_DATABASE_URL` serve a eseguire le DDL con un utente privilegiato. L'app gira con l'utente applicativo, soggetto a RLS.
-- `backend/schema.sql` è il dump di riferimento dello schema. Rigeneralo (`pg_dump --schema-only`) dopo nuove migrazioni.
+- `backend/schema.sql` è il dump di riferimento dello schema e contiene tutte le migrazioni. Rigeneralo (`pg_dump --schema-only`) dopo nuove migrazioni. Un database nuovo si crea da `schema.sql` più `npm run db:baseline`.
 
 ## 7. Convenzioni frontend
 
 - Componenti funzionali con hook. Un componente per file, file `.jsx` in PascalCase; hook `useXxx`; utility in camelCase `.js`. Un file `.jsx` esporta solo componenti: contesti, hook e costanti condivise vanno in un `.js` a parte (es. `useAuth.js` accanto ad `AuthProvider.jsx`), come chiede la regola di fast refresh.
+- `config/api.js`: in sviluppo le API sono sulla porta 3000 dello stesso host; in produzione sulla stessa origine del frontend.
 - Le chiamate API passano **solo** da `src/utils/apiClient.js`, mai da `fetch` diretta:
   - `fetchWithAuth(path, { method, body })` per tutto ciò che richiede login: su 401 rinnova la sessione una volta (un solo rinnovo anche per più chiamate insieme) e ripete la richiesta; licenza scaduta o tenant disattivato riportano al login;
   - `apiFetch` dove un 401 non significa sessione scaduta: login, pagine pubbliche (menu, KDS), master panel;
@@ -156,18 +159,13 @@ L'isolamento tra tenant si basa sulla Row-Level Security di PostgreSQL con la va
 
 Elenco verificato sul codice, ordinato per gravità. Quando ne risolvi una, toglila da qui nello stesso commit.
 
-**Validazione e coerenza API**
+**Stampa (prossimo passo: stampa locale dal dispositivo e driver per più protocolli)**
+- La comanda parte dal server in cloud: se cade la connessione internet della sagra, non si stampa.
 - `orders.js`: `logoPath` punta a `assets/logo_5calzoni.png`, che non esiste ed è un logo specifico di un cliente. Il logo dovrebbe venire dalle impostazioni del tenant.
+- `routes/printers.js` (PowerShell, solo Windows) è legacy.
 
-**Codice legacy e dipendenze**
-- `routes/printers.js` (PowerShell, solo Windows) è legacy: va rivisto con il passaggio alla stampa locale.
+**Codice legacy**
 - `theme` nel JWT e in `/auth/me` vale sempre `'dark'`: `users` non ha una colonna `theme` e il tema è solo stato del client.
-- `.env.example` non elenca `MASTER_PASSWORD_HASH`, `MASTER_JWT_SECRET`, `HTTPS_KEY_PATH`, `HTTPS_CERT_PATH`. `CORS_ORIGIN` è elencata ma il codice non la legge.
-
-**Deploy e configurazione**
-- `utils/origins.js`: la CORS e il WebSocket accettano solo host locali e `.standmanager.local`. Il dominio di produzione va aggiunto via env. Un Origin rifiutato dalla CORS finisce nel gestore errori globale con un 500 invece di un 403.
-- `rateLimiter.js`: i limiti sono per IP. Le casse della stessa sagra escono spesso dallo stesso IP pubblico, quindi condividono i 60 ordini al minuto di `ordersLimiter`: nei momenti di punta si rischiano 429. Il limite va calcolato per utente o tenant.
-- `config/api.js`: la porta `:3000` è fissa. In produzione l'API passerà da reverse proxy sullo stesso host.
 
 **Frontend e offline**
 - Gli ordini offline rifiutati per sempre (`failed`) sono visibili solo come contatore in testata: manca una schermata per vederli e archiviarli. Gli ordini rimasti in coda da prima dell'aggiornamento non hanno `client_order_id` né `session_id`, quindi vanno nella sessione aperta al momento della sincronizzazione.

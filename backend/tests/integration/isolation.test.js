@@ -63,6 +63,11 @@ describe('isolamento tra tenant', () => {
     assert.equal(wrongTenant.closeCode, 4403);
   });
 
+  it("le API rifiutano con 403 un'origine estranea, prima di eseguire la richiesta", async () => {
+    const res = await apiA.request('GET', '/products', undefined, { origin: 'https://localhost.sito-esterno.com' });
+    assert.equal(res.status, 403);
+  });
+
   it('GET /orders/kds non espone totali né utenti', async () => {
     const res = await apiClient(server.port, a.host).get('/orders/kds');
     assert.equal(res.status, 200);
