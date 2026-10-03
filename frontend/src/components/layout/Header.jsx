@@ -1,9 +1,11 @@
 import React from "react";
-import { LogOut, Settings, Menu, CloudOff, RefreshCw, AlertTriangle } from "lucide-react";
+import { LogOut, Settings, Menu, CloudOff, RefreshCw, AlertTriangle, Printer } from "lucide-react";
 import { useOfflineSync } from "../../offline/useOfflineSync";
+import { usePrintQueue } from "../../print/usePrintQueue";
 
 const Header = ({ toggleSidebar, currentUser, onLogoutClick, onProfileClick, sessionName, wsConnected }) => {
   const { online, pending, failed, syncNow } = useOfflineSync();
+  const { pending: printPending, retryNow: retryPrint } = usePrintQueue();
 
   return (
     <header className="flex items-center justify-between px-4 mb-1 mt-3 bg-transparent shrink-0 select-none">
@@ -46,6 +48,16 @@ const Header = ({ toggleSidebar, currentUser, onLogoutClick, onProfileClick, ses
                 <CloudOff size={13} />
               )}
               {pending > 0 && <span className="text-[10px] font-black">{pending}</span>}
+            </button>
+          )}
+          {printPending > 0 && (
+            <button
+              onClick={retryPrint}
+              title={`${printPending} stampe in attesa: controlla la stampante. Tocca per riprovare`}
+              className="flex items-center gap-1.5 px-2.5 py-1 bg-amber-500/10 border border-amber-500/30 text-amber-500 rounded-full cursor-pointer hover:bg-amber-500/20 active:scale-95 transition-all"
+            >
+              <Printer size={13} />
+              <span className="text-[10px] font-black">{printPending}</span>
             </button>
           )}
           {failed > 0 && (

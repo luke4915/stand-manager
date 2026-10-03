@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { X, Printer } from 'lucide-react';
 import { fetchWithAuth } from '../../../utils/apiClient';
 import { useToast } from '../../../context/useToast';
+import { reprintOrder } from '../../../print/printOrder';
 
 // ─── Modale Ristampa ────────────────────────────────────────────
 const ReprintSelectionModal = ({ onClose }) => {
@@ -27,7 +28,9 @@ const ReprintSelectionModal = ({ onClose }) => {
     const handleReprint = async (orderId) => {
         setReprintingId(orderId);
         try {
-            await fetchWithAuth(`/orders/${orderId}/reprint`, { method: 'POST' });
+            // Il server registra la ristampa e restituisce l'ordine; la stampa parte da questa cassa
+            const saved = await fetchWithAuth(`/orders/${orderId}/reprint`, { method: 'POST' });
+            if (!await reprintOrder(saved)) throw new Error('nessuna stampante configurata');
             onClose();
         } catch (err) {
             showToast(`Errore durante la ristampa: ${err.message}`, 'error');
@@ -42,7 +45,7 @@ const ReprintSelectionModal = ({ onClose }) => {
             <div className="relative w-full max-w-md bg-[var(--bg-card)] rounded-xl border border-[var(--border)] shadow-2xl overflow-hidden flex flex-col max-h-[80vh]" onClick={e => e.stopPropagation()}>
                 <div className="flex items-center justify-between px-5 py-4 border-b border-[var(--border)]">
                     <div>
-                        <p className="text-[9px] font-black uppercase tracking-widest text-[var(--text-muted)] mb-0.5">Ristampa Periferica</p>
+                        <p className="text-[9px] font-black uppercase tracking-widest text-[var(--text-muted)] mb-0.5">Ristampa</p>
                         <h3 className="font-black text-sm uppercase tracking-tight text-[var(--text-main)]">Seleziona scontrino</h3>
                     </div>
                     <button onClick={onClose} className="p-2 rounded-xl bg-[var(--bg-card-2)] cursor-pointer border border-[var(--border)] text-[var(--text-muted)] hover:text-[var(--text-main)] hover:border-[var(--border-main)] transition-colors"><X size={15} /></button>
@@ -55,7 +58,7 @@ const ReprintSelectionModal = ({ onClose }) => {
                         <div key={order.id} className="flex items-center justify-between p-3 rounded-xl bg-[var(--bg-card-2)] border border-[var(--border)]">
                             <div className="min-w-0 flex-1 pr-2">
                                 <div className="flex items-center gap-2">
-                                    <span className="font-black text-xs text-[var(--text-main)]">#{order.id}</span>
+                                    <span className="font-black text-xs text-[var(--text-main)]">#{order.display_code || order.id}</span>
                                     <span className="text-[10px] tabular-nums text-[var(--text-muted)]">{new Date(order.created_at).toLocaleTimeString('it-IT', { hour: '2-digit', minute: '2-digit' })}</span>
                                 </div>
                                 <div className="text-[11px] text-[var(--text-muted)] truncate mt-0.5">{order.items?.map(i => `${i.quantity}x ${i.name}`).join(', ') || '—'}</div>

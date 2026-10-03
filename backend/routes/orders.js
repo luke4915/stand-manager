@@ -1,11 +1,8 @@
 import express from 'express';
-import path from 'path';
-import { fileURLToPath } from 'url';
 import { inTransaction } from '../db.js';
 import { authenticate, DISCOUNT_ROLES } from '../middleware/authenticate.js';
 import { tenantScope, withTenantClient } from '../middleware/tenantScope.js';
 import { resolveTenantFromHost } from '../middleware/resolveTenantFromHost.js';
-import { printOrderBatch } from '../utils/receiptTemplates.js';
 import { computeEffectivePrice, sanitizeAdjustment } from '../utils/pricing.js';
 import logger from '../logger.js';
 import { logAudit } from '../utils/auditLogger.js';
@@ -13,7 +10,7 @@ import { createOrderSchema, updateOrderStatusSchema } from '../schemas/orderSche
 import { idParamsSchema } from '../schemas/common.js';
 import { validate } from '../middleware/validate.js';
 import { toPublicOrder } from '../utils/publicOrder.js';
-import { formatDisplayCode } from '../utils/displayCode.js';
+import { formatDisplayCode, formatDeviceCode } from '../utils/displayCode.js';
 import { sumQuantitiesByProduct, lockAndFindShortages, applyStockChange } from '../utils/stock.js';
 import { HttpError, sendHttpError } from '../utils/httpError.js';
 import { computeExpectedCash, clampToSession } from '../utils/session.js';
@@ -53,55 +50,24 @@ async function reserveOrderNumber(db, sessionId) {
     : new HttpError(409, "La sessione dell'ordine non esiste o è chiusa da più di 24 ore", 'SESSION_CLOSED');
 }
 
+const UNIQUE_ORDER_CONSTRAINTS = ['uniq_orders_client_order_id', 'uniq_orders_device_seq'];
+
+// Codice ordine: se la cassa ha inviato dispositivo e numero (battuto e stampato in locale)
+// il server ricompone lettera + numero, senza fidarsi del formato del client. Senza dispositivo
+// (ordini accodati prima dell'aggiornamento) vale ancora il progressivo di sessione.
+async function resolveDisplayCode(db, session, deviceId, deviceSeq) {
+  if (deviceId === undefined) return formatDisplayCode(session.order_counter);
+  const { rows } = await db.query('SELECT letter FROM devices WHERE id = $1', [deviceId]);
+  if (!rows.length) throw new HttpError(400, 'Dispositivo non valido', 'INVALID_DEVICE');
+  return formatDeviceCode(rows[0].letter, deviceSeq);
+}
+
 async function findOrderByClientId(db, clientOrderId) {
   const { rows } = await db.query('SELECT id, display_code FROM orders WHERE client_order_id = $1', [clientOrderId]);
   return rows[0] || null;
 }
 
 const duplicateResponse = (order) => ({ success: true, orderId: order.id, displayCode: order.display_code, duplicate: true });
-
-// Stampa: usa semplicemente il display_code già salvato nel DB
-async function printOrder(db, orderData) {
-  const { rows: settings } = await db.query(
-    `SELECT ps.printer_type, ps.printer_address, ct.name AS copy_type
-     FROM print_settings ps
-     JOIN copy_types ct ON ct.id = ps.copy_type_id
-     WHERE ps.enabled = true
-     ORDER BY ps.sort_order ASC, ct.id ASC`
-  );
-  if (!settings.length) return;
-
-  const productIds = [...new Set(orderData.items.map(i => i.id).filter(Boolean))];
-  const destMap = {};
-  if (productIds.length) {
-    const { rows: products } = await db.query(
-      'SELECT id, print_destination FROM products WHERE id = ANY($1)',
-      [productIds]
-    );
-    products.forEach(p => { destMap[p.id] = p.print_destination || 'both'; });
-  }
-
-  const logoPath = path.join(path.dirname(fileURLToPath(import.meta.url)), '..', 'assets', 'logo_5calzoni.png');
-
-  // Legge il codice salvato sul DB (o usa l'ID di fallback)
-  const displayCode = orderData.display_code || `A${orderData.id}`;
-
-  const enrichedOrder = {
-    ...orderData,
-    id: displayCode,
-    realDbId: orderData.id,
-    items: orderData.items.map(i => ({ ...i, print_destination: destMap[i.id] || 'both' })),
-  };
-
-  logger.info(`[ROUTER ORDERS] Avvio batch stampa: ${settings.map(s => s.copy_type).join(', ')} su ${settings[0]?.printer_address}`);
-
-  try {
-    await printOrderBatch(settings, enrichedOrder, logoPath);
-    logger.info(`[ROUTER ORDERS] Batch stampa completato`);
-  } catch (err) {
-    logger.error({ err }, `Errore batch stampa: ${err.message}`);
-  }
-}
 
 export default function (broadcast) {
 
@@ -140,7 +106,7 @@ export default function (broadcast) {
 
   // POST /orders (Creazione Ordine)
   router.post('/', authenticate, validate({ body: createOrderSchema }), tenantScope, async (req, res) => {
-    const { items, status, is_takeaway, client_order_id, session_id, client_created_at } = req.body;
+    const { items, status, is_takeaway, client_order_id, session_id, client_created_at, device_id, device_seq } = req.body;
 
     // Idempotenza: un ordine già ricevuto (retry dopo un errore di rete o dalla
     // coda offline) non si duplica, si risponde con quello esistente.
@@ -199,6 +165,7 @@ export default function (broadcast) {
       const { order, orderStatus, sessionOpen, stockUpdates } = await inTransaction(req.db, async (db) => {
         const session = await reserveOrderNumber(db, session_id);
         const sessionOpen = !session.end_time;
+        const displayCode = await resolveDisplayCode(db, session, device_id, device_seq);
         const totals = sumQuantitiesByProduct(verifiedItems);
 
         // Un ordine sincronizzato in ritardo è già stato venduto: non si rifiuta per stock.
@@ -215,10 +182,10 @@ export default function (broadcast) {
         const createdAt = isLateSync ? clampToSession(client_created_at, session) : null;
 
         const { rows } = await db.query(
-          `INSERT INTO orders (items, total, status, created_by, order_type, is_takeaway, display_code, session_id, client_order_id, created_at)
-           VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, COALESCE($10, now())) RETURNING id, created_at, display_code`,
+          `INSERT INTO orders (items, total, status, created_by, order_type, is_takeaway, display_code, session_id, client_order_id, created_at, device_id, device_seq)
+           VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, COALESCE($10, now()), $11, $12) RETURNING id, created_at, display_code`,
           [JSON.stringify(verifiedItems), verifiedTotal, orderStatus, req.user.id, order_type, !!is_takeaway,
-            formatDisplayCode(session.order_counter), session.id, client_order_id ?? null, createdAt]
+            displayCode, session.id, client_order_id ?? null, createdAt, device_id ?? null, device_seq ?? null]
         );
 
         // Lo stock riguarda la serata in corso: dopo la chiusura non si tocca più
@@ -256,17 +223,15 @@ export default function (broadcast) {
       }
 
       res.json({ success: true, orderId: order.id, displayCode: order.display_code });
-
-      // Comande solo per la serata in corso. Fire-and-forget: gira DOPO la risposta,
-      // quindi req.db è già stato rilasciato al pool e serve una connessione scoped.
-      if (sessionOpen) {
-        withTenantClient(req.user.tenantId, (db) => printOrder(db, orderData))
-          .catch(err => logger.error({ err }, 'Errore printOrder'));
-      }
     } catch (err) {
-      // Due invii contemporanei dello stesso ordine: il secondo trova il vincolo di unicità.
-      if (err.constraint === 'uniq_orders_client_order_id') {
-        return res.json(duplicateResponse(await findOrderByClientId(req.db, client_order_id)));
+      // Due invii contemporanei dello stesso ordine: il secondo trova un vincolo di unicità
+      // (sulla chiave di idempotenza o sul numero del dispositivo, a seconda di quale scatta prima).
+      if (UNIQUE_ORDER_CONSTRAINTS.includes(err.constraint) && client_order_id) {
+        const existing = await findOrderByClientId(req.db, client_order_id);
+        if (existing) return res.json(duplicateResponse(existing));
+      }
+      if (err.constraint === 'uniq_orders_device_seq') {
+        return res.status(409).json({ error: 'Numero ordine già usato da questo dispositivo', code: 'DEVICE_SEQ_CONFLICT' });
       }
       if (sendHttpError(res, err)) return;
       logger.error({ err }, 'Errore POST /api/orders');
@@ -327,22 +292,19 @@ export default function (broadcast) {
     }
   });
 
-  // POST /orders/:id/reprint
+  // POST /orders/:id/reprint — la stampa è del client: qui si registra l'azione (audit)
+  // e si restituisce l'ordine com'è stato salvato, da cui la cassa ricostruisce le copie.
   router.post('/:id/reprint', authenticate, validate({ params: idParamsSchema }), tenantScope, async (req, res) => {
     try {
-      const { rows } = await req.db.query('SELECT * FROM orders WHERE id=$1', [req.params.id]);
+      const { rows } = await req.db.query(
+        'SELECT id, display_code, created_at, items, total, is_takeaway FROM orders WHERE id = $1', [req.params.id]);
       if (!rows.length) return res.status(404).json({ error: 'Ordine non trovato' });
       const order = rows[0];
 
-      await logAudit(req.db, req.user.id, 'REPRINT_ORDER', { orderId: req.params.id });
-
-      await printOrder(
-        req.db,
-        { id: order.id, display_code: order.display_code, created_at: order.created_at, items: safeParseJSON(order.items), total: parseFloat(order.total) }
-      );
-      res.json({ success: true });
+      await logAudit(req.db, req.user.id, 'REPRINT_ORDER', { orderId: order.id });
+      res.json({ ...order, items: safeParseJSON(order.items), total: parseFloat(order.total) });
     } catch (err) {
-      logger.error({ err }, 'Errore ristampa')
+      logger.error({ err }, 'Errore ristampa');
       res.status(500).json({ error: 'Errore durante la ristampa' });
     }
   });

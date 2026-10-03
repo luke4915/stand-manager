@@ -28,7 +28,13 @@ export const createOrderSchema = z.object({
     // Solo per gli ordini creati offline e sincronizzati dopo: sessione e ora in cui sono stati battuti.
     session_id: z.number().int().positive().optional(),
     client_created_at: z.iso.datetime().optional(),
+    // Dispositivo (cassa) e numero progressivo che ha dato all'ordine: il codice è lettera + numero.
+    device_id: z.number().int().positive().optional(),
+    device_seq: z.number().int().positive().max(99999).optional(),
 }).refine(
+    (o) => (o.device_id === undefined) === (o.device_seq === undefined),
+    { message: 'device_id e device_seq vanno inviati insieme' }
+).refine(
     (o) => (o.session_id === undefined) === (o.client_created_at === undefined),
     { message: 'session_id e client_created_at vanno inviati insieme' }
 );

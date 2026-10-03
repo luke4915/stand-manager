@@ -4,7 +4,7 @@ import { tenantScope, withTenantClient } from '../middleware/tenantScope.js';
 import { resolveTenantFromHost } from '../middleware/resolveTenantFromHost.js';
 import logger from '../logger.js';
 import { logAudit } from '../utils/auditLogger.js';
-import { PUBLIC_SETTINGS_KEYS, settingParamsSchema, settingValueSchema } from '../schemas/settingsSchema.js';
+import { SETTINGS_KEYS, PUBLIC_SETTINGS_KEYS, settingParamsSchema, settingValueSchema } from '../schemas/settingsSchema.js';
 import { validate } from '../middleware/validate.js';
 
 const router = express.Router();
@@ -22,6 +22,18 @@ router.get('/', resolveTenantFromHost, async (req, res) => {
         res.json(settings);
     } catch (err) {
         logger.error({ err }, 'Errore GET /api/settings');
+        res.status(500).json({ error: 'Errore caricamento impostazioni' });
+    }
+});
+
+// GET /api/settings/all — utenti autenticati: tutte le chiavi note, comprese quelle private
+// (contenuto degli scontrini), che la cassa conserva in locale per stampare anche offline
+router.get('/all', authenticate, tenantScope, async (req, res) => {
+    try {
+        const { rows } = await req.db.query('SELECT key, value FROM settings WHERE key = ANY($1)', [SETTINGS_KEYS]);
+        res.json(Object.fromEntries(rows.map(r => [r.key, r.value])));
+    } catch (err) {
+        logger.error({ err }, 'Errore GET /api/settings/all');
         res.status(500).json({ error: 'Errore caricamento impostazioni' });
     }
 });

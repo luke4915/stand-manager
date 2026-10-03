@@ -2,7 +2,7 @@
 -- PostgreSQL database dump
 --
 
-\restrict Vwhka6fKapC0n4VEBby1mZ1EzHLrxI0Ldjiu6nw61PJR5S8uBOfAaf1yB3ULEEV
+\restrict QFckuchMZ1VLx7LjL906PPK4rbMHw0TSUPWTQnc79qoUSWrzjKmEZ2yyXtIRhIZ
 
 -- Dumped from database version 17.10 (Homebrew)
 -- Dumped by pg_dump version 17.10 (Homebrew)
@@ -137,6 +137,46 @@ ALTER SEQUENCE public.copy_types_id_seq OWNED BY public.copy_types.id;
 
 
 --
+-- Name: devices; Type: TABLE; Schema: public; Owner: colettas
+--
+
+CREATE TABLE public.devices (
+    id integer NOT NULL,
+    tenant_id integer DEFAULT (NULLIF(current_setting('app.tenant_id'::text, true), ''::text))::integer NOT NULL,
+    letter character(1) NOT NULL,
+    name character varying(50) NOT NULL,
+    created_at timestamp with time zone DEFAULT now() NOT NULL,
+    CONSTRAINT devices_letter_check CHECK ((letter ~ '^[A-Z]$'::text))
+);
+
+ALTER TABLE ONLY public.devices FORCE ROW LEVEL SECURITY;
+
+
+ALTER TABLE public.devices OWNER TO colettas;
+
+--
+-- Name: devices_id_seq; Type: SEQUENCE; Schema: public; Owner: colettas
+--
+
+CREATE SEQUENCE public.devices_id_seq
+    AS integer
+    START WITH 1
+    INCREMENT BY 1
+    NO MINVALUE
+    NO MAXVALUE
+    CACHE 1;
+
+
+ALTER SEQUENCE public.devices_id_seq OWNER TO colettas;
+
+--
+-- Name: devices_id_seq; Type: SEQUENCE OWNED BY; Schema: public; Owner: colettas
+--
+
+ALTER SEQUENCE public.devices_id_seq OWNED BY public.devices.id;
+
+
+--
 -- Name: orders; Type: TABLE; Schema: public; Owner: colettas
 --
 
@@ -154,7 +194,11 @@ CREATE TABLE public.orders (
     display_code character varying(10),
     session_id integer,
     client_order_id uuid,
-    CONSTRAINT orders_order_type_check CHECK (((order_type)::text = ANY ((ARRAY['sale'::character varying, 'gift'::character varying, 'discount'::character varying])::text[])))
+    device_id integer,
+    device_seq integer,
+    CONSTRAINT orders_device_pair_check CHECK (((device_id IS NULL) = (device_seq IS NULL))),
+    CONSTRAINT orders_device_seq_check CHECK ((device_seq > 0)),
+    CONSTRAINT orders_order_type_check CHECK (((order_type)::text = ANY (ARRAY[('sale'::character varying)::text, ('gift'::character varying)::text, ('discount'::character varying)::text])))
 );
 
 ALTER TABLE ONLY public.orders FORCE ROW LEVEL SECURITY;
@@ -428,6 +472,13 @@ ALTER TABLE ONLY public.copy_types ALTER COLUMN id SET DEFAULT nextval('public.c
 
 
 --
+-- Name: devices id; Type: DEFAULT; Schema: public; Owner: colettas
+--
+
+ALTER TABLE ONLY public.devices ALTER COLUMN id SET DEFAULT nextval('public.devices_id_seq'::regclass);
+
+
+--
 -- Name: orders id; Type: DEFAULT; Schema: public; Owner: colettas
 --
 
@@ -507,6 +558,22 @@ ALTER TABLE ONLY public.copy_types
 
 ALTER TABLE ONLY public.copy_types
     ADD CONSTRAINT copy_types_pkey PRIMARY KEY (id);
+
+
+--
+-- Name: devices devices_pkey; Type: CONSTRAINT; Schema: public; Owner: colettas
+--
+
+ALTER TABLE ONLY public.devices
+    ADD CONSTRAINT devices_pkey PRIMARY KEY (id);
+
+
+--
+-- Name: devices devices_tenant_id_letter_key; Type: CONSTRAINT; Schema: public; Owner: colettas
+--
+
+ALTER TABLE ONLY public.devices
+    ADD CONSTRAINT devices_tenant_id_letter_key UNIQUE (tenant_id, letter);
 
 
 --
@@ -618,6 +685,13 @@ CREATE INDEX idx_copy_types_tenant ON public.copy_types USING btree (tenant_id);
 
 
 --
+-- Name: idx_devices_tenant; Type: INDEX; Schema: public; Owner: colettas
+--
+
+CREATE INDEX idx_devices_tenant ON public.devices USING btree (tenant_id);
+
+
+--
 -- Name: idx_orders_session; Type: INDEX; Schema: public; Owner: colettas
 --
 
@@ -667,6 +741,13 @@ CREATE UNIQUE INDEX uniq_orders_client_order_id ON public.orders USING btree (te
 
 
 --
+-- Name: uniq_orders_device_seq; Type: INDEX; Schema: public; Owner: colettas
+--
+
+CREATE UNIQUE INDEX uniq_orders_device_seq ON public.orders USING btree (tenant_id, session_id, device_id, device_seq) WHERE (device_id IS NOT NULL);
+
+
+--
 -- Name: uniq_sessions_open_per_tenant; Type: INDEX; Schema: public; Owner: colettas
 --
 
@@ -695,6 +776,22 @@ ALTER TABLE ONLY public.audit_logs
 
 ALTER TABLE ONLY public.copy_types
     ADD CONSTRAINT copy_types_tenant_id_fkey FOREIGN KEY (tenant_id) REFERENCES public.tenants(id);
+
+
+--
+-- Name: devices devices_tenant_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: colettas
+--
+
+ALTER TABLE ONLY public.devices
+    ADD CONSTRAINT devices_tenant_id_fkey FOREIGN KEY (tenant_id) REFERENCES public.tenants(id);
+
+
+--
+-- Name: orders orders_device_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: colettas
+--
+
+ALTER TABLE ONLY public.orders
+    ADD CONSTRAINT orders_device_id_fkey FOREIGN KEY (device_id) REFERENCES public.devices(id);
 
 
 --
@@ -774,6 +871,12 @@ ALTER TABLE public.audit_logs ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.copy_types ENABLE ROW LEVEL SECURITY;
 
 --
+-- Name: devices; Type: ROW SECURITY; Schema: public; Owner: colettas
+--
+
+ALTER TABLE public.devices ENABLE ROW LEVEL SECURITY;
+
+--
 -- Name: orders; Type: ROW SECURITY; Schema: public; Owner: colettas
 --
 
@@ -815,6 +918,13 @@ CREATE POLICY tenant_isolation ON public.audit_logs USING ((tenant_id = (NULLIF(
 --
 
 CREATE POLICY tenant_isolation ON public.copy_types USING ((tenant_id = (NULLIF(current_setting('app.tenant_id'::text, true), ''::text))::integer));
+
+
+--
+-- Name: devices tenant_isolation; Type: POLICY; Schema: public; Owner: colettas
+--
+
+CREATE POLICY tenant_isolation ON public.devices USING ((tenant_id = (NULLIF(current_setting('app.tenant_id'::text, true), ''::text))::integer));
 
 
 --
@@ -866,6 +976,13 @@ CREATE POLICY tenant_isolation ON public.users USING (((tenant_id = (NULLIF(curr
 ALTER TABLE public.users ENABLE ROW LEVEL SECURITY;
 
 --
+-- Name: SCHEMA public; Type: ACL; Schema: -; Owner: pg_database_owner
+--
+
+GRANT USAGE ON SCHEMA public TO standmanager_app;
+
+
+--
 -- Name: TABLE _migrations; Type: ACL; Schema: public; Owner: colettas
 --
 
@@ -905,6 +1022,20 @@ GRANT ALL ON TABLE public.copy_types TO standmanager_app;
 --
 
 GRANT ALL ON SEQUENCE public.copy_types_id_seq TO standmanager_app;
+
+
+--
+-- Name: TABLE devices; Type: ACL; Schema: public; Owner: colettas
+--
+
+GRANT ALL ON TABLE public.devices TO standmanager_app;
+
+
+--
+-- Name: SEQUENCE devices_id_seq; Type: ACL; Schema: public; Owner: colettas
+--
+
+GRANT ALL ON SEQUENCE public.devices_id_seq TO standmanager_app;
 
 
 --
@@ -1016,5 +1147,5 @@ ALTER DEFAULT PRIVILEGES FOR ROLE colettas IN SCHEMA public GRANT ALL ON TABLES 
 -- PostgreSQL database dump complete
 --
 
-\unrestrict Vwhka6fKapC0n4VEBby1mZ1EzHLrxI0Ldjiu6nw61PJR5S8uBOfAaf1yB3ULEEV
+\unrestrict QFckuchMZ1VLx7LjL906PPK4rbMHw0TSUPWTQnc79qoUSWrzjKmEZ2yyXtIRhIZ
 

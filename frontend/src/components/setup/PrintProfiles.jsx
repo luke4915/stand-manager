@@ -1,8 +1,10 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
-import { GripVertical, Wifi, Usb, Pencil, Trash2, Plus, X, Printer } from 'lucide-react';
+import { GripVertical, Pencil, Trash2, Plus, X, Printer } from 'lucide-react';
 import { useAuth } from '../../context/useAuth';
 
 import { fetchWithAuth } from '../../utils/apiClient';
+import { refreshPrintConfig } from '../../print/config';
+import PrinterCheck from './PrinterCheck';
 const BACKEND_TEMPLATES = ['Cliente', 'Associazione', 'Cucina', 'Ritiro Bar', 'Ritiro Gastronomia', 'Numeretto'];
 
 const PrintProfiles = () => {
@@ -10,7 +12,6 @@ const PrintProfiles = () => {
   const isAdmin = user?.role === 'admin';
 
   const [settings, setSettings] = useState([]);
-  const [usbPrinters, setUsbPrinters] = useState([]);
   const [copyTypes, setCopyTypes] = useState([]);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(null);
@@ -40,14 +41,12 @@ const PrintProfiles = () => {
   const fetchAll = async () => {
     setLoading(true);
     // Ogni elenco si carica per conto suo: se uno fallisce gli altri restano utilizzabili.
-    const [sRes, pRes, ctRes] = await Promise.allSettled([
+    const [sRes, ctRes] = await Promise.allSettled([
       fetchWithAuth('/print-settings'),
-      fetchWithAuth('/printers'),
       fetchWithAuth('/print-settings/copy-types'),
     ]);
     if (sRes.status === 'fulfilled') setSettings(sRes.value);
     else setError(`Errore caricamento impostazioni: ${sRes.reason.message}`);
-    if (pRes.status === 'fulfilled') setUsbPrinters(pRes.value || []);
     if (ctRes.status === 'fulfilled') setCopyTypes(ctRes.value);
     setLoading(false);
   };
@@ -60,9 +59,10 @@ const PrintProfiles = () => {
     try {
       const saved = await fetchWithAuth(`/print-settings/${id}`, {
         method: 'PUT',
-        body: { printer_type: updated.printer_type, printer_address: updated.printer_address, enabled: updated.enabled },
+        body: { printer_type: 'network', printer_address: updated.printer_address, enabled: updated.enabled },
       });
       setSettings(prev => prev.map(s => s.id === id ? { ...s, ...saved } : s));
+      refreshPrintConfig().catch(() => { /* offline: si aggiorna al ritorno della rete */ });
     } catch (err) {
       setError(err.message);
     } finally {
@@ -74,6 +74,7 @@ const PrintProfiles = () => {
     const originalSettings = settingsRef.current;
     try {
       await fetchWithAuth('/print-settings/reorder', { method: 'POST', body: { order: newSettings.map(s => s.id) } });
+      refreshPrintConfig().catch(() => { /* offline: si aggiorna al ritorno della rete */ });
     } catch (err) {
       setError(err.message);
       setSettings(originalSettings); // rollback
@@ -325,46 +326,16 @@ const PrintProfiles = () => {
 
                 {/* Connessione stampante */}
                 <div className={`flex flex-wrap items-center gap-2 sm:flex-1 transition-opacity ${!s.enabled ? 'opacity-40 pointer-events-none' : ''}`}>
-                  <div className="flex rounded-xl border border-[var(--border)] bg-[var(--bg-card)] p-0.5 shrink-0">
-                    <button
-                      disabled={!isAdmin || saving === s.id}
-                      onClick={() => updateSetting(s.id, { printer_type: 'network', printer_address: '' })}
-                      className={`flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-[11px] font-bold transition-all ${s.printer_type === 'network' ? 'bg-[var(--accent)] text-white' : 'text-[var(--text-muted)]'}`}
-                    >
-                      <Wifi size={14} /> Rete
-                    </button>
-                    <button
-                      disabled={!isAdmin || saving === s.id}
-                      onClick={() => updateSetting(s.id, { printer_type: 'usb', printer_address: '' })}
-                      className={`flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-[11px] font-bold transition-all ${s.printer_type === 'usb' ? 'bg-[var(--accent)] text-white' : 'text-[var(--text-muted)]'}`}
-                    >
-                      <Usb size={14} /> USB
-                    </button>
-                  </div>
-
-                  {s.printer_type === 'network' ? (
-                    <input
-                      type="text"
-                      placeholder="192.168.1.100:9100"
-                      value={s.printer_address || ''}
-                      disabled={!isAdmin || saving === s.id}
-                      onChange={e => setSettings(prev => prev.map(x => x.id === s.id ? { ...x, printer_address: e.target.value } : x))}
-                      onBlur={e => updateSetting(s.id, { printer_address: e.target.value })}
-                      className="flex-1 min-w-[150px] px-3 py-1.5 rounded-xl bg-[var(--bg-input)] border border-[var(--border)] text-[var(--text-main)] text-sm outline-none focus:ring-2 focus:ring-[var(--accent)] disabled:cursor-not-allowed"
-                    />
-                  ) : (
-                    <select
-                      value={s.printer_address || ''}
-                      disabled={!isAdmin || saving === s.id}
-                      onChange={e => updateSetting(s.id, { printer_address: e.target.value })}
-                      className="flex-1 min-w-[150px] px-3 py-1.5 rounded-xl bg-[var(--bg-input)] border border-[var(--border)] text-[var(--text-main)] text-xs outline-none focus:ring-2 focus:ring-[var(--accent)] disabled:cursor-not-allowed"
-                    >
-                      <option value="">Seleziona stampante USB</option>
-                      {usbPrinters.map(p => (
-                        <option key={p.name} value={p.name}>{p.name}{p.isDefault ? ' (default)' : ''}</option>
-                      ))}
-                    </select>
-                  )}
+                  <input
+                    type="text"
+                    placeholder="Indirizzo IP della stampante (es. 192.168.1.100)"
+                    value={s.printer_address || ''}
+                    disabled={!isAdmin || saving === s.id}
+                    onChange={e => setSettings(prev => prev.map(x => x.id === s.id ? { ...x, printer_address: e.target.value } : x))}
+                    onBlur={e => updateSetting(s.id, { printer_address: e.target.value })}
+                    className="flex-1 min-w-[150px] px-3 py-1.5 rounded-xl bg-[var(--bg-input)] border border-[var(--border)] text-[var(--text-main)] text-sm outline-none focus:ring-2 focus:ring-[var(--accent)] disabled:cursor-not-allowed"
+                  />
+                  <PrinterCheck address={s.printer_address} />
                 </div>
 
                 {/* Azioni + toggle */}

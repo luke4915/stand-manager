@@ -42,3 +42,12 @@ export const ordersLimiter = limiter({
   keyGenerator: userOrIpKey,
   message: { error: 'Troppi ordini in poco tempo, riprova tra un minuto.' },
 });
+
+// Dispositivi: l'abbinamento avviene una volta per cassa. Il limite protegge dall'esaurire le 26 lettere,
+// ma lascia spazio al recupero dello stato (GET) di molte casse che ripartono insieme.
+export const devicesLimiter = limiter({
+  windowMs: 60 * 60 * 1000,
+  limit: 60,
+  keyGenerator: userOrIpKey,
+  message: { error: 'Troppe richieste sui dispositivi, riprova più tardi.' },
+});

@@ -8,14 +8,14 @@ import { fileURLToPath } from 'url';
 import authRoutes from './routes/auth.js';
 import profileRoutes from './routes/profile.js';
 import productRoutes from './routes/products.js';
-import printersRoutes from './routes/printers.js';
 import orderRoutes from './routes/orders.js';
+import deviceRoutes from './routes/devices.js';
 import sessionRoutes from './routes/sessions.js';
 import exportRoutes from './routes/exports.js';
 import printSettingsRoutes from './routes/printSettings.js';
 import settingsRoutes from './routes/settings.js';
 import masterRoutes from './routes/master.js';
-import { loginLimiter, apiLimiter, ordersLimiter } from './middleware/rateLimiter.js';
+import { loginLimiter, apiLimiter, ordersLimiter, devicesLimiter } from './middleware/rateLimiter.js';
 import { isAllowedOrigin } from './utils/origins.js';
 import logger from './logger.js';
 
@@ -57,14 +57,15 @@ export function createApp({ broadcast, rateLimit = true }) {
     app.use('/api/auth/login', loginLimiter);
     app.use('/api/master/login', loginLimiter);
     app.use('/api/orders', ordersLimiter);
+    app.use('/api/devices', devicesLimiter);
   }
 
   app.use('/api/auth', authRoutes);
   app.use('/api/profile', profileRoutes);
   app.use('/api/products', productRoutes);
-  app.use('/api/printers', printersRoutes);
   app.use('/api/print-settings', printSettingsRoutes);
   app.use('/api/orders', orderRoutes(broadcast));
+  app.use('/api/devices', deviceRoutes);
   app.use('/api/sessions', sessionRoutes(broadcast));
   app.use('/api/exports', exportRoutes);
   app.use('/api/settings', settingsRoutes);

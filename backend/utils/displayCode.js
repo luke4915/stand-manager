@@ -6,3 +6,9 @@ export function formatDisplayCode(position) {
   const letter = String.fromCharCode(65 + (Math.floor(index / 100) % 26));
   return `${letter}${(index % 100) + 1}`;
 }
+
+// Codice di un ordine battuto da una cassa: la lettera del dispositivo e il suo progressivo
+// nella sessione (A1, A2, … B1, …). Lo stesso formato è composto dal client per stampare offline.
+export function formatDeviceCode(letter, seq) {
+  return `${letter}${seq}`;
+}

@@ -14,6 +14,7 @@ import AppearanceSettings from './components/setup/AppearanceSettings';
 import OrderSettings from './components/setup/OrderSettings';
 import PrintProfiles from './components/setup/PrintProfiles';
 import MenuSettings from './components/setup/MenuSettings';
+import ReceiptSettings from './components/setup/ReceiptSettings';
 import ReverseOrder from './components/shared/ReverseOrder';
 import ChangePassword from './components/shared/ChangePassword';
 import UserProfile from './components/shared/UserProfile';
@@ -21,6 +22,9 @@ import Login from './pages/LoginPage';
 import { getDiscountedTotal } from './utils/pricing';
 import CashCountModal from './components/shared/CashCountModal';
 import { enqueueOrder } from './offline/syncQueue';
+import { nextOrderNumber } from './offline/device';
+import { useDevicePairing } from './offline/useDevicePairing';
+import { printOrderTickets } from './print/printOrder';
 import { saveProducts, loadCachedProducts } from './offline/productsCache';
 import { remember, recall } from './offline/lastKnown';
 
@@ -72,6 +76,7 @@ const App = () => {
   // Sessione (serata) aperta: { id, name } oppure null.
   const [activeSession, setActiveSession] = useState(null);
   const sessionActive = !!activeSession;
+  useDevicePairing();
   const sessionName = activeSession?.name || '';
   // Stato della sessione arrivato dal server: si ricorda per i ricaricamenti senza rete.
   const applySession = useCallback((session) => {
@@ -274,6 +279,8 @@ const App = () => {
     if (!sessionActive) return showToast('Nessuna sessione attiva!', 'error');
     if (cart.length === 0) return showToast('Carrello vuoto!', 'error');
 
+    // Numero ordine dato dalla cassa (anche offline): resta lo stesso a ogni nuovo invio.
+    const { displayCode, ...numbering } = await nextOrderNumber(activeSession.id);
     const payload = {
       items: cart.map(i => ({
         id: i.id, name: i.name, quantity: i.quantity, price: i.price, note: i.note || '',
@@ -286,6 +293,7 @@ const App = () => {
       is_takeaway: isTakeaway,
       // Chiave di idempotenza: se la risposta si perde e l'ordine riparte dalla coda, non si duplica.
       client_order_id: crypto.randomUUID(),
+      ...numbering,
     };
 
     const confirmOrder = (message, type) => {
@@ -294,14 +302,24 @@ const App = () => {
       showToast(message, type);
       if (isMobile) setIsMobileCartOpen(false);
     };
+    // Le copie si stampano dalla cassa (anche offline): solo dopo che l'ordine è accettato
+    // dal server, oppure quando va in coda perché il server non c'è.
+    const printTickets = (code) => {
+      if (!code) return showToast('Stampa non disponibile: dispositivo non ancora abbinato, serve una connessione.', 'warning');
+      printOrderTickets({ cart, displayCode: code, clientOrderId: payload.client_order_id, isTakeaway })
+        .catch(err => showToast(`Errore di stampa: ${err.message}`, 'error'));
+    };
     const queueOffline = async () => {
       await enqueueOrder(payload, activeSession.id);
+      printTickets(displayCode);
       confirmOrder('Sei offline: ordine salvato, verrà inviato al ritorno della connessione', 'warning');
     };
 
     if (!navigator.onLine) return queueOffline();
     try {
-      await fetchWithAuth('/orders', { method: 'POST', body: payload });
+      const saved = await fetchWithAuth('/orders', { method: 'POST', body: payload });
+      // Se il dispositivo non era abbinato il codice lo ha dato il server
+      printTickets(saved.displayCode ?? displayCode);
       confirmOrder('Ordine inviato!', 'success');
     } catch (err) {
       // Rete caduta durante l'invio: l'ordine va in coda con la stessa chiave, quindi
@@ -434,6 +452,7 @@ const App = () => {
                       <AppearanceSettings theme={theme} setTheme={setTheme} isSoundEnabled={isSoundEnabled} setIsSoundEnabled={setIsSoundEnabled} />
                       <MenuSettings />
                       <OrderSettings orderMode={orderMode} setOrderMode={setOrderMode} />
+                      <ReceiptSettings />
                       <PrintProfiles />
                     </div>
                   } />
