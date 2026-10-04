@@ -1,13 +1,13 @@
 import React from 'react';
-import { VIEW_ROLES } from './viewRoles';
+import { canView } from './viewRoles';
 import { LayoutDashboard, UtensilsCrossed, BarChart3, Settings, Database, ChevronLeft, ChevronRight, Power } from 'lucide-react';
 
 const menuItems = [
-  { id: 'dashboard', icon: <LayoutDashboard size={22} />, label: 'Cassa', roles: VIEW_ROLES.dashboard },
-  { id: 'kitchen', icon: <UtensilsCrossed size={22} />, label: 'Cucina', roles: VIEW_ROLES.kitchen },
-  { id: 'statistics', icon: <BarChart3 size={22} />, label: 'Stats', roles: VIEW_ROLES.statistics },
-  { id: 'config', icon: <Database size={22} />, label: 'Menu', roles: VIEW_ROLES.config },
-  { id: 'setup', icon: <Settings size={22} />, label: 'Sistema', roles: VIEW_ROLES.setup },
+  { id: 'dashboard', icon: <LayoutDashboard size={22} />, label: 'Cassa' },
+  { id: 'kitchen', icon: <UtensilsCrossed size={22} />, label: 'Cucina' },
+  { id: 'statistics', icon: <BarChart3 size={22} />, label: 'Stats' },
+  { id: 'config', icon: <Database size={22} />, label: 'Menu' },
+  { id: 'setup', icon: <Settings size={22} />, label: 'Sistema' },
 ];
 
 const Sidebar = ({ view, setView, isOpen, toggleSidebar, currentUser, sessionActive, setSessionActive }) => (
@@ -26,7 +26,7 @@ const Sidebar = ({ view, setView, isOpen, toggleSidebar, currentUser, sessionAct
     {/* Nav */}
     <nav className="flex-1 w-full px-3 space-y-2 overflow-y-auto no-scrollbar">
       {menuItems
-        .filter(item => item.roles.includes(currentUser?.role))
+        .filter(item => canView(currentUser?.role, item.id, currentUser?.modules))
         .map(item => (
           <button
             key={item.id}

@@ -1,8 +1,10 @@
 import { useState, useEffect, useCallback } from 'react';
-import { ShieldCheck, LogOut, Building2, Users, Clock, Power, Trash2, Plus, Printer } from 'lucide-react';
+import { ShieldCheck, LogOut, Building2, Users, Clock, Power, Trash2, Plus, Printer, Blocks } from 'lucide-react';
 import { apiFetch, ApiError } from '../utils/apiClient';
 import TenantReceiptEditor from '../components/master/TenantReceiptEditor';
 import TenantUsers from '../components/master/TenantUsers';
+import ModulePicker from '../components/master/ModulePicker';
+import TenantModules from '../components/master/TenantModules';
 import TempPasswordField from '../components/shared/TempPasswordField';
 
 const StatCard = ({ label, value }) => (
@@ -66,8 +68,11 @@ const MasterPage = () => {
   const [deleteTarget, setDeleteTarget] = useState(null);
   const [receiptTarget, setReceiptTarget] = useState(null);
   const [usersTarget, setUsersTarget] = useState(null);
+  const [modulesTarget, setModulesTarget] = useState(null);
+  const [catalog, setCatalog] = useState(null);
 
-  const [form, setForm] = useState({ slug: '', name: '', plan: 'trial', expiresInDays: 7, adminUsername: '', adminPassword: '' });
+  const emptyForm = { slug: '', name: '', plan: 'trial', expiresInDays: 7, adminUsername: '', adminPassword: '', businessType: 'sagra', modules: ['kds', 'stats', 'qr_menu'] };
+  const [form, setForm] = useState(emptyForm);
   const [creating, setCreating] = useState(false);
 
   const loadTenants = useCallback(async () => {
@@ -79,7 +84,11 @@ const MasterPage = () => {
     }
   }, []);
 
-  useEffect(() => { if (authed) loadTenants(); }, [authed, loadTenants]);
+  useEffect(() => {
+    if (!authed) return;
+    loadTenants();
+    apiFetch('/master/catalog').then(setCatalog).catch(err => setError(err.message));
+  }, [authed, loadTenants]);
 
   const handleLogin = async () => {
     setLoading(true); setError('');
@@ -99,7 +108,7 @@ const MasterPage = () => {
     setCreating(true); setError('');
     try {
       await apiFetch('/master/tenants', { method: 'POST', body: form });
-      setForm({ slug: '', name: '', plan: 'trial', expiresInDays: 7, adminUsername: '', adminPassword: '' });
+      setForm(emptyForm);
       loadTenants();
     } catch (err) { setError(err.message); }
     finally { setCreating(false); }
@@ -197,6 +206,11 @@ const MasterPage = () => {
             <input placeholder="Username admin" value={form.adminUsername} onChange={e => setForm(f => ({ ...f, adminUsername: e.target.value }))} className={inputClass} />
             <TempPasswordField className={`${inputClass} w-full`} value={form.adminPassword} onChange={adminPassword => setForm(f => ({ ...f, adminPassword }))} />
           </div>
+          {catalog && (
+            <div className="mb-4">
+              <ModulePicker catalog={catalog} value={{ businessType: form.businessType, modules: form.modules }} onChange={v => setForm(f => ({ ...f, ...v }))} />
+            </div>
+          )}
           {error && <p className="text-red-500 text-xs font-black uppercase tracking-widest mb-3">{error}</p>}
           <button
             onClick={handleCreateTenant}
@@ -225,6 +239,14 @@ const MasterPage = () => {
                   <span className="flex items-center gap-1"><Users size={11} /> {t.user_count}</span>
                   <span>{status.label}</span>
                 </div>
+                <div className="flex flex-wrap items-center gap-1.5 text-[11px] mb-3">
+                  <span className="px-2 py-0.5 rounded-full bg-[var(--accent)]/10 text-[var(--accent)] font-black uppercase tracking-widest text-[10px]">
+                    {catalog?.businessTypes.find(b => b.id === t.business_type)?.label ?? t.business_type}
+                  </span>
+                  {t.modules?.map(id => (
+                    <span key={id} className="px-2 py-0.5 rounded-full border border-[var(--border)] text-[var(--text-muted)]">{catalog?.modules.find(m => m.id === id)?.label ?? id}</span>
+                  ))}
+                </div>
 
                 <div className="flex flex-wrap gap-2">
                   <button onClick={() => handleExtend(t.id, 7)} className={iconBtnClass}>
@@ -235,6 +257,9 @@ const MasterPage = () => {
                   </button>
                   <button onClick={() => handleToggleActive(t.id, !t.active)} className={iconBtnClass}>
                     <Power size={12} /> {t.active ? 'Disattiva' : 'Riattiva'}
+                  </button>
+                  <button onClick={() => catalog && setModulesTarget(t)} className={iconBtnClass}>
+                    <Blocks size={12} /> Moduli
                   </button>
                   <button onClick={() => setUsersTarget(t)} className={iconBtnClass}>
                     <Users size={12} /> Utenti
@@ -254,6 +279,8 @@ const MasterPage = () => {
           })}
         </div>
       </div>
+
+      {modulesTarget && catalog && <TenantModules tenant={modulesTarget} catalog={catalog} onClose={() => setModulesTarget(null)} onSaved={loadTenants} />}
 
       {usersTarget && <TenantUsers tenant={usersTarget} onClose={() => setUsersTarget(null)} onChanged={loadTenants} />}
 

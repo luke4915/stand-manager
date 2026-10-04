@@ -15,6 +15,7 @@ import OrderSettings from './components/setup/OrderSettings';
 import PrintProfiles from './components/setup/PrintProfiles';
 import MenuSettings from './components/setup/MenuSettings';
 import { canView, defaultView } from './components/layout/viewRoles';
+import NoViewAvailable from './components/layout/NoViewAvailable';
 import UsersSettings from './components/setup/UsersSettings';
 import ReverseOrder from './components/shared/ReverseOrder';
 import ChangePassword from './components/shared/ChangePassword';
@@ -103,10 +104,12 @@ const App = () => {
     if (!user?.role || checkedRole.current === user.role) return;
     checkedRole.current = user.role;
     const path = window.location.pathname.replace('/', '') || 'dashboard';
-    if (canView(user.role, path)) return setView(path);
-    setView(defaultView(user.role));
-    navigate(`/${defaultView(user.role)}`, { replace: true });
-  }, [user?.role, navigate]);
+    if (canView(user.role, path, user.modules)) return setView(path);
+    const home = defaultView(user.role, user.modules);
+    if (!home) return;
+    setView(home);
+    navigate(`/${home}`, { replace: true });
+  }, [user?.role, user?.modules, navigate]);
 
   useEffect(() => {
     if (user?.role === 'cucina') { setView('kitchen'); navigate('/kitchen'); }
@@ -396,6 +399,10 @@ const App = () => {
   if (window.location.pathname === '/menu') return <MenuPage />;
   if (window.location.pathname === '/master') return <MasterPage />;
 
+  // Prima pagina disponibile; senza nessuna (es. ruolo cucina senza il modulo KDS) si avvisa invece di girare in tondo.
+  const home = defaultView(user.role, user.modules);
+  if (!home) return <NoViewAvailable onLogout={performLogout} />;
+
   const canDiscount = DISCOUNT_ROLES.includes(user?.role);
 
   const cartProps = {
@@ -457,11 +464,11 @@ const App = () => {
             ) : (
               <Suspense fallback={<PageLoading />}>
                 <Routes>
-                  <Route path="/dashboard" element={canView(user.role, 'dashboard') ? <ProductList setProducts={setProducts} products={products} addToCart={addToCart} cart={cart} /> : <Navigate to={`/${defaultView(user.role)}`} replace />} />
-                  <Route path="/kitchen" element={canView(user.role, 'kitchen') ? <OrdersKitchen /> : <Navigate to={`/${defaultView(user.role)}`} replace />} />
-                  <Route path="/statistics" element={canView(user.role, 'statistics') ? <Statistics /> : <Navigate to={`/${defaultView(user.role)}`} replace />} />
-                  <Route path="/config" element={canView(user.role, 'config') ? <ProductConfig products={products} setProducts={setProducts} /> : <Navigate to={`/${defaultView(user.role)}`} replace />} />
-                  <Route path="/setup" element={!canView(user.role, 'setup') ? <Navigate to={`/${defaultView(user.role)}`} replace /> :
+                  <Route path="/dashboard" element={canView(user.role, 'dashboard', user.modules) ? <ProductList setProducts={setProducts} products={products} addToCart={addToCart} cart={cart} /> : <Navigate to={`/${home}`} replace />} />
+                  <Route path="/kitchen" element={canView(user.role, 'kitchen', user.modules) ? <OrdersKitchen /> : <Navigate to={`/${home}`} replace />} />
+                  <Route path="/statistics" element={canView(user.role, 'statistics', user.modules) ? <Statistics /> : <Navigate to={`/${home}`} replace />} />
+                  <Route path="/config" element={canView(user.role, 'config', user.modules) ? <ProductConfig products={products} setProducts={setProducts} /> : <Navigate to={`/${home}`} replace />} />
+                  <Route path="/setup" element={!canView(user.role, 'setup', user.modules) ? <Navigate to={`/${home}`} replace /> :
                     <div className="space-y-6">
                       <AppearanceSettings theme={theme} setTheme={setTheme} isSoundEnabled={isSoundEnabled} setIsSoundEnabled={setIsSoundEnabled} />
                       <MenuSettings />

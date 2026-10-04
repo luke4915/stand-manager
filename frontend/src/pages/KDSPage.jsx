@@ -85,6 +85,8 @@ export default function KDS() {
     const [orders, setOrders] = useState([]);
     const [wsConnected, setWsConnected] = useState(false);
     const [loading, setLoading] = useState(true);
+    const [disabled, setDisabled] = useState(false); // modulo KDS spento per questo locale
+    const disabledRef = useRef(false);
     const wsRef = useRef(null);
     const reconnectTimer = useRef(null);
 
@@ -110,7 +112,7 @@ export default function KDS() {
             };
             wsRef.current.onclose = () => {
                 setWsConnected(false);
-                reconnectTimer.current = setTimeout(connectWS, 3000);
+                if (!disabledRef.current) reconnectTimer.current = setTimeout(connectWS, 3000);
             };
             wsRef.current.onerror = () => wsRef.current?.close();
         };
@@ -120,6 +122,13 @@ export default function KDS() {
                 const data = await apiFetch('/orders/kds');
                 setOrders(prev => mergeOrders(prev, data));
             } catch (err) {
+                if (err.code === 'MODULE_DISABLED') {
+                    disabledRef.current = true;
+                    setDisabled(true);
+                    clearTimeout(reconnectTimer.current);
+                    wsRef.current?.close();
+                    return;
+                }
                 console.warn('KDS: caricamento ordini non riuscito, si attendono gli aggiornamenti in tempo reale', err);
             } finally {
                 setLoading(false);
@@ -138,6 +147,12 @@ export default function KDS() {
     const pending = useMemo(() => {
         return orders.filter(o => o.status === 'pending' || o.status === 'preparing');
     }, [orders]);
+
+    if (disabled) return (
+        <div className="min-h-screen bg-[var(--bg-main)] text-white flex items-center justify-center p-6">
+            <p className="text-sm font-black uppercase tracking-widest text-white/50 text-center">Schermo cucina non attivo per questo locale</p>
+        </div>
+    );
 
     return (
         <div className="min-h-screen bg-[var(--bg-main)] text-white flex flex-col">
