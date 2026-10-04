@@ -10,6 +10,7 @@ import pg from 'pg';
 import bcrypt from 'bcrypt';
 import jwt from 'jsonwebtoken';
 import WebSocket from 'ws';
+import { BUSINESS_TYPES } from '../../utils/modules.js';
 
 const backendDir = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..', '..');
 dotenv.config({ path: path.join(backendDir, '.env.test'), override: true, quiet: true });
@@ -46,10 +47,11 @@ export async function closePools() {
 }
 
 // Tenant di prova con un admin, un prodotto e (a richiesta) una sessione aperta.
-export async function createTenant({ openSession = true, active = true } = {}) {
+export async function createTenant({ openSession = true, active = true, businessType = 'sagra' } = {}) {
   const slug = `test-${randomUUID().slice(0, 8)}`;
   const { rows: [tenant] } = await adminDb.query(
-    'INSERT INTO tenants (slug, name, active) VALUES ($1, $2, $3) RETURNING id', [slug, `Prova ${slug}`, active]);
+    'INSERT INTO tenants (slug, name, active, business_type, modules) VALUES ($1, $2, $3, $4, $5) RETURNING id',
+    [slug, `Prova ${slug}`, active, businessType, BUSINESS_TYPES[businessType].modules]);
   const hash = await bcrypt.hash(PASSWORD, 4);
   const { rows: [user] } = await adminDb.query(
     `INSERT INTO users (username, password_hash, role, tenant_id) VALUES ($1, $2, 'admin', $3) RETURNING id`,

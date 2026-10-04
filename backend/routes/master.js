@@ -11,7 +11,7 @@ import { validate } from '../middleware/validate.js';
 import { idParamsSchema } from '../schemas/common.js';
 import { masterLoginSchema, createTenantSchema, extendLicenseSchema, tenantActiveSchema, deleteTenantSchema, receiptCustomizationSchema, tenantUserParamsSchema, tenantModulesSchema } from '../schemas/masterSchema.js';
 import { createUserSchema, resetPasswordSchema, updateUserSchema } from '../schemas/authSchema.js';
-import { catalog, normalizeModules, BUSINESS_TYPES } from '../utils/modules.js';
+import { catalog, normalizeModules, firstModuleNotAllowed, BUSINESS_TYPES } from '../utils/modules.js';
 import { invalidateTenantModules } from '../utils/tenantModules.js';
 import { logAudit } from '../utils/auditLogger.js';
 import { sendHttpError } from '../utils/httpError.js';
@@ -122,14 +122,19 @@ router.patch('/tenants/:id/extend', authenticateMaster, validate({ params: idPar
   }
 });
 
-// TIPO DI ATTIVITÀ E MODULI — sostituisce l'insieme; vale subito (cache invalidata) sul processo che lo riceve
+// MODULI — sostituisce l'insieme; vale subito (cache invalidata) sul processo che lo riceve.
+// Il tipo di attività è fisso: i moduli devono esistere per quel tipo (una sagra non ha i tavoli, un ristorante non ha il menu QR).
 router.put('/tenants/:id/modules', authenticateMaster, validate({ params: idParamsSchema, body: tenantModulesSchema }), async (req, res) => {
   try {
+    const { rows: current } = await masterPool.query('SELECT business_type FROM tenants WHERE id = $1', [req.params.id]);
+    if (!current.length) return res.status(404).json({ error: 'Tenant non trovato' });
+    const notAllowed = firstModuleNotAllowed(current[0].business_type, req.body.modules);
+    if (notAllowed) return res.status(400).json({ error: `modules: il modulo "${notAllowed}" non esiste per questo tipo di attività` });
+
     const { rows } = await masterPool.query(
-      'UPDATE tenants SET business_type = $1, modules = $2 WHERE id = $3 RETURNING *',
-      [req.body.businessType, normalizeModules(req.body.modules), req.params.id]
+      'UPDATE tenants SET modules = $1 WHERE id = $2 RETURNING *',
+      [normalizeModules(req.body.modules), req.params.id]
     );
-    if (!rows.length) return res.status(404).json({ error: 'Tenant non trovato' });
     invalidateTenantModules(req.params.id);
     logger.info({ tenantId: req.params.id, businessType: rows[0].business_type, modules: rows[0].modules }, 'Moduli del tenant aggiornati dal master');
     res.json(rows[0]);

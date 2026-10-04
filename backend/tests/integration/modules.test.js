@@ -10,7 +10,7 @@ const masterCookie = { cookie: `master_token=${jwt.sign({ master: true }, proces
 describe('moduli per tenant', () => {
   let server, t1, t2, api1, api2, anon1, master;
   const created = [];
-  const setModules = (t, businessType, modules) => master.request('PUT', `/master/tenants/${t.id}/modules`, { businessType, modules }, masterCookie);
+  const setModules = (t, modules) => master.request('PUT', `/master/tenants/${t.id}/modules`, { modules }, masterCookie);
 
   before(async () => {
     server = await startServer();
@@ -46,7 +46,7 @@ describe('moduli per tenant', () => {
   });
 
   it('modulo spento: il server blocca la route con MODULE_DISABLED; il nucleo resta acceso', async () => {
-    assert.equal((await setModules(t1, 'paninaro', ['qr_menu'])).status, 200);
+    assert.equal((await setModules(t1, ['qr_menu'])).status, 200);
 
     const stats = await api1.get('/stats?tz=Europe/Rome');
     assert.equal(stats.status, 403);
@@ -73,26 +73,50 @@ describe('moduli per tenant', () => {
 
   it('un altro tenant non è toccato; riaccendere il modulo vale subito', async () => {
     assert.equal((await api2.get('/stats?tz=Europe/Rome')).status, 200);
-    assert.equal((await setModules(t1, 'sagra', ['kds', 'stats', 'qr_menu'])).status, 200);
+    assert.equal((await setModules(t1, ['kds', 'stats', 'qr_menu'])).status, 200);
     assert.equal((await api1.get('/stats?tz=Europe/Rome')).status, 200);
     assert.equal((await anon1.get('/orders/kds')).status, 200);
   });
 
   it('tutti i moduli spenti: resta solo il nucleo', async () => {
-    assert.equal((await setModules(t1, 'ristorante', [])).status, 200);
+    assert.equal((await setModules(t1, [])).status, 200);
     assert.equal((await anon1.get('/products/menu')).status, 403);
     assert.equal((await api1.get('/products')).status, 200);
-    await setModules(t1, 'sagra', ['kds', 'stats', 'qr_menu']);
+    await setModules(t1, ['kds', 'stats', 'qr_menu']);
   });
 
-  it('il master valida tipo e moduli, e solo il master li cambia', async () => {
-    assert.equal((await setModules(t1, 'sagra', ['inesistente'])).status, 400);
-    assert.equal((await setModules(t1, 'pizzeria-volante', [])).status, 400);
-    assert.equal((await master.request('PUT', `/master/tenants/${t1.id}/modules`, { businessType: 'sagra' }, masterCookie)).status, 400);
-    assert.equal((await master.request('PUT', '/master/tenants/999999999/modules', { businessType: 'sagra', modules: [] }, masterCookie)).status, 404);
-    assert.equal((await master.request('PUT', `/master/tenants/${t1.id}/modules`, { businessType: 'sagra', modules: [] })).status, 401);
+  it('il master valida i moduli, e solo il master li cambia', async () => {
+    assert.equal((await setModules(t1, ['inesistente'])).status, 400);
+    assert.equal((await master.request('PUT', `/master/tenants/${t1.id}/modules`, {}, masterCookie)).status, 400);
+    assert.equal((await master.request('PUT', '/master/tenants/999999999/modules', { modules: [] }, masterCookie)).status, 404);
+    assert.equal((await master.request('PUT', `/master/tenants/${t1.id}/modules`, { modules: [] })).status, 401);
     // l'admin del tenant non può accendersi i moduli da solo
-    assert.equal((await api1.request('PUT', `/master/tenants/${t1.id}/modules`, { businessType: 'sagra', modules: ['stats'] })).status, 401);
+    assert.equal((await api1.request('PUT', `/master/tenants/${t1.id}/modules`, { modules: ['stats'] })).status, 401);
+  });
+
+  it('sagra e ristorante non si mescolano: il tipo è fisso e ogni tipo ha solo i suoi moduli', async () => {
+    // una sagra non ha i tavoli
+    const noTables = await setModules(t1, ['kds', 'tables']);
+    assert.equal(noTables.status, 400);
+    assert.match(noTables.body.error, /tables/);
+    assert.deepEqual((await adminDb.query('SELECT business_type, modules FROM tenants WHERE id = $1', [t1.id])).rows[0].modules, ['kds', 'stats', 'qr_menu']);
+    // il tipo non si cambia: il body con businessType non ha effetto
+    await master.request('PUT', `/master/tenants/${t1.id}/modules`, { businessType: 'ristorante', modules: ['kds'] }, masterCookie);
+    const { rows } = await adminDb.query('SELECT business_type, modules FROM tenants WHERE id = $1', [t1.id]);
+    assert.equal(rows[0].business_type, 'sagra');
+    await setModules(t1, ['kds', 'stats', 'qr_menu']);
+
+    // un ristorante non ha il menu QR
+    const slug = `mod-${Math.random().toString(36).slice(2, 8)}`;
+    const body = { slug, name: `Prova ${slug}`, adminUsername: 'admin', adminPassword: 'temporanea-1', businessType: 'ristorante' };
+    const bad = await master.request('POST', '/master/tenants', { ...body, modules: ['tables', 'qr_menu'] }, masterCookie);
+    assert.equal(bad.status, 400);
+    assert.equal((await master.request('POST', '/master/tenants', { ...body, businessType: 'sagra', modules: ['tables'] }, masterCookie)).status, 400);
+    const ok = await master.request('POST', '/master/tenants', body, masterCookie);
+    assert.equal(ok.status, 201);
+    created.push({ id: ok.body.tenant.id });
+    const put = await master.request('PUT', `/master/tenants/${ok.body.tenant.id}/modules`, { modules: ['qr_menu'] }, masterCookie);
+    assert.equal(put.status, 400);
   });
 
   it('creazione tenant: moduli del preset oppure scelti, in ordine di catalogo e senza doppioni', async () => {
@@ -121,5 +145,6 @@ describe('moduli per tenant', () => {
     assert.deepEqual(body.modules.map(m => m.id), ['kds', 'stats', 'qr_menu', 'tables']);
     assert.deepEqual(body.businessTypes.map(b => b.id), ['sagra', 'paninaro', 'ristorante']);
     assert.ok(body.businessTypes.every(b => b.label && Array.isArray(b.modules)));
+    assert.deepEqual(body.modules.find(m => m.id === 'tables').types, ['ristorante']);
   });
 });

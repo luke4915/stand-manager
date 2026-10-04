@@ -1,7 +1,7 @@
 import React from 'react';
 import { createRoot } from 'react-dom/client';
 import { BrowserRouter } from 'react-router-dom';
-import App from './App';
+import AppRouter from './AppRouter';
 import './index.css';
 import ErrorBoundary from './components/layout/ErrorBoundary';
 import { AuthProvider } from './context/AuthProvider';
@@ -14,7 +14,7 @@ root.render(
             <AuthProvider>
                 <ToastProvider>
                     <ErrorBoundary>
-                        <App />
+                        <AppRouter />
                     </ErrorBoundary>
                 </ToastProvider>
             </AuthProvider>

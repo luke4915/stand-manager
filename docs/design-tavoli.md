@@ -95,7 +95,7 @@ Eventi WebSocket: `check_updated`, `table_updated`. Il KDS pubblico riceve il no
 
 ## 6. Interfaccia
 
-Nuova vista **Sala** (voce di menu del modulo `tables`), in componenti dedicati sotto `components/sala/` (non in `App.jsx`):
+Il ristorante ha una **app propria** (`frontend/src/smarteats/`, scelta da `AppRouter.jsx` dal tipo del locale), non una variante della cassa delle sagre. La vista **Sala** (`smarteats/SalaPage.jsx`, oggi in sola lettura con stato dei tavoli in tempo reale) si completa con i componenti dei passi seguenti:
 elenco o mappa dei tavoli per sala con stato; aprire un tavolo (coperti); il carrello esistente funziona in "modalità
 tavolo" (invia la comanda al conto invece di pagarla); pannello del conto con righe, totale, richiesta del conto e pagamento.
 Mobile e desktop come il resto dell'app.

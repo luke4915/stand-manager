@@ -14,7 +14,6 @@ const masterCookie = { cookie: `master_token=${jwt.sign({ master: true }, proces
 describe('conti dei tavoli', () => {
   let server, t1, t2, admin1, admin2, cashier, kitchen, master, room, tables, other;
 
-  const enableTables = (t) => master.request('PUT', `/master/tenants/${t.id}/modules`, { businessType: 'ristorante', modules: ['kds', 'stats', 'tables'] }, masterCookie);
   const addUser = async (t, role) => {
     const username = `${role}-${t.slug}`;
     await adminDb.query(`INSERT INTO users (username, password_hash, role, tenant_id) VALUES ($1, $2, $3, $4)`, [username, await bcrypt.hash(PASSWORD, 4), role, t.id]);
@@ -35,12 +34,10 @@ describe('conti dei tavoli', () => {
 
   before(async () => {
     server = await startServer();
-    [t1, t2] = [await createTenant(), await createTenant()];
+    [t1, t2] = [await createTenant({ businessType: 'ristorante' }), await createTenant({ businessType: 'ristorante' })];
     [admin1, admin2, master] = [t1, t2, t1].map(t => apiClient(server.port, t.host));
     await admin1.login(t1.username);
     await admin2.login(t2.username);
-    await enableTables(t1);
-    await enableTables(t2);
     cashier = await addUser(t1, 'cassa');
     kitchen = await addUser(t1, 'cucina');
     room = (await admin1.post('/rooms', { name: 'Sala' })).body;
@@ -206,10 +203,9 @@ describe('conti dei tavoli', () => {
     const { rows: [row] } = await adminDb.query('SELECT opened_by FROM checks WHERE id = $1', [made.body.id]);
     assert.equal(row.opened_by, null, 'il conto resta, senza chi lo aprì');
 
-    const doomed = await createTenant();
+    const doomed = await createTenant({ businessType: 'ristorante' });
     const api = apiClient(server.port, doomed.host);
     await api.login(doomed.username);
-    await enableTables(doomed);
     const r = (await api.post('/rooms', { name: 'S' })).body;
     const tb = (await api.post(`/rooms/${r.id}/tables`, { name: 'T1' })).body;
     const chk = (await api.post('/checks', { table_id: tb.id, covers: 2 })).body;

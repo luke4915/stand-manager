@@ -12,8 +12,8 @@ Priorità: **P0** fondamenta (senza non si procede) · **P1** MVP ristorante · 
 | Tema | Decisione |
 |---|---|
 | Piattaforma | Un solo backend e **un solo database** PostgreSQL. I tenant restano isolati dalla RLS; un locale SmartEats è un tenant come una sagra, con altri moduli accesi. |
-| Prodotti | Stand Manager (sagre, paninari) e SmartEats (ristoranti, pizzerie) sono due app sulla stessa API. |
-| Moduli | Ogni tenant ha `business_type` e un elenco di `modules`. Il tipo di attività è solo un preset dei moduli, non un fork del codice. |
+| Prodotti | Stand Manager (sagre, paninari) e SmartEats (ristoranti, pizzerie) sono due app sulla stessa API. Il frontend sceglie l'app dal tipo del locale (`AppRouter.jsx`): chi entra in un ristorante vede la dashboard SmartEats (`src/smarteats/`), mai quella della cassa. Un futuro gestionale hotel sarà un terzo tipo, con la sua app. |
+| Moduli | Ogni tenant ha `business_type` e un elenco di `modules`. Il tipo di attività si sceglie alla creazione e **non cambia**: una sagra (o un paninaro) e un ristorante sono due prodotti distinti, non si mescolano. Ogni modulo dichiara per quali tipi esiste (`utils/modules.js`: i tavoli solo al ristorante, il menu QR solo a sagra e paninaro). |
 | Repository | Monorepo con più app (`apps/`) e codice condiviso (`packages/core`), **ma il trasloco si fa quando parte la prima schermata SmartEats** (vedi 0b), non prima. |
 | Fiscale | Fuori dal primo rilascio: l'app gestisce il conto, lo scontrino fiscale resta sul registratore del locale. |
 | Primo obiettivo | Tavoli e comande. Le prenotazioni vengono dopo. |
@@ -29,6 +29,7 @@ Priorità: **P0** fondamenta (senza non si procede) · **P1** MVP ristorante · 
 | 0a-4 | Login e `/auth/me` restituiscono i moduli del tenant; l'app li usa per menu e route insieme al ruolo. Una modifica del master arriva agli utenti già collegati al ricaricamento della pagina o al nuovo accesso. | `[x]` |
 | 0a-5 | Pannello master: tipo di attività e moduli alla creazione del tenant e in modifica. | `[x]` |
 | 0a-6 | Test: modulo spento blocca la route sul server e nasconde la voce; i tenant esistenti restano identici. | `[x]` |
+| 0c | Tipi di attività esclusivi: moduli validati per tipo (migrazione 033 ripulisce i dati), tipo fisso dopo la creazione, app SmartEats separata con shell e dashboard Sala proprie (sala in sola lettura, servizio, carta, cucina, statistiche, impostazioni). | `[x]` |
 | 0b | Trasloco in monorepo (`apps/standmanager`, `apps/smarteats`, `packages/core`), CI e documentazione. | `[ ]` rimandato alla prima schermata SmartEats |
 
 ## Fase 1: ordini a righe (P0, tocca il nucleo)

@@ -2,7 +2,7 @@ import { z } from 'zod';
 import { passwordSchema } from './authSchema.js';
 import { idSchema } from './common.js';
 import { RECEIPT_SETTINGS_KEYS } from './settingsSchema.js';
-import { MODULE_IDS, BUSINESS_TYPE_IDS } from '../utils/modules.js';
+import { MODULE_IDS, BUSINESS_TYPE_IDS, firstModuleNotAllowed } from '../utils/modules.js';
 
 const businessType = z.enum(BUSINESS_TYPE_IDS);
 const modules = z.array(z.enum(MODULE_IDS)).max(MODULE_IDS.length);
@@ -22,11 +22,14 @@ export const createTenantSchema = z.object({
   adminUsername: z.string().trim().min(1).max(50),
   // temporanea: l'admin la cambia al primo accesso
   adminPassword: passwordSchema,
+}).superRefine((data, ctx) => {
+  const notAllowed = data.modules && firstModuleNotAllowed(data.businessType, data.modules);
+  if (notAllowed) ctx.addIssue({ code: 'custom', path: ['modules'], message: `il modulo "${notAllowed}" non esiste per questo tipo di attività` });
 });
 
-// Tipo di attività e moduli di un tenant esistente: sostituisce l'insieme.
+// Moduli di un tenant esistente: sostituisce l'insieme. Il tipo di attività non cambia dopo la creazione
+// (sagra e ristorante sono due prodotti diversi); la route controlla che i moduli esistano per il suo tipo.
 export const tenantModulesSchema = z.object({
-  businessType,
   modules,
 });
 

@@ -11,7 +11,6 @@ const masterCookie = { cookie: `master_token=${jwt.sign({ master: true }, proces
 describe('sale e tavoli', () => {
   let server, t1, t2, admin1, admin2, cashier, kitchen, master;
 
-  const enableTables = (t) => master.request('PUT', `/master/tenants/${t.id}/modules`, { businessType: 'ristorante', modules: ['kds', 'stats', 'tables'] }, masterCookie);
   const addUser = async (t, role) => {
     const username = `${role}-${t.slug}`;
     await adminDb.query(`INSERT INTO users (username, password_hash, role, tenant_id) VALUES ($1, $2, $3, $4)`, [username, await bcrypt.hash(PASSWORD, 4), role, t.id]);
@@ -22,7 +21,7 @@ describe('sale e tavoli', () => {
 
   before(async () => {
     server = await startServer();
-    [t1, t2] = [await createTenant(), await createTenant()];
+    [t1, t2] = [await createTenant({ businessType: 'ristorante' }), await createTenant({ businessType: 'ristorante' })];
     [admin1, admin2, master] = [t1, t2, t1].map(t => apiClient(server.port, t.host));
     await admin1.login(t1.username);
     await admin2.login(t2.username);
@@ -35,14 +34,17 @@ describe('sale e tavoli', () => {
     await closePools();
   });
 
-  it('modulo spento (sagre): le route rispondono MODULE_DISABLED', async () => {
-    const res = await admin1.get('/rooms');
+  it('modulo assente (sagre): le route rispondono MODULE_DISABLED', async () => {
+    const sagra = await createTenant();
+    const api = apiClient(server.port, sagra.host);
+    await api.login(sagra.username);
+    const res = await api.get('/rooms');
     assert.equal(res.status, 403);
     assert.equal(res.body.code, 'MODULE_DISABLED');
-    assert.equal((await admin1.post('/rooms', { name: 'Sala' })).status, 403);
-    assert.equal((await enableTables(t1)).status, 200);
+    assert.equal((await api.post('/rooms', { name: 'Sala' })).status, 403);
+    await deleteTenants(sagra);
     assert.equal((await admin1.get('/rooms')).status, 200);
-    assert.equal((await admin2.get('/rooms')).status, 403, 'l\'altro tenant non ha il modulo');
+    assert.equal((await admin2.get('/rooms')).status, 200);
   });
 
   it('i ruoli: la cassa legge, solo l\'admin modifica, la cucina non entra', async () => {
@@ -126,7 +128,6 @@ describe('sale e tavoli', () => {
   });
 
   it('isolamento: un altro tenant non vede né tocca le sale e i tavoli', async () => {
-    await enableTables(t2);
     const [room] = (await admin1.get('/rooms')).body;
     const table = (await admin1.post(`/rooms/${room.id}/tables`, { name: 'Riservato' })).body;
 
@@ -148,10 +149,9 @@ describe('sale e tavoli', () => {
   });
 
   it('eliminare un tenant cancella anche sale e tavoli', async () => {
-    const doomed = await createTenant();
+    const doomed = await createTenant({ businessType: 'ristorante' });
     const api = apiClient(server.port, doomed.host);
     await api.login(doomed.username);
-    await enableTables(doomed);
     const room = (await api.post('/rooms', { name: 'Sala' })).body;
     await api.post(`/rooms/${room.id}/tables/bulk`, { prefix: 'T', from: 1, to: 3 });
     const res = await master.request('DELETE', `/master/tenants/${doomed.id}`, { confirmSlug: doomed.slug }, masterCookie);

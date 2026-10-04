@@ -12,7 +12,7 @@ const TenantModules = ({ tenant, catalog, onClose, onSaved }) => {
   const save = async () => {
     setSaving(true); setError('');
     try {
-      await apiFetch(`/master/tenants/${tenant.id}/modules`, { method: 'PUT', body: value });
+      await apiFetch(`/master/tenants/${tenant.id}/modules`, { method: 'PUT', body: { modules: value.modules } });
       onSaved();
       onClose();
     } catch (err) { setError(err.message); }
@@ -30,7 +30,7 @@ const TenantModules = ({ tenant, catalog, onClose, onSaved }) => {
           </div>
           <button onClick={onClose} aria-label="Chiudi" className="p-2 rounded-xl hover:bg-[var(--bg-card-2)]"><X size={16} className="text-[var(--text-muted)]" /></button>
         </div>
-        <ModulePicker catalog={catalog} value={value} onChange={setValue} />
+        <ModulePicker catalog={catalog} value={value} onChange={setValue} typeLocked />
         {error && <p className="text-red-500 text-xs font-bold mt-3">{error}</p>}
         <button onClick={save} disabled={saving}
           className="mt-4 flex items-center gap-2 px-5 py-2.5 bg-[var(--accent)] hover:bg-[var(--accent-hover)] text-white rounded-xl font-black text-xs uppercase tracking-widest disabled:opacity-50">
