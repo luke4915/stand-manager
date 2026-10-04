@@ -7,7 +7,8 @@ import { authenticateMaster } from '../middleware/authenticateMaster.js';
 import logger from '../logger.js';
 import { validate } from '../middleware/validate.js';
 import { idParamsSchema } from '../schemas/common.js';
-import { masterLoginSchema, createTenantSchema, extendLicenseSchema, tenantActiveSchema, deleteTenantSchema } from '../schemas/masterSchema.js';
+import { masterLoginSchema, createTenantSchema, extendLicenseSchema, tenantActiveSchema, deleteTenantSchema, receiptCustomizationSchema } from '../schemas/masterSchema.js';
+import { RECEIPT_SETTINGS_KEYS } from '../schemas/settingsSchema.js';
 
 const router = express.Router();
 
@@ -124,11 +125,54 @@ router.patch('/tenants/:id/active', authenticateMaster, validate({ params: idPar
   }
 });
 
+// PERSONALIZZAZIONE SCONTRINI — testi e immagini delle copie di un tenant (solo master).
+// Le tabelle del tenant si toccano solo con la sua connessione scoped, mai con pool.query.
+async function tenantExists(id) {
+  const { rows } = await pool.query('SELECT 1 FROM tenants WHERE id = $1', [id]);
+  return rows.length > 0;
+}
+
+router.get('/tenants/:id/receipt', authenticateMaster, validate({ params: idParamsSchema }), async (req, res) => {
+  const { id } = req.params;
+  try {
+    if (!await tenantExists(id)) return res.status(404).json({ error: 'Tenant non trovato' });
+    const { rows } = await withTenantClient(id, (db) =>
+      db.query('SELECT key, value FROM settings WHERE key = ANY($1)', [RECEIPT_SETTINGS_KEYS]));
+    res.json(Object.fromEntries(rows.map(r => [r.key, r.value])));
+  } catch (err) {
+    logger.error({ err }, 'Errore GET /api/master/tenants/:id/receipt');
+    res.status(500).json({ error: 'Errore caricamento personalizzazione' });
+  }
+});
+
+router.put('/tenants/:id/receipt', authenticateMaster, validate({ params: idParamsSchema, body: receiptCustomizationSchema }), async (req, res) => {
+  const { id } = req.params;
+  try {
+    if (!await tenantExists(id)) return res.status(404).json({ error: 'Tenant non trovato' });
+    await withTenantClient(id, (client) => inTransaction(client, async (db) => {
+      for (const key of RECEIPT_SETTINGS_KEYS) {
+        const value = req.body[key];
+        if (value) {
+          await db.query(
+            'INSERT INTO settings (key, value) VALUES ($1, $2) ON CONFLICT (tenant_id, key) DO UPDATE SET value = $2', [key, value]);
+        } else {
+          await db.query('DELETE FROM settings WHERE key = $1', [key]);
+        }
+      }
+    }));
+    logger.info({ tenantId: id }, 'Personalizzazione scontrini aggiornata dal master');
+    res.json({ ok: true });
+  } catch (err) {
+    logger.error({ err }, 'Errore PUT /api/master/tenants/:id/receipt');
+    res.status(500).json({ error: 'Errore salvataggio personalizzazione' });
+  }
+});
+
 // ELIMINA — irreversibile, cancella anche tutti i dati del tenant.
 // Richiede conferma esplicita (slug ripetuto) lato client prima di chiamarla.
 // Tutto in un'unica transazione sulla connessione scoped al tenant: o sparisce
 // tutto o non sparisce niente. L'ordine rispetta le foreign key (audit_logs → users).
-const TENANT_SCOPED_TABLES = ['audit_logs', 'orders', 'products', 'sessions', 'print_settings', 'copy_types', 'settings', 'users'];
+const TENANT_SCOPED_TABLES = ['audit_logs', 'orders', 'devices', 'products', 'sessions', 'print_settings', 'copy_types', 'settings', 'users'];
 router.delete('/tenants/:id', authenticateMaster, validate({ params: idParamsSchema, body: deleteTenantSchema }), async (req, res) => {
   const { id } = req.params;
   try {

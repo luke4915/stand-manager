@@ -1,6 +1,6 @@
 import { db } from '../offline/db';
 import { fetchWithAuth } from '../utils/apiClient';
-import { brandingFromSettings } from './branding.js';
+import { brandingFromSettings, imagesFromSettings } from './branding.js';
 
 // Configurazione di stampa del tenant (copie → stampanti e testi dello scontrino), conservata
 // in locale: alla cassa serve anche quando il server non è raggiungibile.
@@ -17,6 +17,7 @@ export async function refreshPrintConfig() {
     key: KEY,
     settings: rows.map(r => ({ copy_type: r.copy_type_name, printer_address: r.printer_address, enabled: r.enabled })),
     branding: brandingFromSettings(settings),
+    images: imagesFromSettings(settings),
   };
   await db.meta.put(config);
   return config;

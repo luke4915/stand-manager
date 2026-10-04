@@ -10,7 +10,7 @@ import { recordPendingReprint } from './localOrders.js';
 export async function reprintFromLocal(clientOrderId, config) {
   const row = await db.printedOrders.get(clientOrderId);
   if (!row || !config) return 0;
-  const jobs = await buildPrintJobs(config.settings, row.order, { branding: config.branding, images: createBrowserImages(), showLogo: true });
+  const jobs = await buildPrintJobs(config.settings, row.order, { branding: config.branding, images: createBrowserImages(config.images), showLogo: true });
   if (!jobs.length) return 0;
   await enqueuePrintJobs(jobs, `reprint-${clientOrderId}-${Date.now()}`, row.order.display_code);
   await recordPendingReprint(clientOrderId);

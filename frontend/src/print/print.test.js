@@ -2,7 +2,9 @@ import { test, afterEach } from 'node:test';
 import assert from 'node:assert/strict';
 import { EposBuilder } from './eposBuilder.js';
 import { TEMPLATES, DEFAULT_BRANDING, wrapText, encodeOrderId, filterItems } from './templates.js';
-import { brandingFromSettings } from './branding.js';
+import { brandingFromSettings, imagesFromSettings } from './branding.js';
+import { buildCopyPreviews } from './copyPreviews.js';
+import { renderReceipt } from './preview.js';
 import { buildPrintJobs, parseAddress } from './print.js';
 import { eposDriver, PrintError } from './drivers/epos.js';
 
@@ -136,4 +138,33 @@ test('driver Epson: successo, rifiuto della stampante, rete assente', async () =
 
   globalThis.fetch = async () => { throw new TypeError('Failed to fetch'); };
   await assert.rejects(eposDriver.send(builder, target), (e) => e instanceof PrintError && e.retryable);
+});
+
+test('imagesFromSettings: data URL del tenant, null se mancano', () => {
+  assert.deepEqual(imagesFromSettings({}), { logoUrl: null, sideImageUrl: null });
+  assert.deepEqual(imagesFromSettings({ receipt_logo: 'data:image/png;base64,AAAA', receipt_side_image: '' }), { logoUrl: 'data:image/png;base64,AAAA', sideImageUrl: null });
+});
+
+test('renderReceipt disegna testo, allineamento, immagini, QR e taglio', () => {
+  const xml = new EposBuilder().align('CT').text('CIAO').align('LT').text('a sinistra')
+    .image({ width: 512, height: 90, b64: 'AAAA' }, { align: 'center' }).qrcode('XYZ').cut().buildXml();
+  const out = renderReceipt(xml);
+  assert.match(out, /\|\s+CIAO\s+\|/);
+  assert.match(out, /\|a sinistra\s+\|/);
+  assert.match(out, /\[immagine 512x90px\]/);
+  assert.match(out, /\[qrcode: XYZ\]/);
+  assert.match(out, /taglio/);
+});
+
+test('anteprima delle copie: usa testi e immagini del tenant e salta le copie vuote', async () => {
+  const images = {
+    logo: () => ({ width: 512, height: 100, b64: 'AAAA' }),
+    numberBanner: () => ({ width: 512, height: 150, b64: 'AAAA' }),
+  };
+  const branding = { ...DEFAULT_BRANDING, name: 'PRO LOCO PROVA', totalLabel: 'TOTALE OFFERTA' };
+  const previews = await buildCopyPreviews(branding, images);
+  assert.deepEqual(previews.map(p => p.name), ['Numeretto', 'Cliente', 'Associazione', 'Cucina', 'Ritiro Gastronomia', 'Ritiro Bar']);
+  const cliente = previews.find(p => p.name === 'Cliente').text;
+  assert.ok(cliente.includes('PRO LOCO PROVA') && cliente.includes('TOTALE OFFERTA') && cliente.includes('[immagine 512x100px]'));
+  assert.ok(previews.find(p => p.name === 'Numeretto').text.includes('[immagine 512x150px]'));
 });

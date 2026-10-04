@@ -32,7 +32,16 @@ function newCanvas(width, height) {
   return { canvas, ctx };
 }
 
+// Le immagini dei tenant arrivano come data URL: si decodificano a mano, perché la CSP di produzione
+// (connect-src) non permette fetch() su data:.
+function dataUrlToBlob(dataUrl) {
+  const [header, base64] = dataUrl.split(',');
+  const bytes = Uint8Array.from(atob(base64), c => c.charCodeAt(0));
+  return new Blob([bytes], { type: header.match(/^data:([^;]+)/)?.[1] ?? 'image/png' });
+}
+
 async function loadBitmap(url) {
+  if (url.startsWith('data:')) return createImageBitmap(dataUrlToBlob(url));
   const res = await fetch(url);
   if (!res.ok) throw new Error(`Immagine non disponibile: ${url}`);
   return createImageBitmap(await res.blob());

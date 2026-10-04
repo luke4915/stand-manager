@@ -11,7 +11,6 @@ const SETTING_TO_FIELD = {
   receipt_legal_text: 'legalText',
 };
 
-export const RECEIPT_SETTING_KEYS = Object.keys(SETTING_TO_FIELD);
 
 // Dalle impostazioni salvate sul server ai testi dello scontrino: un valore vuoto o mancante
 // lascia il predefinito (per nome, codice fiscale e testo legale il predefinito è "niente").
@@ -22,4 +21,9 @@ export function brandingFromSettings(settings = {}) {
     if (value) branding[field] = value;
   }
   return branding;
+}
+
+// Immagini dello scontrino (data URL PNG già in bianco e nero), per createBrowserImages().
+export function imagesFromSettings(settings = {}) {
+  return { logoUrl: settings.receipt_logo || null, sideImageUrl: settings.receipt_side_image || null };
 }

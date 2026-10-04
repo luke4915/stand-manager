@@ -1,6 +1,7 @@
 import { useState, useEffect, useCallback } from 'react';
-import { ShieldCheck, LogOut, Building2, Users, Clock, Power, Trash2, Plus } from 'lucide-react';
+import { ShieldCheck, LogOut, Building2, Users, Clock, Power, Trash2, Plus, Printer } from 'lucide-react';
 import { apiFetch, ApiError } from '../utils/apiClient';
+import TenantReceiptEditor from '../components/master/TenantReceiptEditor';
 
 const StatCard = ({ label, value }) => (
   <div className="bg-[var(--bg-card)] rounded-xl p-4 border border-[var(--border)]">
@@ -61,6 +62,7 @@ const MasterPage = () => {
   const [error, setError] = useState('');
   const [tenants, setTenants] = useState([]);
   const [deleteTarget, setDeleteTarget] = useState(null);
+  const [receiptTarget, setReceiptTarget] = useState(null);
 
   const [form, setForm] = useState({ slug: '', name: '', plan: 'trial', expiresInDays: 7, adminUsername: '' });
   const [creating, setCreating] = useState(false);
@@ -230,6 +232,9 @@ const MasterPage = () => {
                   <button onClick={() => handleToggleActive(t.id, !t.active)} className={iconBtnClass}>
                     <Power size={12} /> {t.active ? 'Disattiva' : 'Riattiva'}
                   </button>
+                  <button onClick={() => setReceiptTarget(t)} className={iconBtnClass}>
+                    <Printer size={12} /> Scontrini
+                  </button>
                   <button
                     onClick={() => setDeleteTarget(t)}
                     className="flex items-center gap-1.5 px-3 py-2 rounded-xl border border-red-500/30 text-red-500 font-black text-[10px] uppercase tracking-widest hover:bg-red-500/10 transition-all"
@@ -242,6 +247,8 @@ const MasterPage = () => {
           })}
         </div>
       </div>
+
+      {receiptTarget && <TenantReceiptEditor tenant={receiptTarget} onClose={() => setReceiptTarget(null)} />}
 
       {deleteTarget && (
         <DeleteTenantModal

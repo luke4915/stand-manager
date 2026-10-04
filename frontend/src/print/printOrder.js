@@ -22,7 +22,7 @@ export async function printOrderTickets({ cart, displayCode, clientOrderId, sess
     items: cart.map(i => ({ ...i, price: getEffectivePrice(i) })),
   };
 
-  const ctx = { branding: config.branding, images: createBrowserImages(), showLogo: true };
+  const ctx = { branding: config.branding, images: createBrowserImages(config.images), showLogo: true };
   const jobs = await buildPrintJobs(config.settings, order, ctx);
   await saveLocalOrder(clientOrderId, sessionId, order); // per la ristampa offline
   await enqueuePrintJobs(jobs, clientOrderId, displayCode);
@@ -34,7 +34,7 @@ export async function reprintOrder(savedOrder) {
   const config = await getPrintConfig();
   if (!config) return 0;
   const order = { ...savedOrder, id: savedOrder.display_code };
-  const jobs = await buildPrintJobs(config.settings, order, { branding: config.branding, images: createBrowserImages(), showLogo: true });
+  const jobs = await buildPrintJobs(config.settings, order, { branding: config.branding, images: createBrowserImages(config.images), showLogo: true });
   await enqueuePrintJobs(jobs, `reprint-${savedOrder.id}-${Date.now()}`, savedOrder.display_code);
   return jobs.length;
 }

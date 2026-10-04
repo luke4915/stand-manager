@@ -14,7 +14,6 @@ import AppearanceSettings from './components/setup/AppearanceSettings';
 import OrderSettings from './components/setup/OrderSettings';
 import PrintProfiles from './components/setup/PrintProfiles';
 import MenuSettings from './components/setup/MenuSettings';
-import ReceiptSettings from './components/setup/ReceiptSettings';
 import ReverseOrder from './components/shared/ReverseOrder';
 import ChangePassword from './components/shared/ChangePassword';
 import UserProfile from './components/shared/UserProfile';
@@ -452,7 +451,6 @@ const App = () => {
                       <AppearanceSettings theme={theme} setTheme={setTheme} isSoundEnabled={isSoundEnabled} setIsSoundEnabled={setIsSoundEnabled} />
                       <MenuSettings />
                       <OrderSettings orderMode={orderMode} setOrderMode={setOrderMode} />
-                      <ReceiptSettings />
                       <PrintProfiles />
                     </div>
                   } />

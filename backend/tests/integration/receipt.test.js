@@ -23,9 +23,9 @@ describe('scontrini: impostazioni e ristampa', () => {
     await closePools();
   });
 
-  it('le chiavi receipt_* si salvano per tenant e non escono dall\'endpoint pubblico', async () => {
-    assert.equal((await api1.request('PUT', '/settings/receipt_org_name', { value: 'Pro Loco Prova' })).status, 200);
-    assert.equal((await api1.request('PUT', '/settings/receipt_legal_text', { value: 'riga 1\nriga 2' })).status, 200);
+  it('le chiavi receipt_* sono lette dalla cassa ma non dall\'endpoint pubblico, e l\'admin non le scrive', async () => {
+    await adminDb.query(
+      `INSERT INTO settings (key, value, tenant_id) VALUES ('receipt_org_name', 'Pro Loco Prova', $1), ('receipt_legal_text', 'riga 1\nriga 2', $1)`, [t1.id]);
 
     const all = await api1.get('/settings/all');
     assert.equal(all.body.receipt_org_name, 'Pro Loco Prova');
@@ -36,6 +36,12 @@ describe('scontrini: impostazioni e ristampa', () => {
     assert.ok(!('receipt_org_name' in pub.body));
 
     assert.deepEqual((await api2.get('/settings/all')).body, {});
+
+    // lo scontrino si personalizza solo dal master
+    const write = await api1.request('PUT', '/settings/receipt_org_name', { value: 'Altro nome' });
+    assert.equal(write.status, 400);
+    assert.equal((await api1.get('/settings/all')).body.receipt_org_name, 'Pro Loco Prova');
+    assert.equal((await api1.request('PUT', '/settings/welcome_message', { value: 'Benvenuti' })).status, 200);
   });
 
   it('/settings/all richiede il login e le chiavi sconosciute sono respinte', async () => {
