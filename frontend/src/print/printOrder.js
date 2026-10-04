@@ -1,4 +1,4 @@
-import { getEffectivePrice, getDiscountedTotal } from '../utils/pricing';
+import { getLineTotal, getEffectivePrice, getDiscountedTotal } from '../utils/pricing';
 import { getPrintConfig } from './config.js';
 import { buildPrintJobs } from './print.js';
 import { createBrowserImages } from './raster.js';
@@ -19,7 +19,7 @@ export async function printOrderTickets({ cart, displayCode, clientOrderId, sess
     created_at: new Date().toISOString(),
     total: getDiscountedTotal(cart),
     is_takeaway: isTakeaway,
-    items: cart.map(i => ({ ...i, price: getEffectivePrice(i) })),
+    items: cart.map(i => ({ ...i, price: getEffectivePrice(i), line_total: getLineTotal(i) })),
   };
 
   const ctx = { branding: config.branding, images: createBrowserImages(config.images), showLogo: true };

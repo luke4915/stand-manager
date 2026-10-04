@@ -124,7 +124,7 @@ function renderItems(printer, ctx, items, layoutType = 'standard', bigFont = fal
     const maxTextWidth = LINE_WIDTH - 8 - 4 - 2;
     items.forEach((item) => {
       const qty = String(item.quantity).trim();
-      const rowTotal = `€ ${(parseFloat(item.price || 0) * item.quantity).toFixed(2)}`;
+      const rowTotal = `€ ${Number(item.line_total ?? parseFloat(item.price || 0) * item.quantity).toFixed(2)}`;
       wrapText(item.name.toUpperCase(), maxTextWidth).forEach((line, i) => {
         if (i === 0) printer.align('LT').text(rowThreeColumns(line, qty, rowTotal));
         else printer.align('LT').text(line);

@@ -1,6 +1,6 @@
 import React from 'react';
 import { ShoppingCart, Check, Printer, MessageSquare, QrCode, Trash2, ShoppingBag } from 'lucide-react';
-import { getEffectivePrice, getAdjustmentLabel } from '../../../utils/pricing';
+import { getLineTotal, getAdjustmentLabel } from '../../../utils/pricing';
 import OrderDiscountPanel from '../OrderDiscountPanel';
 
 const CartMobileView = ({
@@ -16,6 +16,7 @@ const CartMobileView = ({
     change,
     sessionActive,
     handleSendOrder,
+    sending,
     setSelectedItem,
     setIsQRScanModalOpen,
     setIsReprintModalOpen,
@@ -109,7 +110,7 @@ const CartMobileView = ({
                 ) : (
                     mergedCart.map(item => {
                         const adjLabel = getAdjustmentLabel(item);
-                        const effTotal = getEffectivePrice(item) * item.quantity;
+                        const effTotal = getLineTotal(item);
                         return (
                             <div
                                 key={cartKey(item)}
@@ -226,7 +227,7 @@ const CartMobileView = ({
                 {/* ACTION BUTTON GIGANTE (Invia Ordine) */}
                 <button
                     onClick={handleSendOrder}
-                    disabled={cart.length === 0 || !sessionActive}
+                    disabled={cart.length === 0 || !sessionActive || sending}
                     className="w-full h-14 bg-[var(--accent)] hover:bg-[var(--accent-hover)] disabled:bg-[var(--bg-input)] disabled:text-[var(--text-muted)] text-white rounded-2xl font-black text-sm uppercase tracking-widest active:scale-[0.97] transition-all flex items-center justify-center gap-2.5 shadow-lg shadow-[var(--accent)]/20"
                 >
                     <Check size={18} /> Invia Ordine

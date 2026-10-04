@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { Trash2, Plus, Minus, Check, X, MessageSquare, Gift, Percent } from 'lucide-react';
-import { getEffectivePrice } from '../../../utils/pricing';
+import { getLineTotal } from '../../../utils/pricing';
 
 // ─── Modale Item Carrello ───────────────────────────────────────
 const CartItemModal = ({ item, onClose, onAdd, onRemove, onDelete, onNoteChange, onTypeChange, canDiscount }) => {
@@ -17,7 +17,7 @@ const CartItemModal = ({ item, onClose, onAdd, onRemove, onDelete, onNoteChange,
 
     const discountMode = item.discountMode || 'percent';
     const discountValue = item.discountValue ?? 0;
-    const effectivePrice = getEffectivePrice(item);
+    const lineTotal = getLineTotal(item);
 
     return (
         <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center p-4" onClick={handleClose}>
@@ -33,7 +33,7 @@ const CartItemModal = ({ item, onClose, onAdd, onRemove, onDelete, onNoteChange,
                         ) : (
                             <div className="flex items-baseline gap-1.5 mt-0.5">
                                 <p className="text-[var(--text-muted)] font-bold text-xs tabular-nums line-through">{(item.price * item.quantity).toFixed(2)} €</p>
-                                <p className={`font-black text-sm tabular-nums ${item.type === 'gift' ? 'text-purple-500' : 'text-orange-500'}`}>{(effectivePrice * item.quantity).toFixed(2)} €</p>
+                                <p className={`font-black text-sm tabular-nums ${item.type === 'gift' ? 'text-purple-500' : 'text-orange-500'}`}>{lineTotal.toFixed(2)} €</p>
                             </div>
                         )}
                     </div>

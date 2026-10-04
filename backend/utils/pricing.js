@@ -1,36 +1,38 @@
-// ─── Pricing helper condiviso (backend) ──────────────────────────────
-// Specchia 1:1 la logica del frontend (frontend/src/utils/pricing.js).
-// Unica fonte di verità server-side per il calcolo del prezzo effettivo
-// di una riga carrello, in base al tipo di adjustment applicato.
+// Pricing: unica fonte di verità del prezzo di una riga (vedi il commento sotto).
+// Specchio 1:1 di frontend/src/utils/pricing.js: se cambi uno, cambia l'altro.
+// ─── Calcolo del prezzo di una riga ─────────────────────────────────
+// Funzione unica e identica in backend/utils/pricing.js e frontend/src/utils/pricing.js
+// (la parità è verificata da backend/tests/pricing.test.js): quello che la cassa mostra e
+// stampa è quello che il server registra. Tutto in centesimi interi, arrotondato una volta
+// sola sul totale di riga.
 //
-// item.type: 'sale' | 'gift' | 'discount'
-// item.discountMode: 'percent' | 'amount'   (rilevante solo se type === 'discount')
-// item.discountValue: number
+// adjustment.type: 'sale' | 'gift' | 'discount'
+// adjustment.discountMode: 'percent' | 'amount' (solo se type === 'discount')
+// adjustment.discountValue: percentuale, oppure euro da togliere all'INTERA riga
 
 export const VALID_TYPES = ['sale', 'gift', 'discount'];
 export const VALID_DISCOUNT_MODES = ['percent', 'amount'];
 
+const toCents = (euro) => Math.round((Number(euro) || 0) * 100);
+
 /**
- * Calcola il prezzo effettivo (addebitato) di una riga a partire dal
- * prezzo di listino (originalPrice) e dall'adjustment richiesto.
- * Il risultato è sempre clampato in [0, originalPrice].
+ * Totale effettivo (in euro, 2 decimali) di una riga: prezzo di listino × quantità,
+ * meno omaggio o sconto. Sempre in [0, listino × quantità].
  */
-export function computeEffectivePrice(originalPrice, { type, discountMode, discountValue } = {}) {
-    const base = Number(originalPrice) || 0;
+export function computeLineTotal(listPrice, quantity, { type, discountMode, discountValue } = {}) {
+    const qty = Math.max(0, Math.trunc(Number(quantity) || 0));
+    const gross = toCents(listPrice) * qty;
 
     if (type === 'gift') return 0;
 
     if (type === 'discount') {
-        const val = Number(discountValue) || 0;
-        if (discountMode === 'amount') {
-            return Math.max(0, +(base - val).toFixed(2));
-        }
-        // default: percentuale
-        const pct = Math.min(100, Math.max(0, val));
-        return Math.max(0, +(base * (1 - pct / 100)).toFixed(2));
+        const val = Math.max(0, Number(discountValue) || 0);
+        if (discountMode === 'amount') return Math.max(0, gross - toCents(val)) / 100;
+        const pct = Math.min(100, val);
+        return Math.round(gross * (100 - pct) / 100) / 100;
     }
 
-    return base;
+    return gross / 100;
 }
 
 /**

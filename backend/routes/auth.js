@@ -2,12 +2,14 @@ import express from 'express';
 import bcrypt from 'bcrypt';
 import jwt from 'jsonwebtoken';
 import { pool } from '../db.js';
-import { authenticate, authorizeAdmin } from '../middleware/authenticate.js';
+import { authenticate, authenticateAllowingPasswordChange, authorizeAdmin } from '../middleware/authenticate.js';
 import { tenantScope, withTenantClient, checkTenantAccess } from '../middleware/tenantScope.js';
 import { resolveTenantFromHost } from '../middleware/resolveTenantFromHost.js';
 import logger from '../logger.js';
 import { validate } from '../middleware/validate.js';
-import { loginSchema, createUserSchema, changePasswordSchema } from '../schemas/authSchema.js';
+import { loginSchema, createUserSchema, changePasswordSchema, resetPasswordSchema } from '../schemas/authSchema.js';
+import { idParamsSchema } from '../schemas/common.js';
+import { logAudit } from '../utils/auditLogger.js';
 
 const router = express.Router();
 
@@ -25,7 +27,7 @@ const signToken = (user, loginAt = Math.floor(Date.now() / 1000)) => {
   const sessionEndS = loginAt + MAX_SESSION_MS / 1000;
   const expiresIn = Math.max(1, Math.min(TOKEN_TTL_S, sessionEndS - Math.floor(Date.now() / 1000)));
   return jwt.sign(
-    { id: user.id, username: user.username, role: user.role, theme: user.theme || 'dark', tenantId: user.tenant_id, tenantName: user.tenant_name, loginAt },
+    { id: user.id, username: user.username, role: user.role, theme: user.theme || 'dark', tenantId: user.tenant_id, tenantName: user.tenant_name, mustChangePassword: !!user.must_change_password, loginAt },
     process.env.JWT_SECRET,
     { expiresIn }
   );
@@ -70,13 +72,14 @@ router.post('/login', validate({ body: loginSchema }), resolveTenantFromHost, as
     }
 
     user.tenant_name = tenant.name;
-    const needsPassword = !user.password_hash?.trim();
-    if (!needsPassword && !await bcrypt.compare(password, user.password_hash))
+    // Un utente senza password (creato prima della 021) non può entrare: un admin deve reimpostarla.
+    // Stesso messaggio di una password errata, così non si capisce che l'account esiste.
+    if (!user.password_hash?.trim() || !await bcrypt.compare(password, user.password_hash))
       return res.status(401).json({ error: 'Password errata' });
 
     setCookie(res, signToken(user));
 
-    res.json({ id: user.id, username: user.username, role: user.role, needsPassword, theme: user.theme || 'dark', tenantName: user.tenant_name });
+    res.json({ id: user.id, username: user.username, role: user.role, needsPassword: user.must_change_password, theme: user.theme || 'dark', tenantName: user.tenant_name });
     } catch (err) {
     logger.error({ err }, 'Errore server')
     res.status(500).json({ error: 'Errore server' });
@@ -115,7 +118,7 @@ router.post('/refresh', async (req, res) => {
 
     // L'utente esiste ancora? (potrebbe essere stato eliminato nel frattempo)
     const user = await withTenantClient(decoded.tenantId, async (db) => {
-      const { rows } = await db.query('SELECT id, username, role, tenant_id FROM users WHERE id = $1', [decoded.id]);
+      const { rows } = await db.query('SELECT id, username, role, tenant_id, must_change_password FROM users WHERE id = $1', [decoded.id]);
       return rows[0] || null;
     });
     if (!user) {
@@ -138,7 +141,7 @@ router.post('/refresh', async (req, res) => {
 // CHANGE PASSWORD
 // Una password attuale errata è un dato non valido (400), non una sessione scaduta (401):
 // il frontend su 401 tenterebbe di rinnovare la sessione.
-router.post('/change-password', authenticate, validate({ body: changePasswordSchema }), tenantScope, async (req, res) => {
+router.post('/change-password', authenticateAllowingPasswordChange, validate({ body: changePasswordSchema }), tenantScope, async (req, res) => {
   const { oldPassword, newPassword } = req.body;
 
   try {
@@ -146,12 +149,17 @@ router.post('/change-password', authenticate, validate({ body: changePasswordSch
     if (!rows.length) return res.status(404).json({ error: 'Utente non trovato' });
 
     const currentHash = rows[0].password_hash;
-    if (currentHash) {
-      if (!oldPassword) return res.status(400).json({ error: 'Vecchia password richiesta' });
-      if (!await bcrypt.compare(oldPassword, currentHash))
-        return res.status(400).json({ error: 'Password attuale errata' });
-    }
-    await req.db.query('UPDATE users SET password_hash=$1 WHERE id=$2', [await bcrypt.hash(newPassword, 10), req.user.id]);
+    if (!currentHash || !await bcrypt.compare(oldPassword, currentHash))
+      return res.status(400).json({ error: 'Password attuale errata' });
+    if (oldPassword === newPassword)
+      return res.status(400).json({ error: 'La nuova password deve essere diversa da quella attuale' });
+
+    await req.db.query('UPDATE users SET password_hash=$1, must_change_password=false WHERE id=$2', [await bcrypt.hash(newPassword, 10), req.user.id]);
+    await logAudit(req.db, req.user.id, 'CHANGE_PASSWORD', {});
+
+    // Il token portava il blocco del primo accesso: se ne emette uno nuovo senza, mantenendo l'inizio sessione.
+    const { loginAt } = jwt.decode(req.cookies?.token ?? '') || {};
+    setCookie(res, signToken({ ...req.user, tenant_id: req.user.tenantId, tenant_name: req.user.tenantName }, loginAt));
 
     res.json({ message: 'Password aggiornata con successo' });
   } catch (err) {
@@ -162,12 +170,13 @@ router.post('/change-password', authenticate, validate({ body: changePasswordSch
 
 // CREATE USER (admin only)
 router.post('/admin/createUser', authenticate, authorizeAdmin, validate({ body: createUserSchema }), tenantScope, async (req, res) => {
-  const { username, role } = req.body;
+  const { username, role, password } = req.body;
   try {
     const { rows } = await req.db.query(
-      'INSERT INTO users (username, role, tenant_id) VALUES ($1, $2, $3) RETURNING id, username, role',
-      [username, role, req.user.tenantId]
+      'INSERT INTO users (username, role, tenant_id, password_hash, must_change_password) VALUES ($1, $2, $3, $4, true) RETURNING id, username, role',
+      [username, role, req.user.tenantId, await bcrypt.hash(password, 10)]
     );
+    await logAudit(req.db, req.user.id, 'CREATE_USER', { userId: rows[0].id, role });
 
     res.status(201).json({ message: 'Utente creato con successo', user: rows[0] });
   } catch (err) {
@@ -178,15 +187,32 @@ router.post('/admin/createUser', authenticate, authorizeAdmin, validate({ body: 
   }
 });
 
+// RESET PASSWORD (admin only): password temporanea per un utente del proprio tenant, da cambiare al primo accesso.
+// Serve anche a sbloccare gli account rimasti senza password.
+router.post('/admin/users/:id/reset-password', authenticate, authorizeAdmin, validate({ params: idParamsSchema, body: resetPasswordSchema }), tenantScope, async (req, res) => {
+  try {
+    const { rows } = await req.db.query(
+      'UPDATE users SET password_hash=$1, must_change_password=true WHERE id=$2 RETURNING id, username',
+      [await bcrypt.hash(req.body.password, 10), req.params.id]
+    );
+    if (!rows.length) return res.status(404).json({ error: 'Utente non trovato' });
+    await logAudit(req.db, req.user.id, 'RESET_PASSWORD', { userId: rows[0].id });
+    res.json({ message: 'Password reimpostata: andrà cambiata al primo accesso' });
+  } catch (err) {
+    logger.error({ err }, 'Errore reset password');
+    res.status(500).json({ error: 'Errore server' });
+  }
+});
+
 // ME
-// 🔴 MODIFICA: Restituiamo req.user assicurandoci che contenga il flag theme atteso dal frontend
-router.get('/me', authenticate, (req, res) => {
+router.get('/me', authenticateAllowingPasswordChange, (req, res) => {
   res.json({
-  id: req.user.id,
-  username: req.user.username,
-  role: req.user.role,
-  theme: req.user.theme || 'dark',
-  tenantName: req.user.tenantName
+    id: req.user.id,
+    username: req.user.username,
+    role: req.user.role,
+    theme: 'dark', // legacy: il tema è solo stato del client
+    tenantName: req.user.tenantName,
+    needsPassword: req.user.mustChangePassword,
   });
 });
 

@@ -1,7 +1,9 @@
 import jwt from 'jsonwebtoken';
 import logger from '../logger.js';
 
-export function authenticate(req, res, next) {
+// Finché l'utente non cambia la password temporanea il server rifiuta ogni chiamata
+// (tranne quelle che servono a cambiarla): non basta nascondere l'interfaccia.
+function verifyRequest(req, res, next, { allowPasswordChange }) {
   let token = req.cookies?.token;
   if (!token) {
     const auth = req.headers['authorization'] || req.headers['Authorization'];
@@ -15,8 +17,10 @@ export function authenticate(req, res, next) {
   }
 
   try {
-    const { id, username, role, tenantId, tenantName } = jwt.verify(token, process.env.JWT_SECRET);
-    req.user = { id, username, role, tenantId, tenantName };
+    const { id, username, role, tenantId, tenantName, mustChangePassword } = jwt.verify(token, process.env.JWT_SECRET);
+    req.user = { id, username, role, tenantId, tenantName, mustChangePassword: !!mustChangePassword };
+    if (req.user.mustChangePassword && !allowPasswordChange)
+      return res.status(403).json({ error: 'Devi prima cambiare la password temporanea', code: 'PASSWORD_CHANGE_REQUIRED' });
     next();
   } catch (err) {
     if (err.name === 'TokenExpiredError')
@@ -25,20 +29,27 @@ export function authenticate(req, res, next) {
   }
 }
 
+export const authenticate = (req, res, next) => verifyRequest(req, res, next, { allowPasswordChange: false });
+export const authenticateAllowingPasswordChange = (req, res, next) => verifyRequest(req, res, next, { allowPasswordChange: true });
+
 export function authorizeAdmin(req, res, next) {
   if (req.user?.role !== 'admin')
     return res.status(403).json({ error: 'Accesso riservato agli amministratori' });
   next();
 }
 
-// Ruoli che possono gestire lo stock dalla cassa (la cucina no).
-export const STOCK_ROLES = ['admin', 'responsabile', 'cassa'];
+// Ruoli che lavorano alla cassa: creano ordini, li stornano, li ristampano, gestiscono lo stock.
+// La cucina vede gli ordini e ne fa avanzare lo stato, nient'altro.
+export const CASH_ROLES = ['admin', 'responsabile', 'cassa'];
+export const STOCK_ROLES = CASH_ROLES;
 
-export function authorizeStock(req, res, next) {
-  if (!STOCK_ROLES.includes(req.user?.role))
-    return res.status(403).json({ error: 'Non hai i permessi per modificare lo stock' });
+export const authorizeRoles = (roles, message) => (req, res, next) => {
+  if (!roles.includes(req.user?.role)) return res.status(403).json({ error: message });
   next();
-}
+};
+
+export const authorizeStock = authorizeRoles(STOCK_ROLES, 'Non hai i permessi per modificare lo stock');
+export const authorizeCash = authorizeRoles(CASH_ROLES, 'Non hai i permessi per questa operazione');
 
 // Ruoli degli utenti di un tenant.
 export const ROLES = ['admin', 'responsabile', 'cassa', 'cucina'];

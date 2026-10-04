@@ -1,6 +1,6 @@
 import React from 'react';
 import { ShoppingCart, Check, Printer, MessageSquare, QrCode, ShoppingBag, Undo2, Send, Trash } from 'lucide-react';
-import { getEffectivePrice, getAdjustmentLabel } from '../../../utils/pricing';
+import { getLineTotal, getAdjustmentLabel } from '../../../utils/pricing';
 import OrderDiscountPanel from '../OrderDiscountPanel';
 
 const CartDesktopView = ({
@@ -16,6 +16,7 @@ const CartDesktopView = ({
     change,
     sessionActive,
     handleSendOrder,
+    sending,
     setSelectedItem,
     setIsQRScanModalOpen,
     setIsReprintModalOpen,
@@ -97,7 +98,7 @@ const CartDesktopView = ({
                     </div>
                 ) : mergedCart.map(item => {
                     const adjLabel = getAdjustmentLabel(item);
-                    const effTotal = getEffectivePrice(item) * item.quantity;
+                    const effTotal = getLineTotal(item);
                     return (
                         <div key={cartKey(item)} onClick={() => setSelectedItem(item)}
                             className="px-3 py-2 rounded-xl cursor-pointer border border-gray-300 dark:border-[var(--border)] bg-[var(--bg-card-2)] hover:border-[var(--accent)]/60 active:scale-[0.99] transition-all">
@@ -188,7 +189,7 @@ const CartDesktopView = ({
                     {/* Bottone Invia Ordine */}
                     <button
                         onClick={handleSendOrder}
-                        disabled={cart.length === 0 || !sessionActive}
+                        disabled={cart.length === 0 || !sessionActive || sending}
                         className="flex-1 h-11 px-2 bg-[var(--accent)] hover:enabled:bg-[var(--accent-hover)] cursor-pointer disabled:cursor-not-allowed disabled:opacity-30 disabled:text-[var(--text-muted)] text-white rounded-xl font-black text-xs sm:text-sm uppercase tracking-wider active:enabled:scale-[0.99] transition-all flex items-center justify-center gap-1.5"
                     >
                         <Send size={16} />

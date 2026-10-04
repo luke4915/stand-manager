@@ -14,6 +14,7 @@ const UserProfile = ({ onClose }) => {
   const [confirmPassword, setConfirmPassword] = useState('');
   const [showCreateUser, setShowCreateUser] = useState(false);
   const [newUserName, setNewUserName] = useState('');
+  const [newUserPassword, setNewUserPassword] = useState('');
   const [newUserRole, setNewUserRole] = useState('cassa');
   const [isCreating, setIsCreating] = useState(false);
 
@@ -44,9 +45,10 @@ const UserProfile = ({ onClose }) => {
     if (!newUserName.trim()) return showToast("Inserisci un nome utente", "error");
     setIsCreating(true);
     try {
-      const data = await fetchWithAuth('/auth/admin/createUser', { method: 'POST', body: { username: newUserName, role: newUserRole } });
+      const data = await fetchWithAuth('/auth/admin/createUser', { method: 'POST', body: { username: newUserName, role: newUserRole, password: newUserPassword } });
       showToast(`Utente "${data.user.username}" creato`, "success");
       setNewUserName('');
+      setNewUserPassword('');
       setShowCreateUser(false);
     } catch (err) {
       showToast(err.message, "error");
@@ -85,6 +87,8 @@ const UserProfile = ({ onClose }) => {
           <div className="mt-4 pt-4 border-t border-[var(--border)] space-y-3">
             <p className="text-[10px] font-black uppercase tracking-widest text-[var(--text-muted)]">Nuovo utente</p>
             <input type="text" placeholder="Username" value={newUserName} onChange={e => setNewUserName(e.target.value)} className={inputClass} />
+            <input type="text" autoComplete="off" placeholder="Password temporanea (min 6)" value={newUserPassword} onChange={e => setNewUserPassword(e.target.value)} className={inputClass} />
+            <p className="text-[10px] text-[var(--text-muted)]">L'utente dovrà cambiarla al primo accesso.</p>
             <select value={newUserRole} onChange={e => setNewUserRole(e.target.value)} className={inputClass}>
               <option value="cassa">Cassa</option>
               <option value="cucina">Cucina</option>

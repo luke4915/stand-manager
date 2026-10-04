@@ -63,7 +63,6 @@ const App = () => {
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
   const [isMobileCartOpen, setIsMobileCartOpen] = useState(false);
   const [showReversePopup, setShowReversePopup] = useState(false);
-  const [needsPasswordChange, setNeedsPasswordChange] = useState(false);
   const ws = useRef(null);
   const [wsConnected, setWsConnected] = useState(false);
 
@@ -377,7 +376,8 @@ const App = () => {
     </Suspense>
   );
 
-  if (needsPasswordChange) return <ChangePassword user={user} onPasswordChanged={() => setNeedsPasswordChange(false)} />;
+  // Password temporanea: il server blocca tutto il resto finché non la si cambia
+  if (user.needsPassword) return <ChangePassword onPasswordChanged={() => login({ ...user, needsPassword: false })} />;
   if (window.location.pathname === '/menu') return <MenuPage />;
   if (window.location.pathname === '/master') return <MasterPage />;
 

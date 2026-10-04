@@ -3,23 +3,30 @@ import { ROLES } from '../middleware/authenticate.js';
 
 const username = z.string().trim().min(1).max(50);
 
-// Password vuota ammessa: al primo accesso l'utente non ne ha ancora una.
+export const passwordSchema = z.string().min(6, 'Password troppo corta (min 6 caratteri)').max(200);
+
 export const loginSchema = z.object({
     username,
-    password: z.string().max(200).default(''),
+    password: z.string().min(1, 'Inserisci la password').max(200),
 });
 
+// La password è temporanea: l'utente deve cambiarla al primo accesso.
 export const createUserSchema = z.object({
     username,
     role: z.enum(ROLES).default('cassa'),
+    password: passwordSchema,
+});
+
+export const resetPasswordSchema = z.object({
+    password: passwordSchema,
 });
 
 export const changeUsernameSchema = z.object({
     newUsername: username,
 });
 
-// La vecchia password serve solo se l'utente ne ha già una (primo accesso: nessuna).
+// La password attuale (anche quella temporanea del primo accesso) è sempre richiesta.
 export const changePasswordSchema = z.object({
-    oldPassword: z.string().max(200).optional(),
-    newPassword: z.string().min(6, 'Password troppo corta (min 6 caratteri)').max(200),
+    oldPassword: z.string().min(1, 'Inserisci la password attuale').max(200),
+    newPassword: passwordSchema,
 });

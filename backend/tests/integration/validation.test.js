@@ -58,4 +58,17 @@ describe('validazione e permessi', () => {
     assert.equal(res.status, 400);
     assert.match(res.body.error, /printer_address/);
   });
+
+  it('ruoli sugli ordini: la cucina non crea, non storna, non ristampa; fa avanzare lo stato', async () => {
+    const order = await admin.post('/orders', { items: [{ id: t.productId, name: 'Panino', quantity: 1 }] });
+    assert.equal(order.status, 200);
+    const id = order.body.orderId;
+
+    assert.equal((await kitchen.post('/orders', { items: [{ id: t.productId, name: 'Panino', quantity: 1 }] })).status, 403);
+    assert.equal((await kitchen.put(`/orders/${id}`, { status: 'canceled' })).status, 403);
+    assert.equal((await kitchen.post(`/orders/${id}/reprint`)).status, 403);
+    assert.equal((await kitchen.get('/orders')).status, 200);
+    assert.equal((await kitchen.put(`/orders/${id}`, { status: 'preparing' })).status, 200);
+    assert.equal((await kitchen.put(`/orders/${id}`, { status: 'completed' })).status, 200);
+  });
 });

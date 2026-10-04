@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { passwordSchema } from './authSchema.js';
 import { RECEIPT_SETTINGS_KEYS } from './settingsSchema.js';
 
 export const masterLoginSchema = z.object({
@@ -11,6 +12,8 @@ export const createTenantSchema = z.object({
   plan: z.string().trim().min(1).max(30).default('trial'),
   expiresInDays: z.coerce.number().int().positive().max(3650).nullish(),
   adminUsername: z.string().trim().min(1).max(50),
+  // temporanea: l'admin la cambia al primo accesso
+  adminPassword: passwordSchema,
 });
 
 export const extendLicenseSchema = z.object({

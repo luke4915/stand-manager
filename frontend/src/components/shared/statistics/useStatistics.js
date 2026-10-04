@@ -83,7 +83,7 @@ export function useStatistics() {
     const calculate = (sessionId) => {
       let qty = 0, revenue = 0;
       getOrdersBySession(sessionId).forEach(o => o.items?.forEach(i => {
-        if (i.name === h2hProduct) { qty += Number(i.quantity || 0); revenue += Number(i.price || 0) * Number(i.quantity || 0); }
+        if (i.name === h2hProduct) { qty += Number(i.quantity || 0); revenue += Number(i.line_total ?? Number(i.price || 0) * Number(i.quantity || 0)); }
       }));
       return { qty, revenue: parseFloat(revenue.toFixed(2)) };
     };
@@ -130,7 +130,7 @@ export function useStatistics() {
     const categoryIncome = {};
     filtered.forEach(o => o.items?.forEach(i => {
       if (!i.name) return;
-      const qty = Number(i.quantity || 0), price = Number(i.price || 0), itemRevenue = price * qty;
+      const qty = Number(i.quantity || 0), price = Number(i.price || 0), itemRevenue = Number(i.line_total ?? price * qty);
       if (!productStats[i.name]) productStats[i.name] = { count: 0, revenue: 0 };
       productStats[i.name].count += qty;
       productStats[i.name].revenue += itemRevenue;

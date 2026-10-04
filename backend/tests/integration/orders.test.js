@@ -86,4 +86,21 @@ describe('ordini', () => {
     await api.post('/sessions/start', { name: 'Nuova serata' });
     assert.deepEqual(await productRow(), { stock: null, stock_enabled: false, visible: true });
   });
+
+  it('sconto in euro sulla riga e arrotondamenti: il server registra gli stessi importi della cassa', async () => {
+    const item = (quantity, adjustment) => ({ items: [{ id: t.productId, name: 'Panino', quantity, ...adjustment }], status: 'completed' });
+    const totalOf = async (body) => {
+      const res = await api.post('/orders', body);
+      assert.equal(res.status, 200, JSON.stringify(res.body));
+      const saved = await row('SELECT total, items FROM orders WHERE id = $1', [res.body.orderId]);
+      return { total: Number(saved.total), lineTotal: saved.items[0].line_total };
+    };
+    await setStock(null);
+    await adminDb.query('UPDATE products SET stock_enabled = false WHERE id = $1', [t.productId]);
+    // panino da 5 €
+    assert.deepEqual(await totalOf(item(2, { type: 'discount', discountMode: 'amount', discountValue: 4 })), { total: 6, lineTotal: 6 });
+    assert.deepEqual(await totalOf(item(3, { type: 'discount', discountMode: 'amount', discountValue: 1 })), { total: 14, lineTotal: 14 });
+    assert.deepEqual(await totalOf(item(7, { type: 'discount', discountMode: 'percent', discountValue: 15 })), { total: 29.75, lineTotal: 29.75 });
+    assert.deepEqual(await totalOf(item(3, { type: 'gift' })), { total: 0, lineTotal: 0 });
+  });
 });

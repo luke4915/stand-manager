@@ -1,9 +1,9 @@
 import express from 'express';
 import { inTransaction } from '../db.js';
-import { authenticate, DISCOUNT_ROLES } from '../middleware/authenticate.js';
+import { authenticate, authorizeCash, CASH_ROLES, DISCOUNT_ROLES } from '../middleware/authenticate.js';
 import { tenantScope, withTenantClient } from '../middleware/tenantScope.js';
 import { resolveTenantFromHost } from '../middleware/resolveTenantFromHost.js';
-import { computeEffectivePrice, sanitizeAdjustment } from '../utils/pricing.js';
+import { computeLineTotal, sanitizeAdjustment } from '../utils/pricing.js';
 import logger from '../logger.js';
 import { logAudit } from '../utils/auditLogger.js';
 import { createOrderSchema, updateOrderStatusSchema, reprintAuditSchema } from '../schemas/orderSchema.js';
@@ -105,7 +105,7 @@ export default function (broadcast) {
   });
 
   // POST /orders (Creazione Ordine)
-  router.post('/', authenticate, validate({ body: createOrderSchema }), tenantScope, async (req, res) => {
+  router.post('/', authenticate, authorizeCash, validate({ body: createOrderSchema }), tenantScope, async (req, res) => {
     const { items, status, is_takeaway, client_order_id, session_id, client_created_at, device_id, device_seq } = req.body;
 
     // Idempotenza: un ordine già ricevuto (retry dopo un errore di rete o dalla
@@ -139,12 +139,13 @@ export default function (broadcast) {
     const verifiedItems = items.map(i => {
       const original_price = priceMap[i.id];
       const adjustment = sanitizeAdjustment(i, authorized);
-      const price = computeEffectivePrice(original_price, adjustment);
+      const line_total = computeLineTotal(original_price, i.quantity, adjustment);
       return {
         id: i.id,
         name: i.name,
         quantity: i.quantity,
-        price,
+        price: line_total / i.quantity, // unitario effettivo; il riferimento è line_total
+        line_total,
         original_price,
         type: adjustment.type,
         discountMode: adjustment.discountMode,
@@ -154,7 +155,7 @@ export default function (broadcast) {
         print_destination: i.print_destination || 'both',
       };
     });
-    const verifiedTotal = verifiedItems.reduce((sum, i) => sum + i.price * i.quantity, 0);
+    const verifiedTotal = verifiedItems.reduce((sum, i) => sum + Math.round(i.line_total * 100), 0) / 100;
 
     const allGift = verifiedItems.every(i => i.type === 'gift');
     const anyAdjustment = verifiedItems.some(i => i.type !== 'sale');
@@ -244,6 +245,10 @@ export default function (broadcast) {
     const { id } = req.params;
     const { status } = req.body;
 
+    // La cucina fa avanzare lo stato (in preparazione, completato), ma non storna.
+    if (status === 'canceled' && !CASH_ROLES.includes(req.user.role))
+      return res.status(403).json({ error: 'Non hai i permessi per stornare ordini' });
+
     try {
       const { previousStatus, updated, stockUpdates } = await inTransaction(req.db, async (db) => {
         const { rows: current } = await db.query(
@@ -294,7 +299,7 @@ export default function (broadcast) {
 
   // POST /orders/reprints — ristampe fatte offline: la cassa le comunica al ritorno della rete.
   // Il 404 (ordine non ancora sincronizzato) è temporaneo: la cassa riprova dopo.
-  router.post('/reprints', authenticate, validate({ body: reprintAuditSchema }), tenantScope, async (req, res) => {
+  router.post('/reprints', authenticate, authorizeCash, validate({ body: reprintAuditSchema }), tenantScope, async (req, res) => {
     const { client_order_id, reprinted_at } = req.body;
     try {
       const order = await findOrderByClientId(req.db, client_order_id);
@@ -311,7 +316,7 @@ export default function (broadcast) {
 
   // POST /orders/:id/reprint — la stampa è del client: qui si registra l'azione (audit)
   // e si restituisce l'ordine com'è stato salvato, da cui la cassa ricostruisce le copie.
-  router.post('/:id/reprint', authenticate, validate({ params: idParamsSchema }), tenantScope, async (req, res) => {
+  router.post('/:id/reprint', authenticate, authorizeCash, validate({ params: idParamsSchema }), tenantScope, async (req, res) => {
     try {
       const { rows } = await req.db.query(
         'SELECT id, display_code, created_at, items, total, is_takeaway FROM orders WHERE id = $1', [req.params.id]);

@@ -1,48 +1,50 @@
-// ─── Pricing helper condiviso (frontend) ──────────────────────────────
-// Specchia 1:1 la logica del backend (backend/utils/pricing.js).
-// Serve solo per calcolare in tempo reale il totale mostrato in cassa;
-// il valore "di verità" resta sempre quello ricalcolato dal server.
+// Pricing: serve a mostrare in tempo reale il totale in cassa e a comporre lo scontrino;
+// il valore registrato resta quello ricalcolato dal server.
+// Specchio 1:1 di backend/utils/pricing.js: se cambi uno, cambia l'altro.
+// ─── Calcolo del prezzo di una riga ─────────────────────────────────
+// Funzione unica e identica in backend/utils/pricing.js e frontend/src/utils/pricing.js
+// (la parità è verificata da backend/tests/pricing.test.js): quello che la cassa mostra e
+// stampa è quello che il server registra. Tutto in centesimi interi, arrotondato una volta
+// sola sul totale di riga.
 //
-// item.type: 'sale' | 'gift' | 'discount'
-// item.discountMode: 'percent' | 'amount'   (rilevante solo se type === 'discount')
-// item.discountValue: number
-
-// ─── Pricing helper condiviso (frontend) ──────────────────────────────
+// adjustment.type: 'sale' | 'gift' | 'discount'
+// adjustment.discountMode: 'percent' | 'amount' (solo se type === 'discount')
+// adjustment.discountValue: percentuale, oppure euro da togliere all'INTERA riga
 
 export const VALID_TYPES = ['sale', 'gift', 'discount'];
 export const VALID_DISCOUNT_MODES = ['percent', 'amount'];
 
+const toCents = (euro) => Math.round((Number(euro) || 0) * 100);
+
 /**
- * Calcola il prezzo unitario effettivo di una riga carrello.
+ * Totale effettivo (in euro, 2 decimali) di una riga: prezzo di listino × quantità,
+ * meno omaggio o sconto. Sempre in [0, listino × quantità].
  */
-export function getEffectivePrice(item) {
-    const base = Number(item?.price) || 0;
-    const qty = Number(item?.quantity) || 0;
+export function computeLineTotal(listPrice, quantity, { type, discountMode, discountValue } = {}) {
+    const qty = Math.max(0, Math.trunc(Number(quantity) || 0));
+    const gross = toCents(listPrice) * qty;
 
-    if (item?.type === 'gift') return 0;
+    if (type === 'gift') return 0;
 
-    if (item?.type === 'discount') {
-        const val = Number(item.discountValue) || 0;
-        if (item.discountMode === 'amount') {
-            // 🟢 ORA LO SCONTO È SULLA RIGA: lo dividiamo per la quantità complessiva
-            const unitDiscount = qty > 0 ? val / qty : val;
-
-            // Ritorniamo il valore esatto fluttuante (NON arrotondiamo qui con toFixed 
-            // altrimenti perdiamo centesimi preziosi nella moltiplicazione successiva)
-            return Math.max(0, base - unitDiscount);
-        }
-        const pct = Math.min(100, Math.max(0, val));
-        return Math.max(0, base * (1 - pct / 100));
+    if (type === 'discount') {
+        const val = Math.max(0, Number(discountValue) || 0);
+        if (discountMode === 'amount') return Math.max(0, gross - toCents(val)) / 100;
+        const pct = Math.min(100, val);
+        return Math.round(gross * (100 - pct) / 100) / 100;
     }
 
-    return base;
+    return gross / 100;
 }
 
-/** Totale di una riga (prezzo effettivo × quantità). */
+/** Totale di una riga carrello (prezzo di listino in `price`, adjustment sull'item). */
 export function getLineTotal(item) {
-    // 🟢 L'arrotondamento monetario a 2 decimali si sposta SOLO qui, sul totale finito di riga
-    const total = getEffectivePrice(item) * (Number(item?.quantity) || 0);
-    return +total.toFixed(2);
+    return computeLineTotal(item?.price, item?.quantity, item);
+}
+
+/** Prezzo unitario effettivo (solo per la visualizzazione: il riferimento è getLineTotal). */
+export function getEffectivePrice(item) {
+    const qty = Number(item?.quantity) || 0;
+    return qty > 0 ? getLineTotal(item) / qty : 0;
 }
 
 /** Somma dei prezzi di listino (pre-sconto) del carrello. */
@@ -50,9 +52,10 @@ export function getFullTotal(cart) {
     return cart.reduce((sum, i) => sum + (Number(i.price) || 0) * (Number(i.quantity) || 0), 0);
 }
 
-/** Somma dei prezzi effettivi (post-sconto/omaggio) del carrello: quello da incassare davvero. */
+/** Somma dei totali di riga (post-sconto/omaggio): quello da incassare davvero. */
 export function getDiscountedTotal(cart) {
-    return cart.reduce((sum, i) => sum + getLineTotal(i), 0);
+    const cents = cart.reduce((sum, i) => sum + Math.round(getLineTotal(i) * 100), 0);
+    return cents / 100;
 }
 
 /** Etichetta breve da mostrare accanto a una riga scontata/omaggiata. */

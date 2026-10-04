@@ -4,20 +4,22 @@ import { fetchWithAuth } from '../../utils/apiClient';
 
 const ChangePassword = ({ onPasswordChanged }) => {
   const { showToast } = useToast();
+  const [oldPassword, setOldPassword] = useState('');
   const [newPassword, setNewPassword] = useState('');
   const [loading, setLoading] = useState(false);
 
   const handleChange = async () => {
-    if (!newPassword.trim()) return showToast("Inserisci la nuova password", "error");
+    if (!oldPassword || !newPassword.trim()) return showToast("Inserisci la password temporanea e la nuova password", "error");
     setLoading(true);
     try {
-      await fetchWithAuth('/auth/change-password', { method: 'POST', body: { newPassword } });
+      await fetchWithAuth('/auth/change-password', { method: 'POST', body: { oldPassword, newPassword } });
       showToast("Password impostata", "success");
       onPasswordChanged();
     } catch (err) {
       showToast(err.message, "error");
     } finally {
       setLoading(false);
+      setOldPassword('');
       setNewPassword('');
     }
   };
@@ -27,8 +29,15 @@ const ChangePassword = ({ onPasswordChanged }) => {
       <div className="bg-[var(--bg-card)] p-10 rounded-3xl shadow-xl border border-[var(--border)] w-full max-w-sm space-y-5">
         <div>
           <h2 className="text-2xl font-black tracking-tighter text-[var(--text-main)]">Imposta password</h2>
-          <p className="text-xs text-[var(--text-muted)] mt-1">Scegli una password per il tuo account</p>
+          <p className="text-xs text-[var(--text-muted)] mt-1">La password che ti hanno dato è temporanea: scegline una tua</p>
         </div>
+        <input
+          type="password"
+          placeholder="Password temporanea"
+          value={oldPassword}
+          onChange={e => setOldPassword(e.target.value)}
+          className="w-full p-3 rounded-xl bg-[var(--bg-input)] border border-[var(--border)] text-[var(--text-main)] text-sm outline-none focus:ring-2 focus:ring-[var(--accent)]"
+        />
         <input
           type="password"
           placeholder="Nuova password"

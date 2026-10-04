@@ -56,7 +56,7 @@ router.get('/tenants', authenticateMaster, async (req, res) => {
 
 // CREA TENANT + primo utente admin
 router.post('/tenants', authenticateMaster, validate({ body: createTenantSchema }), async (req, res) => {
-  const { slug, name, plan, expiresInDays, adminUsername } = req.body;
+  const { slug, name, plan, expiresInDays, adminUsername, adminPassword } = req.body;
 
   const client = await pool.connect();
   try {
@@ -76,8 +76,8 @@ router.post('/tenants', authenticateMaster, validate({ body: createTenantSchema 
     // nuovo tenant sulla connessione, non basta essere dentro la transazione.
     await client.query('SELECT set_config($1, $2, false)', ['app.tenant_id', String(tenant.id)]);
     const { rows: userRows } = await client.query(
-      `INSERT INTO users (username, role, tenant_id) VALUES ($1, 'admin', $2) RETURNING id, username, role`,
-      [adminUsername, tenant.id]
+      `INSERT INTO users (username, role, tenant_id, password_hash, must_change_password) VALUES ($1, 'admin', $2, $3, true) RETURNING id, username, role`,
+      [adminUsername, tenant.id, await bcrypt.hash(adminPassword, 10)]
     );
 
     await client.query('COMMIT');

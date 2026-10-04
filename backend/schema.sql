@@ -2,7 +2,7 @@
 -- PostgreSQL database dump
 --
 
-\restrict rl8d57pA5tQoWdualSb750Oy56w87SKi2tvoZ6t5RaRWTCCjsoRpvEj74w3JXi8
+\restrict 8PUDWUC83cURWfoyY3QrPwN6fhSBaLm9FJvDfeWEXZb5yyf4HTr5P7cbEP4H6wA
 
 -- Dumped from database version 17.10 (Homebrew)
 -- Dumped by pg_dump version 17.10 (Homebrew)
@@ -420,7 +420,8 @@ CREATE TABLE public.users (
     username character varying(50) NOT NULL,
     password_hash text,
     role character varying(20) NOT NULL,
-    tenant_id integer DEFAULT (NULLIF(current_setting('app.tenant_id'::text, true), ''::text))::integer NOT NULL
+    tenant_id integer DEFAULT (NULLIF(current_setting('app.tenant_id'::text, true), ''::text))::integer NOT NULL,
+    must_change_password boolean DEFAULT false NOT NULL
 );
 
 ALTER TABLE ONLY public.users FORCE ROW LEVEL SECURITY;
@@ -984,7 +985,7 @@ GRANT USAGE ON SCHEMA public TO standmanager_app;
 -- Name: TABLE _migrations; Type: ACL; Schema: public; Owner: colettas
 --
 
-GRANT ALL ON TABLE public._migrations TO standmanager_app;
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE public._migrations TO standmanager_app;
 
 
 --
@@ -998,7 +999,7 @@ GRANT ALL ON SEQUENCE public._migrations_id_seq TO standmanager_app;
 -- Name: TABLE audit_logs; Type: ACL; Schema: public; Owner: colettas
 --
 
-GRANT ALL ON TABLE public.audit_logs TO standmanager_app;
+GRANT SELECT,INSERT,DELETE ON TABLE public.audit_logs TO standmanager_app;
 
 
 --
@@ -1012,7 +1013,7 @@ GRANT ALL ON SEQUENCE public.audit_logs_id_seq TO standmanager_app;
 -- Name: TABLE copy_types; Type: ACL; Schema: public; Owner: colettas
 --
 
-GRANT ALL ON TABLE public.copy_types TO standmanager_app;
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE public.copy_types TO standmanager_app;
 
 
 --
@@ -1026,7 +1027,7 @@ GRANT ALL ON SEQUENCE public.copy_types_id_seq TO standmanager_app;
 -- Name: TABLE devices; Type: ACL; Schema: public; Owner: colettas
 --
 
-GRANT ALL ON TABLE public.devices TO standmanager_app;
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE public.devices TO standmanager_app;
 
 
 --
@@ -1040,7 +1041,7 @@ GRANT ALL ON SEQUENCE public.devices_id_seq TO standmanager_app;
 -- Name: TABLE orders; Type: ACL; Schema: public; Owner: colettas
 --
 
-GRANT ALL ON TABLE public.orders TO standmanager_app;
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE public.orders TO standmanager_app;
 
 
 --
@@ -1054,7 +1055,7 @@ GRANT ALL ON SEQUENCE public.orders_id_seq TO standmanager_app;
 -- Name: TABLE print_settings; Type: ACL; Schema: public; Owner: colettas
 --
 
-GRANT ALL ON TABLE public.print_settings TO standmanager_app;
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE public.print_settings TO standmanager_app;
 
 
 --
@@ -1068,7 +1069,7 @@ GRANT ALL ON SEQUENCE public.print_settings_id_seq TO standmanager_app;
 -- Name: TABLE products; Type: ACL; Schema: public; Owner: colettas
 --
 
-GRANT ALL ON TABLE public.products TO standmanager_app;
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE public.products TO standmanager_app;
 
 
 --
@@ -1082,7 +1083,7 @@ GRANT ALL ON SEQUENCE public.products_id_seq TO standmanager_app;
 -- Name: TABLE sessions; Type: ACL; Schema: public; Owner: colettas
 --
 
-GRANT ALL ON TABLE public.sessions TO standmanager_app;
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE public.sessions TO standmanager_app;
 
 
 --
@@ -1096,14 +1097,14 @@ GRANT ALL ON SEQUENCE public.sessions_id_seq TO standmanager_app;
 -- Name: TABLE settings; Type: ACL; Schema: public; Owner: colettas
 --
 
-GRANT ALL ON TABLE public.settings TO standmanager_app;
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE public.settings TO standmanager_app;
 
 
 --
 -- Name: TABLE tenants; Type: ACL; Schema: public; Owner: colettas
 --
 
-GRANT ALL ON TABLE public.tenants TO standmanager_app;
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE public.tenants TO standmanager_app;
 
 
 --
@@ -1117,7 +1118,7 @@ GRANT ALL ON SEQUENCE public.tenants_id_seq TO standmanager_app;
 -- Name: TABLE users; Type: ACL; Schema: public; Owner: colettas
 --
 
-GRANT ALL ON TABLE public.users TO standmanager_app;
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE public.users TO standmanager_app;
 
 
 --
@@ -1138,12 +1139,12 @@ ALTER DEFAULT PRIVILEGES FOR ROLE colettas IN SCHEMA public GRANT ALL ON SEQUENC
 -- Name: DEFAULT PRIVILEGES FOR TABLES; Type: DEFAULT ACL; Schema: public; Owner: colettas
 --
 
-ALTER DEFAULT PRIVILEGES FOR ROLE colettas IN SCHEMA public GRANT ALL ON TABLES TO standmanager_app;
+ALTER DEFAULT PRIVILEGES FOR ROLE colettas IN SCHEMA public GRANT SELECT,INSERT,DELETE,UPDATE ON TABLES TO standmanager_app;
 
 
 --
 -- PostgreSQL database dump complete
 --
 
-\unrestrict rl8d57pA5tQoWdualSb750Oy56w87SKi2tvoZ6t5RaRWTCCjsoRpvEj74w3JXi8
+\unrestrict 8PUDWUC83cURWfoyY3QrPwN6fhSBaLm9FJvDfeWEXZb5yyf4HTr5P7cbEP4H6wA
 

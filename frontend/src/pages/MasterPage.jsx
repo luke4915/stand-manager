@@ -64,7 +64,7 @@ const MasterPage = () => {
   const [deleteTarget, setDeleteTarget] = useState(null);
   const [receiptTarget, setReceiptTarget] = useState(null);
 
-  const [form, setForm] = useState({ slug: '', name: '', plan: 'trial', expiresInDays: 7, adminUsername: '' });
+  const [form, setForm] = useState({ slug: '', name: '', plan: 'trial', expiresInDays: 7, adminUsername: '', adminPassword: '' });
   const [creating, setCreating] = useState(false);
 
   const loadTenants = useCallback(async () => {
@@ -96,7 +96,7 @@ const MasterPage = () => {
     setCreating(true); setError('');
     try {
       await apiFetch('/master/tenants', { method: 'POST', body: form });
-      setForm({ slug: '', name: '', plan: 'trial', expiresInDays: 7, adminUsername: '' });
+      setForm({ slug: '', name: '', plan: 'trial', expiresInDays: 7, adminUsername: '', adminPassword: '' });
       loadTenants();
     } catch (err) { setError(err.message); }
     finally { setCreating(false); }
@@ -191,7 +191,8 @@ const MasterPage = () => {
             <input placeholder="Nome" value={form.name} onChange={e => setForm(f => ({ ...f, name: e.target.value }))} className={inputClass} />
             <input placeholder="Piano" value={form.plan} onChange={e => setForm(f => ({ ...f, plan: e.target.value }))} className={inputClass} />
             <input type="number" placeholder="Giorni licenza" value={form.expiresInDays} onChange={e => setForm(f => ({ ...f, expiresInDays: Number(e.target.value) }))} className={inputClass} />
-            <input placeholder="Username admin" value={form.adminUsername} onChange={e => setForm(f => ({ ...f, adminUsername: e.target.value }))} className={`${inputClass} col-span-2`} />
+            <input placeholder="Username admin" value={form.adminUsername} onChange={e => setForm(f => ({ ...f, adminUsername: e.target.value }))} className={inputClass} />
+            <input type="text" autoComplete="off" placeholder="Password temporanea (min 6)" value={form.adminPassword} onChange={e => setForm(f => ({ ...f, adminPassword: e.target.value }))} className={inputClass} />
           </div>
           {error && <p className="text-red-500 text-xs font-black uppercase tracking-widest mb-3">{error}</p>}
           <button

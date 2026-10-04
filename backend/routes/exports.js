@@ -40,7 +40,7 @@ router.get('/session/:id/csv', authenticate, authorizeAdmin, tenantScope, async 
           esc(item.category || 'Generico'),
           qty,
           fmt(price),
-          fmt(qty * price),
+          fmt(item.line_total ?? qty * price),
           esc(item.note),
           fmt(order.total),
         ].join(';'));

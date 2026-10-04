@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { useIsMobile } from '../../hooks/useBreakpoint';
 import { getFullTotal, getDiscountedTotal } from '../../utils/pricing';
 import { cartKey, mergeCartItems } from './cartUtils';
@@ -81,11 +81,20 @@ const Cart = ({ cart, setCart, total, addToCart, removeFromCart, removeLastItem,
     setSelectedItem(prev => prev ? { ...prev, note: newNote } : prev);
   };
 
+  // Un solo invio alla volta: un secondo tocco mentre il primo è in corso non crea un altro ordine
+  // (né consuma un altro numero della cassa). Il ref blocca subito, lo stato disattiva il pulsante.
+  const sendingRef = useRef(false);
+  const [sending, setSending] = useState(false);
+
   const handleSendOrder = async () => {
-    if (!sessionActive) return;
+    if (!sessionActive || sendingRef.current) return;
+    sendingRef.current = true;
+    setSending(true);
     try {
       await sendOrder(isTakeaway);
     } finally {
+      sendingRef.current = false;
+      setSending(false);
       // Reset garantito di contanti ricevuti e asporto sia in caso di successo che di errore
       setAmountReceived('');
       setIsTakeaway(false);
@@ -159,6 +168,7 @@ const Cart = ({ cart, setCart, total, addToCart, removeFromCart, removeLastItem,
     change,
     sessionActive,
     handleSendOrder,
+    sending,
     setSelectedItem,
     setIsQRScanModalOpen,
     setIsReprintModalOpen,
