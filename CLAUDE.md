@@ -67,7 +67,7 @@ L'isolamento tra tenant si basa sulla Row-Level Security di PostgreSQL con la va
 4. **Endpoint pubblici** (`/menu`, `/kds`): `resolveTenantFromHost` + `withTenantClient(req.tenantId, …)`. Non esporre mai colonne interne: seleziona le colonne una per una, niente `SELECT *`.
 5. **Nuova tabella tenant-scoped:** nella stessa migrazione aggiungi `tenant_id INTEGER NOT NULL REFERENCES tenants(id)`, l'indice, `ENABLE` + `FORCE ROW LEVEL SECURITY` e la policy `tenant_isolation`. La policy deve usare `NULLIF(current_setting('app.tenant_id', true), '')::int` (vedi migrazione 009: senza `NULLIF` una connessione riciclata con `''` manda in errore il cast).
 6. **Non affidarti al client per `tenant_id`:** arriva dal JWT (`req.user.tenantId`) o dal sottodominio, mai dal body.
-7. **Login e master panel** hanno percorsi dedicati (`lookupUserForLogin`, `authenticateMaster`). Non riusarli altrove.
+7. **Login e master panel** hanno percorsi dedicati. Il login risolve il tenant dal sottodominio (`resolveTenantFromHost`) e cerca l'utente **solo in quel tenant** con `withTenantClient`: l'username è unico per tenant (`uniq_users_tenant_username`) e `users` non ha deroghe alla RLS. Il master usa `authenticateMaster`. Non riusare questi percorsi altrove.
 
 ## 4. Sicurezza e logica di business
 
@@ -111,7 +111,7 @@ L'isolamento tra tenant si basa sulla Row-Level Security di PostgreSQL con la va
 
 ## 6. Database e migrazioni
 
-- Ogni modifica di schema è una nuova migrazione `backend/migrations/NNN_descrizione.sql`, numerata dopo l'ultima esistente (oggi 019; il numero 012 è saltato, non riusarlo).
+- Ogni modifica di schema è una nuova migrazione `backend/migrations/NNN_descrizione.sql`, numerata dopo l'ultima esistente (oggi 020; il numero 012 è saltato, non riusarlo).
 - **Non modificare mai una migrazione già applicata.** Per correggerla, scrivine una nuova.
 - Le migrazioni devono essere idempotenti dove possibile (`IF NOT EXISTS`, `DROP POLICY IF EXISTS`). `run.js` le esegue in transazione.
 - `MIGRATION_DATABASE_URL` serve a eseguire le DDL con un utente privilegiato. L'app gira con l'utente applicativo, soggetto a RLS.

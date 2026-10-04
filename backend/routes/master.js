@@ -85,7 +85,7 @@ router.post('/tenants', authenticateMaster, validate({ body: createTenantSchema 
   } catch (err) {
     await client.query('ROLLBACK');
     if (err.code === '23505')
-      return res.status(409).json({ error: 'Slug o username già esistente' });
+      return res.status(409).json({ error: 'Slug già esistente' });
     logger.error({ err }, 'Errore creazione tenant');
     res.status(500).json({ error: 'Errore creazione tenant' });
   } finally {

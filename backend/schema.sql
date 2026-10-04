@@ -2,7 +2,7 @@
 -- PostgreSQL database dump
 --
 
-\restrict Jqgbh5vwD9UvBiZdFdUOtUeNq8A7qe5eD6HlTqocWb21TgkrbjTdl08nme4EhmT
+\restrict rl8d57pA5tQoWdualSb750Oy56w87SKi2tvoZ6t5RaRWTCCjsoRpvEj74w3JXi8
 
 -- Dumped from database version 17.10 (Homebrew)
 -- Dumped by pg_dump version 17.10 (Homebrew)
@@ -641,14 +641,6 @@ ALTER TABLE ONLY public.users
 
 
 --
--- Name: users users_username_key; Type: CONSTRAINT; Schema: public; Owner: colettas
---
-
-ALTER TABLE ONLY public.users
-    ADD CONSTRAINT users_username_key UNIQUE (username);
-
-
---
 -- Name: idx_audit_logs_action; Type: INDEX; Schema: public; Owner: colettas
 --
 
@@ -751,6 +743,13 @@ CREATE UNIQUE INDEX uniq_orders_device_seq ON public.orders USING btree (tenant_
 --
 
 CREATE UNIQUE INDEX uniq_sessions_open_per_tenant ON public.sessions USING btree (tenant_id) WHERE (end_time IS NULL);
+
+
+--
+-- Name: uniq_users_tenant_username; Type: INDEX; Schema: public; Owner: colettas
+--
+
+CREATE UNIQUE INDEX uniq_users_tenant_username ON public.users USING btree (tenant_id, username);
 
 
 --
@@ -965,7 +964,7 @@ CREATE POLICY tenant_isolation ON public.settings USING ((tenant_id = (NULLIF(cu
 -- Name: users tenant_isolation; Type: POLICY; Schema: public; Owner: colettas
 --
 
-CREATE POLICY tenant_isolation ON public.users USING (((tenant_id = (NULLIF(current_setting('app.tenant_id'::text, true), ''::text))::integer) OR (current_setting('app.allow_login_lookup'::text, true) = 'true'::text)));
+CREATE POLICY tenant_isolation ON public.users USING ((tenant_id = (NULLIF(current_setting('app.tenant_id'::text, true), ''::text))::integer));
 
 
 --
@@ -1146,5 +1145,5 @@ ALTER DEFAULT PRIVILEGES FOR ROLE colettas IN SCHEMA public GRANT ALL ON TABLES 
 -- PostgreSQL database dump complete
 --
 
-\unrestrict Jqgbh5vwD9UvBiZdFdUOtUeNq8A7qe5eD6HlTqocWb21TgkrbjTdl08nme4EhmT
+\unrestrict rl8d57pA5tQoWdualSb750Oy56w87SKi2tvoZ6t5RaRWTCCjsoRpvEj74w3JXi8
 

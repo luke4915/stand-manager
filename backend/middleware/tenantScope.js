@@ -89,18 +89,3 @@ export async function withTenantClient(tenantId, fn) {
     client.release();
   }
 }
-
-// Usata SOLO dal login: cerca l'utente per username senza ancora conoscere
-// il tenant (che è proprio quello che dobbiamo scoprire). Sfrutta la policy
-// dedicata su `users` che si apre quando app.allow_login_lookup='true'.
-export async function lookupUserForLogin(username) {
-  const client = await pool.connect();
-  try {
-    await client.query("SELECT set_config('app.allow_login_lookup', 'true', false)");
-    const { rows } = await client.query('SELECT * FROM users WHERE username = $1', [username]);
-    return rows[0] || null;
-  } finally {
-    try { await client.query("RESET app.allow_login_lookup"); } catch { /* connessione probabilmente già chiusa */ }
-    client.release();
-  }
-}

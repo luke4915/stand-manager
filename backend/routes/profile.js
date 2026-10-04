@@ -13,7 +13,7 @@ router.patch('/username', authenticate, validate({ body: changeUsernameSchema })
     await req.db.query('UPDATE users SET username=$1 WHERE id=$2', [newUsername, req.user.id]);
     res.json({ success: true, username: newUsername });
   } catch (err) {
-    // username unico in tutto il sistema, anche se di un altro tenant (invisibile per RLS)
+    // username già usato in questo tenant
     if (err.code === '23505') return res.status(409).json({ error: 'Username già in uso' });
     logger.error({ err }, 'Errore cambio username');
     res.status(500).json({ error: 'Errore durante il cambio username' });

@@ -3,7 +3,7 @@ import bcrypt from 'bcrypt';
 import jwt from 'jsonwebtoken';
 import { pool } from '../db.js';
 import { authenticate, authorizeAdmin } from '../middleware/authenticate.js';
-import { tenantScope, lookupUserForLogin, withTenantClient, checkTenantAccess } from '../middleware/tenantScope.js';
+import { tenantScope, withTenantClient, checkTenantAccess } from '../middleware/tenantScope.js';
 import { resolveTenantFromHost } from '../middleware/resolveTenantFromHost.js';
 import logger from '../logger.js';
 import { validate } from '../middleware/validate.js';
@@ -51,14 +51,13 @@ const clearCookie = (res) => res.cookie('token', '', {
 router.post('/login', validate({ body: loginSchema }), resolveTenantFromHost, async (req, res) => {
   const { username, password } = req.body;
   try {
-    const user = await lookupUserForLogin(username);
+    // L'utente si cerca solo nel tenant del sottodominio (RLS comprese): l'username è unico per tenant.
+    // Un utente di un altro tenant non si distingue da uno inesistente.
+    const user = await withTenantClient(req.tenantId, async (db) => {
+      const { rows } = await db.query('SELECT * FROM users WHERE username = $1', [username]);
+      return rows[0] || null;
+    });
     if (!user) return res.status(401).json({ error: 'Utente non trovato' });
-    // L'username è unico a livello globale, ma l'accesso deve avvenire dal
-    // sottodominio del proprio tenant: altrimenti un utente valido di un
-    // altro tenant potrebbe loggarsi qui e vedere/operare sui SUOI dati
-    // (correttamente isolati da RLS) ma dall'URL sbagliato — confuso e non voluto.
-    if (user.tenant_id !== req.tenantId)
-      return res.status(401).json({ error: 'Utente non trovato' }); // stesso messaggio: non riveliamo l'esistenza dell'utente su un altro tenant
 
     const { rows: tenantRows } = await pool.query('SELECT expires_at, active, name FROM tenants WHERE id = $1', [user.tenant_id]);
     const tenant = tenantRows[0];
@@ -172,7 +171,7 @@ router.post('/admin/createUser', authenticate, authorizeAdmin, validate({ body: 
 
     res.status(201).json({ message: 'Utente creato con successo', user: rows[0] });
   } catch (err) {
-    if (err.code === '23505') // username unico in tutto il sistema, anche se di un altro tenant (invisibile per RLS)
+    if (err.code === '23505') // username già usato in questo tenant
       return res.status(409).json({ error: 'Username già esistente' });
     logger.error({ err }, 'Errore createUser');
     res.status(500).json({ error: 'Errore server' });
