@@ -27,11 +27,11 @@ finché il conto non è pagato.
 Tutte le tabelle nuove sono tenant-scoped con RLS (`CLAUDE.md` §3) e vanno in `TENANT_SCOPED_TABLES`.
 
 ```
-rooms        id, tenant_id, name, position, active
-tables       id, tenant_id, room_id, name, seats, x, y (posizione sulla mappa, facoltativa), active
-             unico per (tenant, sala, nome)
+rooms          id, tenant_id, name, active                       (nome unico per tenant)
+dining_tables  id, tenant_id, room_id, name, seats, active       (nome unico per sala)
+               posizione sulla mappa e ordine delle sale: si aggiungono con la vista Sala (2-6)
 
-checks       id, tenant_id, session_id, table_id (nullo per banco), number (progressivo per sessione),
+checks       id, tenant_id, session_id, table_id → dining_tables (nullo per banco), number (progressivo per sessione),
              covers, status ('open' | 'paid' | 'void'), opened_by, opened_at, bill_requested_at, closed_at,
              cover_charge (coperto applicato, fissato all'apertura), discount_* (sconto sul conto, solo ruoli sconto)
              indice unico: un solo conto aperto per tavolo

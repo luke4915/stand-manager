@@ -64,7 +64,7 @@ export async function createTenant({ openSession = true, active = true } = {}) {
   return { id: tenant.id, slug, host: `${slug}.standmanager.local`, username: `admin-${slug}`, userId: user.id, productId: product.id, sessionId };
 }
 
-const TENANT_TABLES = ['audit_logs', 'order_items', 'orders', 'devices', 'products', 'sessions', 'print_settings', 'copy_types', 'settings', 'users'];
+const TENANT_TABLES = ['audit_logs', 'order_items', 'orders', 'dining_tables', 'rooms', 'devices', 'products', 'sessions', 'print_settings', 'copy_types', 'settings', 'users'];
 
 export async function deleteTenants(...tenants) {
   for (const { id } of tenants) {

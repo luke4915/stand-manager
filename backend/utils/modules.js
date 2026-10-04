@@ -7,13 +7,14 @@ export const MODULES = {
   kds: 'Schermo cucina (KDS)',
   stats: 'Statistiche',
   qr_menu: 'Menu pubblico con QR',
+  tables: 'Sala e tavoli',
 };
 
 // Il tipo di attività propone i moduli di partenza; poi il master può accenderne o spegnerne.
 export const BUSINESS_TYPES = {
   sagra: { label: 'Sagra o evento', modules: ['kds', 'stats', 'qr_menu'] },
   paninaro: { label: 'Paninaro o food truck', modules: ['stats', 'qr_menu'] },
-  ristorante: { label: 'Ristorante o pizzeria', modules: ['kds', 'stats'] },
+  ristorante: { label: 'Ristorante o pizzeria', modules: ['kds', 'stats', 'tables'] },
 };
 
 export const MODULE_IDS = Object.keys(MODULES);

@@ -17,6 +17,7 @@ import MenuSettings from './components/setup/MenuSettings';
 import { canView, defaultView } from './components/layout/viewRoles';
 import NoViewAvailable from './components/layout/NoViewAvailable';
 import UsersSettings from './components/setup/UsersSettings';
+import RoomsSettings from './components/setup/RoomsSettings';
 import ReverseOrder from './components/shared/ReverseOrder';
 import ChangePassword from './components/shared/ChangePassword';
 import UserProfile from './components/shared/UserProfile';
@@ -474,6 +475,7 @@ const App = () => {
                       <MenuSettings />
                       <OrderSettings orderMode={orderMode} setOrderMode={setOrderMode} />
                       <PrintProfiles />
+                      {user.role === 'admin' && user.modules?.includes('tables') && <RoomsSettings />}
                       {user.role === 'admin' && <UsersSettings />}
                     </div>
                   } />

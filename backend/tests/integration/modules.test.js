@@ -105,7 +105,7 @@ describe('moduli per tenant', () => {
     };
     const preset = await make({ businessType: 'ristorante' });
     assert.equal(preset.business_type, 'ristorante');
-    assert.deepEqual(preset.modules, ['kds', 'stats']);
+    assert.deepEqual(preset.modules, ['kds', 'stats', 'tables']);
 
     const custom = await make({ businessType: 'paninaro', modules: ['qr_menu', 'kds', 'qr_menu'] });
     assert.deepEqual(custom.modules, ['kds', 'qr_menu']);
@@ -118,7 +118,7 @@ describe('moduli per tenant', () => {
   it('catalogo per il pannello master', async () => {
     assert.equal((await master.get('/master/catalog')).status, 401);
     const { body } = await master.request('GET', '/master/catalog', undefined, masterCookie);
-    assert.deepEqual(body.modules.map(m => m.id), ['kds', 'stats', 'qr_menu']);
+    assert.deepEqual(body.modules.map(m => m.id), ['kds', 'stats', 'qr_menu', 'tables']);
     assert.deepEqual(body.businessTypes.map(b => b.id), ['sagra', 'paninaro', 'ristorante']);
     assert.ok(body.businessTypes.every(b => b.label && Array.isArray(b.modules)));
   });

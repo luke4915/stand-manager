@@ -54,7 +54,7 @@ Disegno completo e decisioni in `docs/design-tavoli.md`. Un passo alla volta; i 
 | Id | Requisito | Stato |
 |---|---|---|
 | 2-0 | La regola "cosa conta come incasso" in un solo punto (`utils/revenue.js`), oggi sparsa in sei query; i test di prima passano invariati e un test impedisce di riscriverla altrove. | `[x]` |
-| 2-1 | Modulo `tables`: sale e tavoli (migrazione 031), API e gestione da parte dell'admin. | `[ ]` |
+| 2-1 | Modulo `tables`: sale e tavoli (migrazione 031, tabelle `rooms` e `dining_tables`), API `/rooms` e `/tables`, gestione da parte dell'admin in Sistema (anche tavoli in serie). La mappa con la posizione dei tavoli arriverà con la vista Sala. | `[x]` |
 | 2-2 | Conto per tavolo (`checks`, `payments`, `orders.check_id`, migrazione 032): apertura con coperti, totali ricalcolati dal server, richiesta del conto. | `[ ]` |
 | 2-3 | L'incasso conosce i conti: statistiche, contanti attesi, chiusura serata e CSV; le sagre restano identiche. | `[ ]` |
 | 2-4 | Comanda su un conto aperto; il KDS e la comanda mostrano tavolo e coperti. | `[ ]` |

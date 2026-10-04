@@ -177,6 +177,48 @@ ALTER SEQUENCE public.devices_id_seq OWNED BY public.devices.id;
 
 
 --
+-- Name: dining_tables; Type: TABLE; Schema: public; Owner: colettas
+--
+
+CREATE TABLE public.dining_tables (
+    id integer NOT NULL,
+    tenant_id integer DEFAULT (NULLIF(current_setting('app.tenant_id'::text, true), ''::text))::integer NOT NULL,
+    room_id integer NOT NULL,
+    name text NOT NULL,
+    seats integer DEFAULT 2 NOT NULL,
+    active boolean DEFAULT true NOT NULL,
+    CONSTRAINT dining_tables_name_check CHECK ((length(btrim(name)) > 0)),
+    CONSTRAINT dining_tables_seats_check CHECK (((seats >= 1) AND (seats <= 99)))
+);
+
+ALTER TABLE ONLY public.dining_tables FORCE ROW LEVEL SECURITY;
+
+
+ALTER TABLE public.dining_tables OWNER TO colettas;
+
+--
+-- Name: dining_tables_id_seq; Type: SEQUENCE; Schema: public; Owner: colettas
+--
+
+CREATE SEQUENCE public.dining_tables_id_seq
+    AS integer
+    START WITH 1
+    INCREMENT BY 1
+    NO MINVALUE
+    NO MAXVALUE
+    CACHE 1;
+
+
+ALTER SEQUENCE public.dining_tables_id_seq OWNER TO colettas;
+
+--
+-- Name: dining_tables_id_seq; Type: SEQUENCE OWNED BY; Schema: public; Owner: colettas
+--
+
+ALTER SEQUENCE public.dining_tables_id_seq OWNED BY public.dining_tables.id;
+
+
+--
 -- Name: order_items; Type: TABLE; Schema: public; Owner: colettas
 --
 
@@ -370,6 +412,45 @@ ALTER SEQUENCE public.products_id_seq OWNED BY public.products.id;
 
 
 --
+-- Name: rooms; Type: TABLE; Schema: public; Owner: colettas
+--
+
+CREATE TABLE public.rooms (
+    id integer NOT NULL,
+    tenant_id integer DEFAULT (NULLIF(current_setting('app.tenant_id'::text, true), ''::text))::integer NOT NULL,
+    name text NOT NULL,
+    active boolean DEFAULT true NOT NULL,
+    CONSTRAINT rooms_name_check CHECK ((length(btrim(name)) > 0))
+);
+
+ALTER TABLE ONLY public.rooms FORCE ROW LEVEL SECURITY;
+
+
+ALTER TABLE public.rooms OWNER TO colettas;
+
+--
+-- Name: rooms_id_seq; Type: SEQUENCE; Schema: public; Owner: colettas
+--
+
+CREATE SEQUENCE public.rooms_id_seq
+    AS integer
+    START WITH 1
+    INCREMENT BY 1
+    NO MINVALUE
+    NO MAXVALUE
+    CACHE 1;
+
+
+ALTER SEQUENCE public.rooms_id_seq OWNER TO colettas;
+
+--
+-- Name: rooms_id_seq; Type: SEQUENCE OWNED BY; Schema: public; Owner: colettas
+--
+
+ALTER SEQUENCE public.rooms_id_seq OWNED BY public.rooms.id;
+
+
+--
 -- Name: sessions; Type: TABLE; Schema: public; Owner: colettas
 --
 
@@ -539,6 +620,13 @@ ALTER TABLE ONLY public.devices ALTER COLUMN id SET DEFAULT nextval('public.devi
 
 
 --
+-- Name: dining_tables id; Type: DEFAULT; Schema: public; Owner: colettas
+--
+
+ALTER TABLE ONLY public.dining_tables ALTER COLUMN id SET DEFAULT nextval('public.dining_tables_id_seq'::regclass);
+
+
+--
 -- Name: order_items id; Type: DEFAULT; Schema: public; Owner: colettas
 --
 
@@ -564,6 +652,13 @@ ALTER TABLE ONLY public.print_settings ALTER COLUMN id SET DEFAULT nextval('publ
 --
 
 ALTER TABLE ONLY public.products ALTER COLUMN id SET DEFAULT nextval('public.products_id_seq'::regclass);
+
+
+--
+-- Name: rooms id; Type: DEFAULT; Schema: public; Owner: colettas
+--
+
+ALTER TABLE ONLY public.rooms ALTER COLUMN id SET DEFAULT nextval('public.rooms_id_seq'::regclass);
 
 
 --
@@ -636,6 +731,14 @@ ALTER TABLE ONLY public.devices
 
 
 --
+-- Name: dining_tables dining_tables_pkey; Type: CONSTRAINT; Schema: public; Owner: colettas
+--
+
+ALTER TABLE ONLY public.dining_tables
+    ADD CONSTRAINT dining_tables_pkey PRIMARY KEY (id);
+
+
+--
 -- Name: order_items order_items_pkey; Type: CONSTRAINT; Schema: public; Owner: colettas
 --
 
@@ -673,6 +776,14 @@ ALTER TABLE ONLY public.print_settings
 
 ALTER TABLE ONLY public.products
     ADD CONSTRAINT products_pkey PRIMARY KEY (id);
+
+
+--
+-- Name: rooms rooms_pkey; Type: CONSTRAINT; Schema: public; Owner: colettas
+--
+
+ALTER TABLE ONLY public.rooms
+    ADD CONSTRAINT rooms_pkey PRIMARY KEY (id);
 
 
 --
@@ -751,6 +862,13 @@ CREATE INDEX idx_devices_tenant ON public.devices USING btree (tenant_id);
 
 
 --
+-- Name: idx_dining_tables_tenant; Type: INDEX; Schema: public; Owner: colettas
+--
+
+CREATE INDEX idx_dining_tables_tenant ON public.dining_tables USING btree (tenant_id);
+
+
+--
 -- Name: idx_order_items_tenant; Type: INDEX; Schema: public; Owner: colettas
 --
 
@@ -814,6 +932,13 @@ CREATE UNIQUE INDEX uniq_copy_types_tenant_name ON public.copy_types USING btree
 
 
 --
+-- Name: uniq_dining_tables_room_name; Type: INDEX; Schema: public; Owner: colettas
+--
+
+CREATE UNIQUE INDEX uniq_dining_tables_room_name ON public.dining_tables USING btree (room_id, lower(name));
+
+
+--
 -- Name: uniq_order_items_order_position; Type: INDEX; Schema: public; Owner: colettas
 --
 
@@ -832,6 +957,13 @@ CREATE UNIQUE INDEX uniq_orders_client_order_id ON public.orders USING btree (te
 --
 
 CREATE UNIQUE INDEX uniq_orders_device_seq ON public.orders USING btree (tenant_id, session_id, device_id, device_seq) WHERE (device_id IS NOT NULL);
+
+
+--
+-- Name: uniq_rooms_tenant_name; Type: INDEX; Schema: public; Owner: colettas
+--
+
+CREATE UNIQUE INDEX uniq_rooms_tenant_name ON public.rooms USING btree (tenant_id, lower(name));
 
 
 --
@@ -878,6 +1010,22 @@ ALTER TABLE ONLY public.copy_types
 
 ALTER TABLE ONLY public.devices
     ADD CONSTRAINT devices_tenant_id_fkey FOREIGN KEY (tenant_id) REFERENCES public.tenants(id);
+
+
+--
+-- Name: dining_tables dining_tables_room_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: colettas
+--
+
+ALTER TABLE ONLY public.dining_tables
+    ADD CONSTRAINT dining_tables_room_id_fkey FOREIGN KEY (room_id) REFERENCES public.rooms(id);
+
+
+--
+-- Name: dining_tables dining_tables_tenant_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: colettas
+--
+
+ALTER TABLE ONLY public.dining_tables
+    ADD CONSTRAINT dining_tables_tenant_id_fkey FOREIGN KEY (tenant_id) REFERENCES public.tenants(id);
 
 
 --
@@ -945,6 +1093,14 @@ ALTER TABLE ONLY public.products
 
 
 --
+-- Name: rooms rooms_tenant_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: colettas
+--
+
+ALTER TABLE ONLY public.rooms
+    ADD CONSTRAINT rooms_tenant_id_fkey FOREIGN KEY (tenant_id) REFERENCES public.tenants(id);
+
+
+--
 -- Name: sessions sessions_tenant_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: colettas
 --
 
@@ -987,6 +1143,12 @@ ALTER TABLE public.copy_types ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.devices ENABLE ROW LEVEL SECURITY;
 
 --
+-- Name: dining_tables; Type: ROW SECURITY; Schema: public; Owner: colettas
+--
+
+ALTER TABLE public.dining_tables ENABLE ROW LEVEL SECURITY;
+
+--
 -- Name: users master_read; Type: POLICY; Schema: public; Owner: colettas
 --
 
@@ -1016,6 +1178,12 @@ ALTER TABLE public.print_settings ENABLE ROW LEVEL SECURITY;
 --
 
 ALTER TABLE public.products ENABLE ROW LEVEL SECURITY;
+
+--
+-- Name: rooms; Type: ROW SECURITY; Schema: public; Owner: colettas
+--
+
+ALTER TABLE public.rooms ENABLE ROW LEVEL SECURITY;
 
 --
 -- Name: sessions; Type: ROW SECURITY; Schema: public; Owner: colettas
@@ -1051,6 +1219,13 @@ CREATE POLICY tenant_isolation ON public.devices USING ((tenant_id = (NULLIF(cur
 
 
 --
+-- Name: dining_tables tenant_isolation; Type: POLICY; Schema: public; Owner: colettas
+--
+
+CREATE POLICY tenant_isolation ON public.dining_tables USING ((tenant_id = (NULLIF(current_setting('app.tenant_id'::text, true), ''::text))::integer));
+
+
+--
 -- Name: order_items tenant_isolation; Type: POLICY; Schema: public; Owner: colettas
 --
 
@@ -1076,6 +1251,13 @@ CREATE POLICY tenant_isolation ON public.print_settings USING ((tenant_id = (NUL
 --
 
 CREATE POLICY tenant_isolation ON public.products USING ((tenant_id = (NULLIF(current_setting('app.tenant_id'::text, true), ''::text))::integer));
+
+
+--
+-- Name: rooms tenant_isolation; Type: POLICY; Schema: public; Owner: colettas
+--
+
+CREATE POLICY tenant_isolation ON public.rooms USING ((tenant_id = (NULLIF(current_setting('app.tenant_id'::text, true), ''::text))::integer));
 
 
 --
@@ -1178,6 +1360,22 @@ GRANT SELECT,USAGE ON SEQUENCE public.devices_id_seq TO standmanager_master;
 
 
 --
+-- Name: TABLE dining_tables; Type: ACL; Schema: public; Owner: colettas
+--
+
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE public.dining_tables TO standmanager_app;
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE public.dining_tables TO standmanager_master;
+
+
+--
+-- Name: SEQUENCE dining_tables_id_seq; Type: ACL; Schema: public; Owner: colettas
+--
+
+GRANT ALL ON SEQUENCE public.dining_tables_id_seq TO standmanager_app;
+GRANT SELECT,USAGE ON SEQUENCE public.dining_tables_id_seq TO standmanager_master;
+
+
+--
 -- Name: TABLE order_items; Type: ACL; Schema: public; Owner: colettas
 --
 
@@ -1239,6 +1437,22 @@ GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE public.products TO standmanager_maste
 
 GRANT ALL ON SEQUENCE public.products_id_seq TO standmanager_app;
 GRANT SELECT,USAGE ON SEQUENCE public.products_id_seq TO standmanager_master;
+
+
+--
+-- Name: TABLE rooms; Type: ACL; Schema: public; Owner: colettas
+--
+
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE public.rooms TO standmanager_app;
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE public.rooms TO standmanager_master;
+
+
+--
+-- Name: SEQUENCE rooms_id_seq; Type: ACL; Schema: public; Owner: colettas
+--
+
+GRANT ALL ON SEQUENCE public.rooms_id_seq TO standmanager_app;
+GRANT SELECT,USAGE ON SEQUENCE public.rooms_id_seq TO standmanager_master;
 
 
 --

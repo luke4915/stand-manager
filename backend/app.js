@@ -12,6 +12,7 @@ import orderRoutes from './routes/orders.js';
 import deviceRoutes from './routes/devices.js';
 import sessionRoutes from './routes/sessions.js';
 import statsRoutes from './routes/stats.js';
+import { roomsRouter, tablesRouter } from './routes/rooms.js';
 import healthRoutes from './routes/health.js';
 import { requestLogger } from './middleware/requestLogger.js';
 import exportRoutes from './routes/exports.js';
@@ -77,6 +78,8 @@ export function createApp({ broadcast, rateLimit = true, logRequests = true }) {
   app.use('/api/sessions', sessionRoutes(broadcast));
   app.use('/api/exports', exportRoutes);
   app.use('/api/stats', statsRoutes);
+  app.use('/api/rooms', roomsRouter);
+  app.use('/api/tables', tablesRouter);
   app.use('/api/settings', settingsRoutes);
   app.use('/api/master', masterRoutes);
 
