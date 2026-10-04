@@ -2,6 +2,10 @@ import { z } from 'zod';
 import { passwordSchema } from './authSchema.js';
 import { idSchema } from './common.js';
 import { RECEIPT_SETTINGS_KEYS } from './settingsSchema.js';
+import { MODULE_IDS, BUSINESS_TYPE_IDS } from '../utils/modules.js';
+
+const businessType = z.enum(BUSINESS_TYPE_IDS);
+const modules = z.array(z.enum(MODULE_IDS)).max(MODULE_IDS.length);
 
 export const masterLoginSchema = z.object({
   password: z.string().min(1),
@@ -11,10 +15,19 @@ export const createTenantSchema = z.object({
   slug: z.string().trim().regex(/^[a-z0-9-]+$/, 'solo lettere minuscole, numeri e trattini').max(50),
   name: z.string().trim().min(1).max(100),
   plan: z.string().trim().min(1).max(30).default('trial'),
+  // senza `modules` valgono quelli proposti dal tipo di attività
+  businessType: businessType.default('sagra'),
+  modules: modules.optional(),
   expiresInDays: z.coerce.number().int().positive().max(3650).nullish(),
   adminUsername: z.string().trim().min(1).max(50),
   // temporanea: l'admin la cambia al primo accesso
   adminPassword: passwordSchema,
+});
+
+// Tipo di attività e moduli di un tenant esistente: sostituisce l'insieme.
+export const tenantModulesSchema = z.object({
+  businessType,
+  modules,
 });
 
 export const extendLicenseSchema = z.object({

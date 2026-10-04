@@ -15,6 +15,7 @@ import { logAudit } from '../utils/auditLogger.js';
 import { hashPassword } from '../utils/password.js';
 import { sendHttpError } from '../utils/httpError.js';
 import { invalidateUserStatus } from '../utils/userStatus.js';
+import { getTenantModules } from '../utils/tenantModules.js';
 import { createUser, listUsers, updateUser, deleteUser, resetUserPassword } from '../utils/tenantUsers.js';
 
 const router = express.Router();
@@ -31,7 +32,7 @@ router.post('/login', validate({ body: loginSchema }), resolveTenantFromHost, as
     });
     if (!user) return res.status(401).json({ error: 'Utente non trovato' });
 
-    const { rows: tenantRows } = await pool.query('SELECT expires_at, active, name FROM tenants WHERE id = $1', [user.tenant_id]);
+    const { rows: tenantRows } = await pool.query('SELECT expires_at, active, name, business_type, modules FROM tenants WHERE id = $1', [user.tenant_id]);
     const tenant = tenantRows[0];
 
     if (!tenant?.active) {
@@ -49,7 +50,7 @@ router.post('/login', validate({ body: loginSchema }), resolveTenantFromHost, as
 
     setCookie(res, signToken(user));
 
-    res.json({ id: user.id, username: user.username, role: user.role, needsPassword: user.must_change_password, theme: user.theme || 'dark', tenantName: user.tenant_name });
+    res.json({ id: user.id, username: user.username, role: user.role, needsPassword: user.must_change_password, theme: user.theme || 'dark', tenantName: user.tenant_name, businessType: tenant.business_type, modules: tenant.modules });
     } catch (err) {
     logger.error({ err }, 'Errore server')
     res.status(500).json({ error: 'Errore server' });
@@ -211,15 +212,23 @@ router.post('/admin/users/:id/reset-password', authenticate, authorizeAdmin, val
 });
 
 // ME
-router.get('/me', authenticateAllowingPasswordChange, (req, res) => {
-  res.json({
-    id: req.user.id,
-    username: req.user.username,
-    role: req.user.role,
-    theme: 'dark', // legacy: il tema è solo stato del client
-    tenantName: req.user.tenantName,
-    needsPassword: req.user.mustChangePassword,
-  });
+router.get('/me', authenticateAllowingPasswordChange, async (req, res) => {
+  try {
+    const tenant = await getTenantModules(req.user.tenantId);
+    res.json({
+      id: req.user.id,
+      username: req.user.username,
+      role: req.user.role,
+      theme: 'dark', // legacy: il tema è solo stato del client
+      tenantName: req.user.tenantName,
+      businessType: tenant?.businessType,
+      modules: tenant?.modules ?? [],
+      needsPassword: req.user.mustChangePassword,
+    });
+  } catch (err) {
+    logger.error({ err }, 'Errore /auth/me');
+    res.status(500).json({ error: 'Errore server' });
+  }
 });
 
 // LOGOUT

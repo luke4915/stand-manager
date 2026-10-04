@@ -4,6 +4,7 @@ import { validate } from '../middleware/validate.js';
 import { tenantScope, withTenantClient } from '../middleware/tenantScope.js';
 import { resolveTenantFromHost } from '../middleware/resolveTenantFromHost.js';
 import logger from '../logger.js';
+import { requireModule } from '../utils/tenantModules.js';
 import { logAudit } from '../utils/auditLogger.js';
 import { idParamsSchema } from '../schemas/common.js';
 import { productSchema, bulkVisibilitySchema, stockSchema } from '../schemas/productSchema.js';
@@ -11,7 +12,7 @@ import { productSchema, bulkVisibilitySchema, stockSchema } from '../schemas/pro
 const router = express.Router();
 
 // GET /api/products/menu — pubblico, tenant risolto dal sottodominio
-router.get('/menu', resolveTenantFromHost, async (req, res) => {
+router.get('/menu', resolveTenantFromHost, requireModule('qr_menu'), async (req, res) => {
   try {
     const data = await withTenantClient(req.tenantId, async (db) => {
       const [{ rows: products }, { rows: sessions }] = await Promise.all([

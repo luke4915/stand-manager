@@ -3,6 +3,7 @@ import jwt from 'jsonwebtoken';
 import logger from './logger.js';
 import { VERIFY_OPTIONS } from './utils/jwtConfig.js';
 import { getUserStatus } from './utils/userStatus.js';
+import { getTenantModules } from './utils/tenantModules.js';
 import { isAllowedOrigin } from './utils/origins.js';
 import { toPublicOrder } from './utils/publicOrder.js';
 import { extractSlug, findTenantBySlug } from './middleware/resolveTenantFromHost.js';
@@ -65,7 +66,12 @@ async function authorizeUpgrade(req) {
   if (!tenant.active) return { reject: [403, 'Forbidden'] };
 
   const isPublic = new URL(req.url, 'http://localhost').searchParams.get('kds') === 'public';
-  if (isPublic) return { audience: 'public', tenantId: tenant.tenantId };
+  if (isPublic) {
+    // Il KDS pubblico è un modulo: spento, non ci si connette nemmeno.
+    const modules = await getTenantModules(tenant.tenantId);
+    if (!modules?.modules.includes('kds')) return { reject: [403, 'Forbidden'] };
+    return { audience: 'public', tenantId: tenant.tenantId };
+  }
 
   const token = readCookie(req.headers.cookie, 'token');
   if (!token) return { closeCode: WS_CLOSE_UNAUTHORIZED, reason: 'Token mancante' };

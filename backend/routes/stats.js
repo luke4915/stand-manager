@@ -4,6 +4,7 @@ import { validate } from '../middleware/validate.js';
 import { tenantScope } from '../middleware/tenantScope.js';
 import logger from '../logger.js';
 import { statsQuerySchema, sharedProductsQuerySchema, headToHeadQuerySchema } from '../schemas/statsSchema.js';
+import { requireModule } from '../utils/tenantModules.js';
 import { buildStats, buildSessionComparison } from '../utils/stats.js';
 
 const router = express.Router();
@@ -21,7 +22,7 @@ const LINE_REVENUE = `COALESCE((i->>'line_total')::numeric, (i->>'price')::numer
 
 // GET /api/stats?sessions=1,2&tz=Europe/Rome — statistiche aggregate dal database (nessun ordine viaggia verso il browser).
 // Senza `sessions` valgono tutte le serate. Le ore sono nel fuso `tz` del dispositivo.
-router.get('/', authenticate, authorizeStats, validate({ query: statsQuerySchema }), tenantScope, async (req, res) => {
+router.get('/', authenticate, requireModule('stats'), authorizeStats, validate({ query: statsQuerySchema }), tenantScope, async (req, res) => {
   const { sessions, tz } = req.validQuery;
   const sessionFilter = sessions?.length ? sessions : null;
   const inSessions = 'AND ($1::int[] IS NULL OR o.session_id = ANY($1))';
@@ -71,7 +72,7 @@ router.get('/', authenticate, authorizeStats, validate({ query: statsQuerySchema
 });
 
 // GET /api/stats/shared-products?a=1&b=2 — prodotti venduti in entrambe le serate (o in tutte, se non se ne scelgono due)
-router.get('/shared-products', authenticate, authorizeStats, validate({ query: sharedProductsQuerySchema }), tenantScope, async (req, res) => {
+router.get('/shared-products', authenticate, requireModule('stats'), authorizeStats, validate({ query: sharedProductsQuerySchema }), tenantScope, async (req, res) => {
   const { a, b } = req.validQuery;
   try {
     const { rows } = await req.db.query(
@@ -91,7 +92,7 @@ router.get('/shared-products', authenticate, authorizeStats, validate({ query: s
 });
 
 // GET /api/stats/head-to-head?a=1&b=2&product=7 — quantità e incasso di un prodotto in due serate
-router.get('/head-to-head', authenticate, authorizeStats, validate({ query: headToHeadQuerySchema }), tenantScope, async (req, res) => {
+router.get('/head-to-head', authenticate, requireModule('stats'), authorizeStats, validate({ query: headToHeadQuerySchema }), tenantScope, async (req, res) => {
   const { a, b, product } = req.validQuery;
   try {
     const { rows } = await req.db.query(

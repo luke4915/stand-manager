@@ -15,6 +15,7 @@ import { formatDisplayCode, formatDeviceCode } from '../utils/displayCode.js';
 import { sumQuantitiesByProduct, lockAndFindShortages, applyStockChange } from '../utils/stock.js';
 import { HttpError, sendHttpError } from '../utils/httpError.js';
 import { computeExpectedCash, clampToSession } from '../utils/session.js';
+import { requireModule } from '../utils/tenantModules.js';
 
 const router = express.Router();
 
@@ -338,7 +339,7 @@ export default function (broadcast) {
   });
 
   // GET /orders/kds — tenant risolto dal sottodominio
-  router.get('/kds', resolveTenantFromHost, async (req, res) => {
+  router.get('/kds', resolveTenantFromHost, requireModule('kds'), async (req, res) => {
     try {
       const data = await withTenantClient(req.tenantId, async (db) => {
         const { rows } = await db.query(

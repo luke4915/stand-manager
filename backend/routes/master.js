@@ -9,8 +9,10 @@ import { SIGN_OPTIONS } from '../utils/jwtConfig.js';
 import { hashPassword } from '../utils/password.js';
 import { validate } from '../middleware/validate.js';
 import { idParamsSchema } from '../schemas/common.js';
-import { masterLoginSchema, createTenantSchema, extendLicenseSchema, tenantActiveSchema, deleteTenantSchema, receiptCustomizationSchema, tenantUserParamsSchema } from '../schemas/masterSchema.js';
+import { masterLoginSchema, createTenantSchema, extendLicenseSchema, tenantActiveSchema, deleteTenantSchema, receiptCustomizationSchema, tenantUserParamsSchema, tenantModulesSchema } from '../schemas/masterSchema.js';
 import { createUserSchema, resetPasswordSchema, updateUserSchema } from '../schemas/authSchema.js';
+import { catalog, normalizeModules, BUSINESS_TYPES } from '../utils/modules.js';
+import { invalidateTenantModules } from '../utils/tenantModules.js';
 import { logAudit } from '../utils/auditLogger.js';
 import { sendHttpError } from '../utils/httpError.js';
 import { createUser, listUsers, updateUser, deleteUser, resetUserPassword } from '../utils/tenantUsers.js';
@@ -45,6 +47,9 @@ router.post('/logout', (req, res) => {
   res.json({ ok: true });
 });
 
+// CATALOGO — moduli e tipi di attività disponibili (unica fonte: utils/modules.js)
+router.get('/catalog', authenticateMaster, (req, res) => res.json(catalog()));
+
 // LISTA TENANT — tabella tenants non ha RLS, query diretta legittima
 router.get('/tenants', authenticateMaster, async (req, res) => {
   try {
@@ -62,7 +67,8 @@ router.get('/tenants', authenticateMaster, async (req, res) => {
 
 // CREA TENANT + primo utente admin
 router.post('/tenants', authenticateMaster, validate({ body: createTenantSchema }), async (req, res) => {
-  const { slug, name, plan, expiresInDays, adminUsername, adminPassword } = req.body;
+  const { slug, name, plan, expiresInDays, adminUsername, adminPassword, businessType } = req.body;
+  const modules = normalizeModules(req.body.modules ?? BUSINESS_TYPES[businessType].modules);
 
   const client = await masterPool.connect();
   try {
@@ -73,8 +79,8 @@ router.post('/tenants', authenticateMaster, validate({ body: createTenantSchema 
       : null;
 
     const { rows: tenantRows } = await client.query(
-      `INSERT INTO tenants (slug, name, plan, expires_at) VALUES ($1, $2, $3, $4) RETURNING *`,
-      [slug, name, plan, expiresAt]
+      `INSERT INTO tenants (slug, name, plan, expires_at, business_type, modules) VALUES ($1, $2, $3, $4, $5, $6) RETURNING *`,
+      [slug, name, plan, expiresAt, businessType, modules]
     );
     const tenant = tenantRows[0];
 
@@ -113,6 +119,23 @@ router.patch('/tenants/:id/extend', authenticateMaster, validate({ params: idPar
   } catch (err) {
     logger.error({ err }, 'Errore estensione licenza');
     res.status(500).json({ error: 'Errore estensione licenza' });
+  }
+});
+
+// TIPO DI ATTIVITÀ E MODULI — sostituisce l'insieme; vale subito (cache invalidata) sul processo che lo riceve
+router.put('/tenants/:id/modules', authenticateMaster, validate({ params: idParamsSchema, body: tenantModulesSchema }), async (req, res) => {
+  try {
+    const { rows } = await masterPool.query(
+      'UPDATE tenants SET business_type = $1, modules = $2 WHERE id = $3 RETURNING *',
+      [req.body.businessType, normalizeModules(req.body.modules), req.params.id]
+    );
+    if (!rows.length) return res.status(404).json({ error: 'Tenant non trovato' });
+    invalidateTenantModules(req.params.id);
+    logger.info({ tenantId: req.params.id, businessType: rows[0].business_type, modules: rows[0].modules }, 'Moduli del tenant aggiornati dal master');
+    res.json(rows[0]);
+  } catch (err) {
+    logger.error({ err }, 'Errore PUT /api/master/tenants/:id/modules');
+    res.status(500).json({ error: 'Errore salvataggio moduli' });
   }
 });
 
