@@ -92,8 +92,8 @@ describe('ordini', () => {
     const totalOf = async (body) => {
       const res = await api.post('/orders', body);
       assert.equal(res.status, 200, JSON.stringify(res.body));
-      const saved = await row('SELECT total, items FROM orders WHERE id = $1', [res.body.orderId]);
-      return { total: Number(saved.total), lineTotal: saved.items[0].line_total };
+      const saved = await row('SELECT o.total, i.line_total FROM orders o JOIN order_items i ON i.order_id = o.id WHERE o.id = $1', [res.body.orderId]);
+      return { total: Number(saved.total), lineTotal: Number(saved.line_total) };
     };
     await setStock(null);
     await adminDb.query('UPDATE products SET stock_enabled = false WHERE id = $1', [t.productId]);

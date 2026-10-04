@@ -186,12 +186,12 @@ export default function (broadcast) {
         const createdAt = isLateSync ? clampToSession(client_created_at, session) : null;
 
         const { rows } = await db.query(
-          `INSERT INTO orders (items, total, status, created_by, order_type, is_takeaway, display_code, session_id, client_order_id, created_at, device_id, device_seq)
-           VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, COALESCE($10, now()), $11, $12) RETURNING id, created_at, display_code`,
-          [JSON.stringify(verifiedItems), verifiedTotal, orderStatus, req.user.id, order_type, !!is_takeaway,
+          `INSERT INTO orders (total, status, created_by, order_type, is_takeaway, display_code, session_id, client_order_id, created_at, device_id, device_seq)
+           VALUES ($1, $2, $3, $4, $5, $6, $7, $8, COALESCE($9, now()), $10, $11) RETURNING id, created_at, display_code`,
+          [verifiedTotal, orderStatus, req.user.id, order_type, !!is_takeaway,
             displayCode, session.id, client_order_id ?? null, createdAt, device_id ?? null, device_seq ?? null]
         );
-        // Copia delle righe in order_items (Fase 1): il JSONB resta la fonte di verità, un errore qui non blocca la vendita.
+        // Le righe sono parte dell'ordine: se non si scrivono, l'ordine non nasce (la transazione si annulla).
         await writeOrderItems(db, req.user.tenantId, rows[0].id, verifiedItems);
 
         // Lo stock riguarda la serata in corso: dopo la chiusura non si tocca più

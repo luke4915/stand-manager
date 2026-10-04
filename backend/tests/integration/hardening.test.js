@@ -67,10 +67,10 @@ describe('rinforzi di sicurezza', () => {
     await adminDb.query(`UPDATE products SET name = 'Panino', category = 'Cibo', print_destination = 'kitchen' WHERE id = $1`, [t.productId]);
     const res = await admin.post('/orders', { items: [{ id: t.productId, name: 'Nome falso', category: 'Falsa', print_destination: 'bar', quantity: 1 }] });
     assert.equal(res.status, 200);
-    const { rows: [order] } = await adminDb.query('SELECT items FROM orders WHERE id = $1', [res.body.orderId]);
-    assert.equal(order.items[0].name, 'Panino');
-    assert.equal(order.items[0].category, 'Cibo');
-    assert.equal(order.items[0].print_destination, 'kitchen');
+    const { rows: [line] } = await adminDb.query('SELECT name, category, print_destination FROM order_items WHERE order_id = $1', [res.body.orderId]);
+    assert.equal(line.name, 'Panino');
+    assert.equal(line.category, 'Cibo');
+    assert.equal(line.print_destination, 'kitchen');
   });
 
   it('ordine in ritardo senza chiave di idempotenza: 400', async () => {

@@ -11,10 +11,10 @@ describe('statistiche e paginazione', () => {
 
   const insertOrder = async ({ session, status = 'completed', items, total, takeaway = false, at, completedAfterMin = null }) => {
     const { rows: [o] } = await adminDb.query(
-      `INSERT INTO orders (items, total, status, session_id, is_takeaway, created_at, completed_at, tenant_id, order_type)
-       VALUES ($1, $2, $3, $4, $5, $6, $6::timestamptz + ($7 || ' minutes')::interval, $8, 'sale') RETURNING id`,
-      [JSON.stringify(items), total, status, session, takeaway, at, completedAfterMin === null ? null : String(completedAfterMin), t.id]);
-    // le statistiche leggono le righe da order_items: si scrivono con la stessa mappatura che usa l'app
+      `INSERT INTO orders (total, status, session_id, is_takeaway, created_at, completed_at, tenant_id, order_type)
+       VALUES ($1, $2, $3, $4, $5, $5::timestamptz + ($6 || ' minutes')::interval, $7, 'sale') RETURNING id`,
+      [total, status, session, takeaway, at, completedAfterMin === null ? null : String(completedAfterMin), t.id]);
+    // le righe d'ordine si scrivono con la stessa mappatura che usa l'app
     await insertOrderItemRows(adminDb, t.id, toOrderItemRows(items).rows.map(r => ({ ...r, order_id: o.id })));
     return o.id;
   };

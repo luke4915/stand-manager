@@ -236,7 +236,7 @@ ALTER SEQUENCE public.order_items_id_seq OWNED BY public.order_items.id;
 
 CREATE TABLE public.orders (
     id integer NOT NULL,
-    items jsonb NOT NULL,
+    items jsonb,
     total numeric(10,2) NOT NULL,
     status text DEFAULT 'pending'::text NOT NULL,
     created_at timestamp with time zone DEFAULT now(),

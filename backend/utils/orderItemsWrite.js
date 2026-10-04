@@ -1,8 +1,6 @@
-import logger from '../logger.js';
 import { toOrderItemRows } from './orderItems.js';
 
-// Scrittura delle righe d'ordine in `order_items`. Le usano la creazione ordine (doppia scrittura, routes/orders.js)
-// e il riempimento dei vecchi ordini (utils/orderItemsBackfill.js).
+// Scrittura delle righe d'ordine in `order_items`, usata dalla creazione ordine (routes/orders.js).
 
 const ROWS_PER_INSERT = 200;
 
@@ -23,20 +21,12 @@ export async function insertOrderItemRows(db, tenantId, rows) {
   }
 }
 
-// Doppia scrittura: da chiamare dentro la transazione dell'ordine, subito dopo l'INSERT in `orders`.
-// Il JSONB è ancora la fonte di verità, quindi un errore qui non deve mai bloccare una vendita: la scrittura sta in un
-// SAVEPOINT, e se fallisce l'ordine passa lo stesso. L'errore si logga; `scripts/order-items.js verify` lo mostra come
-// riga mancante e `backfill` rifà la copia.
+// Scrive le righe di un ordine appena creato. Va chiamata dentro la transazione dell'ordine, subito dopo l'INSERT in
+// `orders`: le righe sono parte dell'ordine, quindi se non si scrivono tutte la transazione si annulla e l'ordine non nasce.
+// `items` sono le righe già verificate dal server (prezzi ricalcolati, nome e categoria dal catalogo).
 export async function writeOrderItems(db, tenantId, orderId, items) {
-  const { rows, anomalies } = toOrderItemRows(items);
-  if (anomalies.length) logger.warn({ orderId, anomalies }, 'Righe d\'ordine con anomalie nella copia in tabella');
-
-  await db.query('SAVEPOINT order_items_copy');
-  try {
-    await insertOrderItemRows(db, tenantId, rows.map((r) => ({ ...r, order_id: orderId })));
-    await db.query('RELEASE SAVEPOINT order_items_copy');
-  } catch (err) {
-    await db.query('ROLLBACK TO SAVEPOINT order_items_copy');
-    logger.error({ err, orderId }, 'Righe d\'ordine non scritte in order_items: l\'ordine è valido, rifare la copia con scripts/order-items.js backfill');
-  }
+  const { rows } = toOrderItemRows(items);
+  if (rows.length !== items.length)
+    throw new Error(`Righe d'ordine non rappresentabili (${rows.length} su ${items.length}) per l'ordine ${orderId}`);
+  await insertOrderItemRows(db, tenantId, rows.map((r) => ({ ...r, order_id: orderId })));
 }

@@ -1,15 +1,16 @@
-// Letture dalla tabella order_items: ogni punto che mostra un ordine deve dare le stesse righe che dava il JSONB,
-// sia per gli ordini nuovi sia per quelli vecchi dalla forma irregolare.
+// Letture dalla tabella order_items: ogni punto che mostra un ordine dà le righe giuste, sia per gli ordini nuovi sia
+// per quelli di vecchio stampo dalla forma irregolare (senza line_total, senza categoria, id fuori catalogo).
 import { describe, it, before, after } from 'node:test';
 import assert from 'node:assert/strict';
 import { startServer, createTenant, deleteTenants, closePools, apiClient, adminDb } from './helpers.js';
-import { scanTenant } from '../../utils/orderItemsBackfill.js';
+import { toOrderItemRows } from '../../utils/orderItems.js';
+import { insertOrderItemRows } from '../../utils/orderItemsWrite.js';
 
 const round2 = (n) => Math.round(n * 100) / 100;
 const to8 = (n) => Math.round(n * 1e8) / 1e8; // il prezzo unitario si conserva a 8 decimali
 const numOrNull = (v) => (v === undefined || v === null || v === '' || !Number.isFinite(Number(v)) ? null : Number(v));
 
-// Cosa diceva il JSONB, con i valori mancanti portati ai predefiniti che oggi dà la tabella.
+// Le righe come le dava l'app fin dall'inizio, con i valori mancanti portati ai predefiniti della tabella.
 const fromJson = (i) => ({
   id: numOrNull(i.id),
   name: i.name ?? '',
@@ -41,23 +42,19 @@ describe('order_items: letture', () => {
     api = apiClient(server.port, t.host);
     await api.login(t.username);
 
+    // ordini di vecchio stampo: righe irregolari, scritte con la stessa mappatura che usa l'app
     for (const { status, items } of LEGACY) {
       const { rows: [o] } = await adminDb.query(
-        `INSERT INTO orders (items, total, status, tenant_id, session_id, display_code) VALUES ($1, 10, $2, $3, $4, 'L') RETURNING id`,
-        [JSON.stringify(items), status, t.id, t.sessionId]);
+        `INSERT INTO orders (total, status, tenant_id, session_id, display_code) VALUES (10, $1, $2, $3, 'L') RETURNING id`,
+        [status, t.id, t.sessionId]);
+      await insertOrderItemRows(adminDb, t.id, toOrderItemRows(items).rows.map(r => ({ ...r, order_id: o.id })));
       orders.push({ id: o.id, json: items });
     }
-    const client = await adminDb.connect();
-    try {
-      await client.query('SELECT set_config($1, $2, false)', ['app.tenant_id', String(t.id)]);
-      await scanTenant(client, t.id, { apply: true });
-    } finally { client.release(); }
 
     // un ordine nuovo, passato dall'API
     const res = await api.post('/orders', { items: [{ id: t.productId, name: 'x', quantity: 2, note: 'ben cotto' }], status: 'pending' });
     assert.equal(res.status, 200, JSON.stringify(res.body));
-    const { rows: [fresh] } = await adminDb.query('SELECT items FROM orders WHERE id = $1', [res.body.orderId]);
-    orders.push({ id: res.body.orderId, json: fresh.items });
+    orders.push({ id: res.body.orderId, json: [{ id: t.productId, name: 'Panino', quantity: 2, price: 5, line_total: 10, original_price: 5, note: 'ben cotto', category: 'Cibo', type: 'sale', print_destination: 'both' }] });
   });
   after(async () => {
     await deleteTenants(t);
@@ -67,7 +64,7 @@ describe('order_items: letture', () => {
 
   const expectedItems = (o) => o.json.map(fromJson);
 
-  it('GET /orders: stesse righe del JSONB (la categoria mancante si completa dal catalogo o diventa "Altro")', async () => {
+  it('GET /orders: le righe attese (la categoria mancante si completa dal catalogo o diventa "Altro")', async () => {
     const res = await api.get('/orders?session=active');
     assert.equal(res.status, 200);
     for (const o of orders) {

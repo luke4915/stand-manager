@@ -1,22 +1,14 @@
-// Doppia scrittura: ogni ordine nuovo scrive il JSONB e le righe in tabella, nella stessa transazione;
-// un errore sulla copia non blocca mai la vendita.
+// Scrittura delle righe d'ordine: sono parte dell'ordine, nella stessa transazione.
 import { describe, it, before, after } from 'node:test';
 import assert from 'node:assert/strict';
 import { randomUUID } from 'crypto';
 import { startServer, createTenant, deleteTenants, closePools, apiClient, adminDb } from './helpers.js';
-import { scanTenant, verifyTenant } from '../../utils/orderItemsBackfill.js';
 
-describe('order_items: doppia scrittura', () => {
+describe('order_items: scrittura', () => {
   let server, t, api, gift;
 
   const rowsOf = async (orderId) => (await adminDb.query('SELECT * FROM order_items WHERE order_id = $1 ORDER BY position', [orderId])).rows;
-  const verify = async () => {
-    const client = await adminDb.connect();
-    try {
-      await client.query('SELECT set_config($1, $2, false)', ['app.tenant_id', String(t.id)]);
-      return await verifyTenant(client);
-    } finally { client.release(); }
-  };
+  const countOf = async (table) => (await adminDb.query(`SELECT count(*)::int AS n FROM ${table} WHERE tenant_id = $1`, [t.id])).rows[0].n;
   const post = (items, extra = {}) => api.post('/orders', { items: items.map(i => ({ name: 'x', ...i })), status: 'completed', ...extra });
 
   before(async () => {
@@ -32,22 +24,24 @@ describe('order_items: doppia scrittura', () => {
     await closePools();
   });
 
-  it('un ordine nuovo scrive le righe, uguali a quelle del JSONB', async () => {
+  it('un ordine nuovo scrive le sue righe, con i valori ricalcolati dal server', async () => {
     const res = await post([
       { id: t.productId, quantity: 2, note: 'senza cipolla' },
       { id: gift, quantity: 1, type: 'gift' },
     ]);
     assert.equal(res.status, 200, JSON.stringify(res.body));
     const rows = await rowsOf(res.body.orderId);
-    assert.equal(rows.length, 2);
     assert.deepEqual(rows.map(r => [r.position, Number(r.product_id), r.name, r.quantity, r.line_type, r.note]),
       [[0, t.productId, 'Panino', 2, 'sale', 'senza cipolla'], [1, gift, 'Bibita', 1, 'gift', '']]);
     assert.equal(Number(rows[0].line_total), 10);
     assert.equal(Number(rows[1].line_total), 0, 'omaggio: line_total a zero');
+    assert.equal(Number(rows[1].original_price), 2, 'il mancato incasso si legge dal listino');
     assert.equal(rows[1].category, 'Bar');
     assert.equal(rows[1].print_destination, 'bar');
     assert.ok(rows.every(r => r.tenant_id === t.id));
-    assert.equal((await verify()).errors, 0);
+    const { rows: [order] } = await adminDb.query('SELECT items, total FROM orders WHERE id = $1', [res.body.orderId]);
+    assert.equal(order.items, null, 'il JSONB non si scrive più');
+    assert.equal(Number(order.total), 10);
   });
 
   it('stesso client_order_id: un solo ordine e nessuna riga in più', async () => {
@@ -57,15 +51,13 @@ describe('order_items: doppia scrittura', () => {
     assert.equal(again.body.duplicate, true);
     assert.equal(again.body.orderId, first.body.orderId);
     assert.equal((await rowsOf(first.body.orderId)).length, 1);
-    assert.equal((await verify()).errors, 0);
   });
 
   it('ordine rifiutato (prodotto inesistente o sessione chiusa): nessuna riga orfana', async () => {
-    const before = (await adminDb.query('SELECT count(*)::int AS n FROM order_items WHERE tenant_id = $1', [t.id])).rows[0].n;
+    const before = await countOf('order_items');
     assert.equal((await post([{ id: 999999999, quantity: 1 }])).status, 400);
     assert.equal((await post([{ id: t.productId, quantity: 1 }], { client_order_id: randomUUID(), session_id: 999999999, client_created_at: new Date().toISOString() })).status, 409);
-    const after = (await adminDb.query('SELECT count(*)::int AS n FROM order_items WHERE tenant_id = $1', [t.id])).rows[0].n;
-    assert.equal(after, before);
+    assert.equal(await countOf('order_items'), before);
   });
 
   it('lo storno cambia lo stato dell\'ordine e lascia le righe com\'erano', async () => {
@@ -83,37 +75,20 @@ describe('order_items: doppia scrittura', () => {
     await adminDb.query(`UPDATE sessions SET end_time = NULL WHERE id = $1`, [t.sessionId]);
   });
 
-  it('se la copia in tabella fallisce, la vendita passa lo stesso e il backfill la ripara', async () => {
-    await adminDb.query('ALTER TABLE order_items ADD CONSTRAINT zz_rompi_la_copia CHECK (false) NOT VALID');
+  it('se le righe non si possono scrivere l\'ordine non nasce, e stock e totali restano come prima', async () => {
+    await adminDb.query('UPDATE products SET stock_enabled = true, stock = 10 WHERE id = $1', [t.productId]);
+    const orders = await countOf('orders');
+    await adminDb.query('ALTER TABLE order_items ADD CONSTRAINT zz_rompi_le_righe CHECK (false) NOT VALID');
     let res;
     try {
-      res = await post([{ id: t.productId, quantity: 1 }]);
+      res = await post([{ id: t.productId, quantity: 2 }]);
     } finally {
-      await adminDb.query('ALTER TABLE order_items DROP CONSTRAINT zz_rompi_la_copia');
+      await adminDb.query('ALTER TABLE order_items DROP CONSTRAINT zz_rompi_le_righe');
     }
-    assert.equal(res.status, 200, JSON.stringify(res.body));
-    const { rows } = await adminDb.query('SELECT items FROM orders WHERE id = $1', [res.body.orderId]);
-    assert.equal(rows[0].items.length, 1, 'il JSONB è stato scritto');
-    assert.equal((await rowsOf(res.body.orderId)).length, 0, 'la copia manca');
-
-    const broken = await verify();
-    assert.equal(broken.counts.manca_riga, 1);
-
-    const client = await adminDb.connect();
-    try {
-      await client.query('SELECT set_config($1, $2, false)', ['app.tenant_id', String(t.id)]);
-      const fixed = await scanTenant(client, t.id, { apply: true });
-      assert.equal(fixed.rows, 1);
-    } finally { client.release(); }
-    assert.equal((await verify()).errors, 0);
-  });
-
-  it('stock e totali di sempre non cambiano', async () => {
-    const before = (await adminDb.query('SELECT count(*)::int AS n, sum(total) AS total FROM orders WHERE tenant_id = $1', [t.id])).rows[0];
-    const res = await post([{ id: t.productId, quantity: 2 }]);
-    assert.equal(res.status, 200);
-    const after = (await adminDb.query('SELECT count(*)::int AS n, sum(total) AS total FROM orders WHERE tenant_id = $1', [t.id])).rows[0];
-    assert.equal(after.n, before.n + 1);
-    assert.equal(Number(after.total), Number(before.total) + 10);
+    assert.equal(res.status, 500);
+    assert.equal(await countOf('orders'), orders, 'nessun ordine senza righe');
+    assert.equal((await adminDb.query('SELECT stock FROM products WHERE id = $1', [t.productId])).rows[0].stock, 10, 'lo stock non scala');
+    await adminDb.query('UPDATE products SET stock_enabled = false, stock = NULL WHERE id = $1', [t.productId]);
+    assert.equal((await post([{ id: t.productId, quantity: 1 }])).status, 200, 'e dopo il guasto si torna a vendere');
   });
 });
