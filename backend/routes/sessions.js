@@ -7,7 +7,7 @@ import { logAudit } from '../utils/auditLogger.js';
 import { startSessionSchema, endSessionSchema } from '../schemas/sessionSchema.js';
 import { validate } from '../middleware/validate.js';
 import { HttpError, sendHttpError } from '../utils/httpError.js';
-import { computeExpectedCash, countOpenOrders } from '../utils/session.js';
+import { computeExpectedCash, countOpenOrders, countOpenChecks } from '../utils/session.js';
 
 const router = express.Router();
 
@@ -38,9 +38,10 @@ export default function (broadcast) {
   router.get('/expected-cash', authenticate, tenantScope, async (req, res) => {
     try {
       const { rows } = await req.db.query('SELECT id FROM sessions WHERE end_time IS NULL');
-      if (!rows.length) return res.json({ expected: 0, openOrders: 0, openOrdersTotal: 0 });
+      if (!rows.length) return res.json({ expected: 0, openOrders: 0, openOrdersTotal: 0, openChecks: 0, openChecksTotal: 0 });
       const open = await countOpenOrders(req.db, rows[0].id);
-      res.json({ expected: await computeExpectedCash(req.db, rows[0].id), openOrders: open.count, openOrdersTotal: open.total });
+      const checks = await countOpenChecks(req.db, rows[0].id);
+      res.json({ expected: await computeExpectedCash(req.db, rows[0].id), openOrders: open.count, openOrdersTotal: open.total, openChecks: checks.count, openChecksTotal: checks.total });
     } catch (err) {
       logger.error({ err }, 'Errore GET /api/sessions/expected-cash');
       res.status(500).json({ error: 'Errore calcolo del totale atteso' });
@@ -91,6 +92,11 @@ export default function (broadcast) {
         const { rows: active } = await db.query('SELECT id FROM sessions WHERE end_time IS NULL FOR UPDATE');
         if (!active.length) return null;
 
+        // I conti dei tavoli aperti bloccano la chiusura: i soldi non sono stati incassati e non c'è una scelta "lascia fuori".
+        const openChecks = await countOpenChecks(db, active[0].id);
+        if (openChecks.count > 0)
+          throw new HttpError(409, `Ci sono ${openChecks.count} conti aperti: incassali o annullali prima di chiudere il servizio`, 'OPEN_CHECKS');
+
         // Gli ordini ancora aperti non entrano nei conti: o l'admin li completa, o restano fuori.
         const open = await countOpenOrders(db, active[0].id);
         if (open.count > 0 && !openOrders)
@@ -99,7 +105,7 @@ export default function (broadcast) {
         if (open.count > 0 && openOrders === 'complete') {
           const { rowCount } = await db.query(
             `UPDATE orders SET status = 'completed', completed_at = COALESCE(completed_at, now())
-             WHERE session_id = $1 AND status IN ('pending', 'preparing')`,
+             WHERE session_id = $1 AND check_id IS NULL AND status IN ('pending', 'preparing')`,
             [active[0].id]
           );
           completedOrders = rowCount;

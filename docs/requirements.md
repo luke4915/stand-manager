@@ -57,7 +57,7 @@ Disegno completo e decisioni in `docs/design-tavoli.md`. Un passo alla volta; i 
 | 2-0 | La regola "cosa conta come incasso" in un solo punto (`utils/revenue.js`), oggi sparsa in sei query; i test di prima passano invariati e un test impedisce di riscriverla altrove. | `[x]` |
 | 2-1 | Modulo `tables`: sale e tavoli (migrazione 031, tabelle `rooms` e `dining_tables`), API `/rooms` e `/tables`, gestione da parte dell'admin in Sistema (anche tavoli in serie). La mappa con la posizione dei tavoli arriverà con la vista Sala. | `[x]` |
 | 2-2 | Conto per tavolo (`checks` e `orders.check_id`, migrazione 032): apertura con coperti, un solo conto aperto per tavolo, numeri in fila nella sessione, totali ricalcolati dal server, richiesta del conto, annullo, evento `check_updated`. I pagamenti (`payments`) arrivano col 2-5. | `[x]` |
-| 2-3 | L'incasso conosce i conti: statistiche, contanti attesi, chiusura serata e CSV; le sagre restano identiche. | `[ ]` |
+| 2-3 | L'incasso conosce i conti: statistiche, contanti attesi, chiusura serata e CSV; le sagre restano identiche (stessi numeri su 1338 ordini reali). Migrazione 035: tabella `payments` (l'API dei pagamenti è il 2-5). Un conto aperto blocca la chiusura del servizio. | `[x]` |
 | 2-4 | Comanda su un conto aperto; il KDS e la comanda mostrano tavolo e coperti. | `[ ]` |
 | 2-5 | Pagamenti (contanti, carta, altro), anche in più parti alla romana; chiusura del conto; ricevuta non fiscale. | `[ ]` |
 | 2-6 | Vista Sala: tavoli per sala con stato, apertura tavolo, carrello in modalità tavolo, pannello del conto, aggiornamento in tempo reale. | `[ ]` |

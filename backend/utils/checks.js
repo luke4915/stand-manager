@@ -8,16 +8,18 @@ const SUMMARY_SQL = `
   SELECT c.id, c.number, c.status, c.session_id, c.table_id, t.name AS table_name, t.room_id, r.name AS room_name,
          c.covers, c.opened_by, u.username AS opened_by_name, c.opened_at, c.bill_requested_at, c.closed_at,
          COALESCE((SELECT SUM(o.total) FROM orders o WHERE o.check_id = c.id AND o.status <> 'canceled'), 0) AS orders_total,
-         (SELECT COUNT(*) FROM orders o WHERE o.check_id = c.id AND o.status <> 'canceled')::int AS orders_count
+         (SELECT COUNT(*) FROM orders o WHERE o.check_id = c.id AND o.status <> 'canceled')::int AS orders_count,
+         COALESCE((SELECT SUM(p.amount) FROM payments p WHERE p.check_id = c.id), 0) AS paid_total
   FROM checks c
   LEFT JOIN dining_tables t ON t.id = c.table_id
   LEFT JOIN rooms r ON r.id = t.room_id
   LEFT JOIN users u ON u.id = c.opened_by`;
 
-// Importi in euro come numeri (pg restituisce i numeric come stringhe). `paid` e `due` arrivano coi pagamenti.
-const toSummary = (row) => {
+// Importi in euro come numeri (pg restituisce i numeric come stringhe). `due` è ciò che resta da pagare.
+const toSummary = ({ paid_total, ...row }) => {
   const total = Number(row.orders_total);
-  return { ...row, orders_total: total, total, paid: 0, due: total };
+  const paid = Number(paid_total);
+  return { ...row, orders_total: total, total, paid, due: Math.max(0, +(total - paid).toFixed(2)) };
 };
 
 export async function listChecks(db, { status = 'open', tableId = null } = {}) {

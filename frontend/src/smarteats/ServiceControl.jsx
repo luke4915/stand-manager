@@ -22,7 +22,12 @@ const ServiceControl = ({ service, canManage, start, closingInfo, end }) => {
 
   const begin = async () => {
     if (!service) { setName(suggestedName()); return setStep('start'); }
-    try { setInfo(await closingInfo()); } catch { setInfo({ expected: 0, openOrders: 0, openOrdersTotal: 0 }); }
+    let current = { expected: 0, openOrders: 0, openOrdersTotal: 0, openChecks: 0 };
+    try { current = await closingInfo(); } catch { /* senza dati si prosegue: il server blocca comunque */ }
+    // Conti aperti: i soldi non sono stati incassati, il server non lascia chiudere.
+    if (current.openChecks > 0)
+      return showToast(`Ci sono ${current.openChecks} conti aperti: incassali o annullali prima di chiudere il servizio`, 'warning');
+    setInfo(current);
     setStep('end');
   };
 

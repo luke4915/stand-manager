@@ -3,13 +3,23 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { isRevenue } from '../utils/revenue.js';
+import { isRevenue, expectedCashSql } from '../utils/revenue.js';
 
 const backend = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 
-test('oggi un ordine è incasso quando è completato, con l\'alias richiesto', () => {
-  assert.equal(isRevenue(), "o.status = 'completed'");
-  assert.equal(isRevenue('x'), "x.status = 'completed'");
+test('la regola: ordine pagato subito completato, oppure ordine non annullato di un conto pagato', () => {
+  const rule = isRevenue('x').replace(/\s+/g, ' ');
+  assert.match(rule, /x\.check_id IS NULL AND x\.status = 'completed'/);
+  assert.match(rule, /x\.check_id IS NOT NULL AND x\.status <> 'canceled'/);
+  assert.match(rule, /rc\.id = x\.check_id AND rc\.status = 'paid'/);
+  assert.match(isRevenue(), /\bo\.check_id\b/, 'alias predefinito: o');
+});
+
+test('i contanti attesi contano solo i pagamenti in contanti dei conti', () => {
+  const sql = expectedCashSql('$3').replace(/\s+/g, ' ');
+  assert.match(sql, /p\.method = 'cash'/);
+  assert.match(sql, /o\.session_id = \$3/);
+  assert.match(sql, /c\.session_id = \$3/);
 });
 
 // L'incasso si definisce in utils/revenue.js. Chi riscrive `status = 'completed'` in una query sugli ordini
