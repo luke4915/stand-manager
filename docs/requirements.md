@@ -38,9 +38,9 @@ Va fatta da sola, senza funzioni nuove. Si procede in "espandi e poi restringi":
 
 | Id | Requisito | Stato |
 |---|---|---|
-| 1-1 | Tabella `order_items` (migrazione 027, additiva): una riga per prodotto ordinato, tenant-scoped con RLS, che rispecchia le righe dell'ordine (prodotto, nome, quantità, prezzi, tipo, sconto, nota, categoria, destinazione di stampa). Niente stato per riga e niente portata: arrivano nella Fase 3. | `[ ]` |
-| 1-2 | Script di riempimento dei vecchi ordini dal JSONB (ripetibile, per tenant) che segnala le anomalie invece di nasconderle. | `[ ]` |
-| 1-3 | Script di verifica prima/dopo: stesso numero di righe per ordine, stesse quantità per prodotto, stessi importi di riga; elenco delle differenze. | `[ ]` |
+| 1-1 | Tabella `order_items` (migrazione 027, additiva): una riga per prodotto ordinato, tenant-scoped con RLS, che rispecchia le righe dell'ordine (prodotto, nome, quantità, prezzi, tipo, sconto, nota, categoria, destinazione di stampa). Niente stato per riga e niente portata: arrivano nella Fase 3. | `[x]` |
+| 1-2 | Script di riempimento dei vecchi ordini dal JSONB (`backend/scripts/order-items.js backfill`): ripetibile, per tenant, in prova di default (`--apply` per scrivere), segnala le anomalie invece di nasconderle. | `[x]` |
+| 1-3 | Script di verifica (`order-items.js verify`): stesso numero di righe per ordine, stesse quantità per prodotto, stessi importi di riga; elenco delle differenze. | `[x]` |
 | 1-4 | Doppia scrittura: ogni ordine nuovo scrive JSONB e righe nella stessa transazione. Le letture non cambiano. | `[ ]` |
 | 1-5 | Letture una alla volta dalle righe (elenco ordini, KDS, storno e stock, esportazione CSV, statistiche), ognuna con un test che confronta il risultato con quello del JSONB sugli stessi dati. | `[ ]` |
 | 1-6 | Il JSONB resta come copia dell'ordine così com'è stato emesso (scontrino, ristampa). Si valuta se toglierlo solo dopo la Fase 3. | `[ ]` |

@@ -177,6 +177,60 @@ ALTER SEQUENCE public.devices_id_seq OWNED BY public.devices.id;
 
 
 --
+-- Name: order_items; Type: TABLE; Schema: public; Owner: colettas
+--
+
+CREATE TABLE public.order_items (
+    id integer NOT NULL,
+    tenant_id integer DEFAULT (NULLIF(current_setting('app.tenant_id'::text, true), ''::text))::integer NOT NULL,
+    order_id integer NOT NULL,
+    "position" integer NOT NULL,
+    product_id bigint,
+    name text NOT NULL,
+    category text,
+    print_destination text,
+    quantity integer NOT NULL,
+    unit_price numeric(12,4) NOT NULL,
+    line_total numeric(12,2) NOT NULL,
+    original_price numeric(12,4),
+    line_type text DEFAULT 'sale'::text NOT NULL,
+    discount_mode text,
+    discount_value numeric(12,4),
+    note text DEFAULT ''::text NOT NULL,
+    CONSTRAINT order_items_line_type_check CHECK ((line_type = ANY (ARRAY['sale'::text, 'gift'::text, 'discount'::text]))),
+    CONSTRAINT order_items_position_check CHECK (("position" >= 0)),
+    CONSTRAINT order_items_print_destination_check CHECK ((print_destination = ANY (ARRAY['bar'::text, 'kitchen'::text, 'both'::text]))),
+    CONSTRAINT order_items_quantity_check CHECK ((quantity > 0))
+);
+
+ALTER TABLE ONLY public.order_items FORCE ROW LEVEL SECURITY;
+
+
+ALTER TABLE public.order_items OWNER TO colettas;
+
+--
+-- Name: order_items_id_seq; Type: SEQUENCE; Schema: public; Owner: colettas
+--
+
+CREATE SEQUENCE public.order_items_id_seq
+    AS integer
+    START WITH 1
+    INCREMENT BY 1
+    NO MINVALUE
+    NO MAXVALUE
+    CACHE 1;
+
+
+ALTER SEQUENCE public.order_items_id_seq OWNER TO colettas;
+
+--
+-- Name: order_items_id_seq; Type: SEQUENCE OWNED BY; Schema: public; Owner: colettas
+--
+
+ALTER SEQUENCE public.order_items_id_seq OWNED BY public.order_items.id;
+
+
+--
 -- Name: orders; Type: TABLE; Schema: public; Owner: colettas
 --
 
@@ -486,6 +540,13 @@ ALTER TABLE ONLY public.devices ALTER COLUMN id SET DEFAULT nextval('public.devi
 
 
 --
+-- Name: order_items id; Type: DEFAULT; Schema: public; Owner: colettas
+--
+
+ALTER TABLE ONLY public.order_items ALTER COLUMN id SET DEFAULT nextval('public.order_items_id_seq'::regclass);
+
+
+--
 -- Name: orders id; Type: DEFAULT; Schema: public; Owner: colettas
 --
 
@@ -573,6 +634,14 @@ ALTER TABLE ONLY public.devices
 
 ALTER TABLE ONLY public.devices
     ADD CONSTRAINT devices_tenant_id_letter_key UNIQUE (tenant_id, letter);
+
+
+--
+-- Name: order_items order_items_pkey; Type: CONSTRAINT; Schema: public; Owner: colettas
+--
+
+ALTER TABLE ONLY public.order_items
+    ADD CONSTRAINT order_items_pkey PRIMARY KEY (id);
 
 
 --
@@ -683,6 +752,20 @@ CREATE INDEX idx_devices_tenant ON public.devices USING btree (tenant_id);
 
 
 --
+-- Name: idx_order_items_tenant; Type: INDEX; Schema: public; Owner: colettas
+--
+
+CREATE INDEX idx_order_items_tenant ON public.order_items USING btree (tenant_id);
+
+
+--
+-- Name: idx_order_items_tenant_product; Type: INDEX; Schema: public; Owner: colettas
+--
+
+CREATE INDEX idx_order_items_tenant_product ON public.order_items USING btree (tenant_id, product_id);
+
+
+--
 -- Name: idx_orders_tenant_created_at; Type: INDEX; Schema: public; Owner: colettas
 --
 
@@ -729,6 +812,13 @@ CREATE INDEX idx_users_tenant ON public.users USING btree (tenant_id);
 --
 
 CREATE UNIQUE INDEX uniq_copy_types_tenant_name ON public.copy_types USING btree (tenant_id, name);
+
+
+--
+-- Name: uniq_order_items_order_position; Type: INDEX; Schema: public; Owner: colettas
+--
+
+CREATE UNIQUE INDEX uniq_order_items_order_position ON public.order_items USING btree (order_id, "position");
 
 
 --
@@ -789,6 +879,22 @@ ALTER TABLE ONLY public.copy_types
 
 ALTER TABLE ONLY public.devices
     ADD CONSTRAINT devices_tenant_id_fkey FOREIGN KEY (tenant_id) REFERENCES public.tenants(id);
+
+
+--
+-- Name: order_items order_items_order_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: colettas
+--
+
+ALTER TABLE ONLY public.order_items
+    ADD CONSTRAINT order_items_order_id_fkey FOREIGN KEY (order_id) REFERENCES public.orders(id);
+
+
+--
+-- Name: order_items order_items_tenant_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: colettas
+--
+
+ALTER TABLE ONLY public.order_items
+    ADD CONSTRAINT order_items_tenant_id_fkey FOREIGN KEY (tenant_id) REFERENCES public.tenants(id);
 
 
 --
@@ -889,6 +995,12 @@ CREATE POLICY master_read ON public.users FOR SELECT TO standmanager_master USIN
 
 
 --
+-- Name: order_items; Type: ROW SECURITY; Schema: public; Owner: colettas
+--
+
+ALTER TABLE public.order_items ENABLE ROW LEVEL SECURITY;
+
+--
 -- Name: orders; Type: ROW SECURITY; Schema: public; Owner: colettas
 --
 
@@ -937,6 +1049,13 @@ CREATE POLICY tenant_isolation ON public.copy_types USING ((tenant_id = (NULLIF(
 --
 
 CREATE POLICY tenant_isolation ON public.devices USING ((tenant_id = (NULLIF(current_setting('app.tenant_id'::text, true), ''::text))::integer));
+
+
+--
+-- Name: order_items tenant_isolation; Type: POLICY; Schema: public; Owner: colettas
+--
+
+CREATE POLICY tenant_isolation ON public.order_items USING ((tenant_id = (NULLIF(current_setting('app.tenant_id'::text, true), ''::text))::integer));
 
 
 --
@@ -1057,6 +1176,22 @@ GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE public.devices TO standmanager_master
 
 GRANT ALL ON SEQUENCE public.devices_id_seq TO standmanager_app;
 GRANT SELECT,USAGE ON SEQUENCE public.devices_id_seq TO standmanager_master;
+
+
+--
+-- Name: TABLE order_items; Type: ACL; Schema: public; Owner: colettas
+--
+
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE public.order_items TO standmanager_app;
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE public.order_items TO standmanager_master;
+
+
+--
+-- Name: SEQUENCE order_items_id_seq; Type: ACL; Schema: public; Owner: colettas
+--
+
+GRANT ALL ON SEQUENCE public.order_items_id_seq TO standmanager_app;
+GRANT SELECT,USAGE ON SEQUENCE public.order_items_id_seq TO standmanager_master;
 
 
 --
