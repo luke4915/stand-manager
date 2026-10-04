@@ -385,7 +385,10 @@ CREATE TABLE public.tenants (
     stripe_customer_id text,
     created_at timestamp with time zone DEFAULT now(),
     expires_at timestamp with time zone,
-    active boolean DEFAULT true NOT NULL
+    active boolean DEFAULT true NOT NULL,
+    business_type text DEFAULT 'sagra'::text NOT NULL,
+    modules text[] DEFAULT ARRAY['kds'::text, 'stats'::text, 'qr_menu'::text] NOT NULL,
+    CONSTRAINT tenants_business_type_check CHECK ((business_type = ANY (ARRAY['sagra'::text, 'paninaro'::text, 'ristorante'::text])))
 );
 
 
