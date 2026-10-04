@@ -3,6 +3,7 @@ import path from 'path';
 import { fileURLToPath } from 'url';
 import pg from 'pg';
 import { appConnectionConfig } from '../db.js';
+import { stripTransactionControl } from '../utils/migrationSql.js';
 
 // Le DDL girano con l'utente privilegiato se MIGRATION_DATABASE_URL è impostata,
 // altrimenti con l'utente applicativo. Questo pool esiste solo per le migrazioni.
@@ -53,7 +54,7 @@ async function run() {
                 console.log(`⏭  ${file} già applicata, salto`);
                 continue;
             }
-            const sql = fs.readFileSync(path.join(__dirname, file), 'utf8');
+            const sql = stripTransactionControl(fs.readFileSync(path.join(__dirname, file), 'utf8'));
             console.log(`▶  Applico ${file}...`);
             try {
                 await client.query('BEGIN');
