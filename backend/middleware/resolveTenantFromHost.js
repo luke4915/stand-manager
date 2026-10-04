@@ -15,6 +15,12 @@ export function extractSlug(hostname) {
   return slug === 'www' ? null : slug;
 }
 
+// Il master panel la chiama quando disattiva o elimina un tenant: l'effetto è immediato,
+// senza aspettare la scadenza della cache.
+export function invalidateTenantSlug(slug) {
+  slugCache.delete(slug);
+}
+
 // Ritorna { tenantId, active } oppure null se lo slug non esiste.
 export async function findTenantBySlug(slug) {
   const cached = slugCache.get(slug);
