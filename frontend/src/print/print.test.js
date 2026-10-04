@@ -4,7 +4,7 @@ import { EposBuilder } from './eposBuilder.js';
 import { TEMPLATES, DEFAULT_BRANDING, wrapText, encodeOrderId, filterItems } from './templates.js';
 import { brandingFromSettings, imagesFromSettings } from './branding.js';
 import { buildCopyPreviews } from './copyPreviews.js';
-import { renderReceipt } from './preview.js';
+import { renderReceipt, renderReceiptParts } from './preview.js';
 import { buildPrintJobs, parseAddress } from './print.js';
 import { eposDriver, PrintError } from './drivers/epos.js';
 
@@ -154,6 +154,16 @@ test('renderReceipt disegna testo, allineamento, immagini, QR e taglio', () => {
   assert.match(out, /\[immagine 512x90px\]/);
   assert.match(out, /\[qrcode: XYZ\]/);
   assert.match(out, /taglio/);
+});
+
+test('renderReceiptParts separa il testo dalle immagini, in ordine, con i dati a 1 bit', () => {
+  const xml = new EposBuilder().text('SOPRA').image({ width: 8, height: 2, b64: 'qrs=' }, { align: 'center' }).text('SOTTO').cut().buildXml();
+  const parts = renderReceiptParts(xml);
+  assert.equal(parts.length, 3);
+  assert.match(parts[0].text, /SOPRA/);
+  assert.deepEqual(parts[1], { image: { width: 8, height: 2, b64: 'qrs=' } });
+  assert.match(parts[2].text, /SOTTO[\s\S]*✂/);
+  assert.ok(!parts[0].text.includes('immagine'));
 });
 
 test('anteprima delle copie: usa testi e immagini del tenant e salta le copie vuote', async () => {
