@@ -93,4 +93,15 @@ describe('scontrini: impostazioni e ristampa', () => {
     assert.equal((await api2.post('/orders/reprints', body)).status, 404); // un altro tenant non vede l'ordine
     assert.equal((await api1.post('/orders/reprints', { client_order_id: key, reprinted_at: [] })).status, 400);
   });
+
+  it('il nome di una copia è unico per tenant: due tenant possono avere la stessa copia, lo stesso tenant no', async () => {
+    const body = { name: 'Ritiro Bar', label: 'Copia bar' };
+    const first = await api1.post('/print-settings/copy-types', body);
+    const other = await api2.post('/print-settings/copy-types', body);
+    assert.equal(first.status, 201);
+    assert.equal(other.status, 201, 'un altro tenant deve poter creare la stessa copia');
+    const again = await api1.post('/print-settings/copy-types', body);
+    assert.equal(again.status, 409);
+    assert.equal(again.body.error, 'Nome già esistente');
+  });
 });

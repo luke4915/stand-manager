@@ -2,7 +2,7 @@
 -- PostgreSQL database dump
 --
 
-\restrict QFckuchMZ1VLx7LjL906PPK4rbMHw0TSUPWTQnc79qoUSWrzjKmEZ2yyXtIRhIZ
+\restrict Jqgbh5vwD9UvBiZdFdUOtUeNq8A7qe5eD6HlTqocWb21TgkrbjTdl08nme4EhmT
 
 -- Dumped from database version 17.10 (Homebrew)
 -- Dumped by pg_dump version 17.10 (Homebrew)
@@ -545,14 +545,6 @@ ALTER TABLE ONLY public.audit_logs
 
 
 --
--- Name: copy_types copy_types_name_key; Type: CONSTRAINT; Schema: public; Owner: colettas
---
-
-ALTER TABLE ONLY public.copy_types
-    ADD CONSTRAINT copy_types_name_key UNIQUE (name);
-
-
---
 -- Name: copy_types copy_types_pkey; Type: CONSTRAINT; Schema: public; Owner: colettas
 --
 
@@ -731,6 +723,13 @@ CREATE INDEX idx_sessions_tenant ON public.sessions USING btree (tenant_id);
 --
 
 CREATE INDEX idx_users_tenant ON public.users USING btree (tenant_id);
+
+
+--
+-- Name: uniq_copy_types_tenant_name; Type: INDEX; Schema: public; Owner: colettas
+--
+
+CREATE UNIQUE INDEX uniq_copy_types_tenant_name ON public.copy_types USING btree (tenant_id, name);
 
 
 --
@@ -1147,5 +1146,5 @@ ALTER DEFAULT PRIVILEGES FOR ROLE colettas IN SCHEMA public GRANT ALL ON TABLES 
 -- PostgreSQL database dump complete
 --
 
-\unrestrict QFckuchMZ1VLx7LjL906PPK4rbMHw0TSUPWTQnc79qoUSWrzjKmEZ2yyXtIRhIZ
+\unrestrict Jqgbh5vwD9UvBiZdFdUOtUeNq8A7qe5eD6HlTqocWb21TgkrbjTdl08nme4EhmT
 

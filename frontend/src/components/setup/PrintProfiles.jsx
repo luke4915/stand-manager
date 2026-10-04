@@ -193,28 +193,25 @@ const PrintProfiles = () => {
     }
   };
 
+  // Gli errori di creazione e modifica li mostra la finestra stessa (resta aperta): per questo qui si propagano.
   const createCopyType = async ({ name, label }) => {
-    try {
-      await fetchWithAuth('/print-settings/copy-types', { method: 'POST', body: { name, label } });
-      setModal(null);
-      await fetchAll();
-    } catch (err) { setError(err.message); }
+    await fetchWithAuth('/print-settings/copy-types', { method: 'POST', body: { name, label } });
+    setModal(null);
+    await fetchAll();
   };
 
   const editCopyType = async ({ name, label }) => {
-    try {
-      await fetchWithAuth(`/print-settings/copy-types/${modal.id}`, { method: 'PUT', body: { name, label } });
-      setModal(null);
-      await fetchAll();
-    } catch (err) { setError(err.message); }
+    await fetchWithAuth(`/print-settings/copy-types/${modal.id}`, { method: 'PUT', body: { name, label } });
+    setModal(null);
+    await fetchAll();
   };
 
   const deleteCopyType = async (id) => {
     try {
       await fetchWithAuth(`/print-settings/copy-types/${id}`, { method: 'DELETE' });
-      setConfirmDelete(null);
       await fetchAll();
     } catch (err) { setError(err.message); }
+    finally { setConfirmDelete(null); } // chiusa anche in caso di errore: il messaggio sta sotto la finestra
   };
 
   const availableTemplates = BACKEND_TEMPLATES.filter(
@@ -408,6 +405,16 @@ const PrintProfiles = () => {
 const CopyTypeModal = ({ initial, templatesOptions, onSave, onClose }) => {
   const [name, setName] = useState(initial?.name || '');
   const [label, setLabel] = useState(initial?.label || '');
+  const [error, setError] = useState(null);
+  const [saving, setSaving] = useState(false);
+
+  const submit = async () => {
+    setSaving(true);
+    setError(null);
+    try { await onSave({ name: name.trim(), label: label.trim() }); }
+    catch (err) { setError(err.message); }
+    finally { setSaving(false); }
+  };
   return (
     <div className="fixed inset-0 bg-black bg-opacity-60 flex items-center justify-center z-50">
       <div className="bg-[var(--bg-card)] rounded-2xl shadow-xl p-6 w-full max-w-sm border border-[var(--border)]">
@@ -432,11 +439,12 @@ const CopyTypeModal = ({ initial, templatesOptions, onSave, onClose }) => {
               value={label} onChange={e => setLabel(e.target.value)} placeholder="Copia Associazione" />
           </div>
         </div>
+        {error && <p className="mt-4 text-xs font-bold text-red-500">{error}</p>}
         <div className="flex justify-end gap-3 mt-6">
           <button onClick={onClose} className="px-4 py-2 rounded-xl bg-[var(--bg-card-2)] text-[var(--text-main)] text-sm">Annulla</button>
-          <button onClick={() => onSave({ name: name.trim(), label: label.trim() })}
-            disabled={!name.trim() || !label.trim()}
-            className="px-4 py-2 rounded-xl bg-[var(--accent)] text-white text-sm font-bold disabled:opacity-50">Salva</button>
+          <button onClick={submit}
+            disabled={saving || !name.trim() || !label.trim()}
+            className="px-4 py-2 rounded-xl bg-[var(--accent)] text-white text-sm font-bold disabled:opacity-50">{saving ? 'Salvataggio...' : 'Salva'}</button>
         </div>
       </div>
     </div>

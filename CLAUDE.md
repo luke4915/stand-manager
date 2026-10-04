@@ -111,7 +111,7 @@ L'isolamento tra tenant si basa sulla Row-Level Security di PostgreSQL con la va
 
 ## 6. Database e migrazioni
 
-- Ogni modifica di schema è una nuova migrazione `backend/migrations/NNN_descrizione.sql`, numerata dopo l'ultima esistente (oggi 018; il numero 012 è saltato, non riusarlo).
+- Ogni modifica di schema è una nuova migrazione `backend/migrations/NNN_descrizione.sql`, numerata dopo l'ultima esistente (oggi 019; il numero 012 è saltato, non riusarlo).
 - **Non modificare mai una migrazione già applicata.** Per correggerla, scrivine una nuova.
 - Le migrazioni devono essere idempotenti dove possibile (`IF NOT EXISTS`, `DROP POLICY IF EXISTS`). `run.js` le esegue in transazione.
 - `MIGRATION_DATABASE_URL` serve a eseguire le DDL con un utente privilegiato. L'app gira con l'utente applicativo, soggetto a RLS.
