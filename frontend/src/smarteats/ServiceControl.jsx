@@ -3,6 +3,7 @@ import { Power } from 'lucide-react';
 import { useToast } from '../context/useToast';
 import EndSessionModal from '../components/shared/EndSessionModal';
 import CashCountModal from '../components/shared/CashCountModal';
+import { termsFor } from '../utils/terms';
 
 // Proposta di nome in base all'ora: pranzo fino alle 16, poi cena.
 const suggestedName = () => {
@@ -71,7 +72,7 @@ const ServiceControl = ({ service, canManage, start, closingInfo, end }) => {
         </div>
       )}
       {step === 'end' && (
-        <EndSessionModal sessionName={service.name} openOrders={info.openOrders || 0} openOrdersTotal={info.openOrdersTotal || 0}
+        <EndSessionModal title={termsFor('ristorante').endTitle} sessionName={service.name} openOrders={info.openOrders || 0} openOrdersTotal={info.openOrdersTotal || 0}
           onCancel={() => setStep(null)} onConfirm={(choice) => { setOpenOrdersAction(choice); setStep('cash'); }} />
       )}
       {step === 'cash' && (

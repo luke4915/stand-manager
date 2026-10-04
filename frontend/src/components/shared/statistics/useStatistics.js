@@ -26,7 +26,7 @@ const empty = {
 };
 
 // Le statistiche le calcola il server (GET /stats): al browser arrivano solo i totali, mai gli ordini.
-export function useStatistics() {
+export function useStatistics(terms) {
   const [sessions, setSessions] = useState([]);
   const [stats, setStats] = useState(empty);
   const [selectedSessionIds, setSelectedSessionIds] = useState([]);
@@ -87,8 +87,8 @@ export function useStatistics() {
     return () => { cancelled = true; };
   }, [h2hProduct, h2hSessionA, h2hSessionB]);
 
-  const sessionAName = sessions.find(s => String(s.id) === String(h2hSessionA))?.name || 'Serata A';
-  const sessionBName = sessions.find(s => String(s.id) === String(h2hSessionB))?.name || 'Serata B';
+  const sessionAName = sessions.find(s => String(s.id) === String(h2hSessionA))?.name || (terms?.defaultA ?? 'Serata A');
+  const sessionBName = sessions.find(s => String(s.id) === String(h2hSessionB))?.name || (terms?.defaultB ?? 'Serata B');
 
   const sortedTopProdotti = useMemo(() => (
     [...stats.topProdotti].sort((a, b) => b[topProductsMetric] - a[topProductsMetric]).slice(0, 10)

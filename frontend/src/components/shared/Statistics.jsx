@@ -9,16 +9,20 @@ import ChartCard from './statistics/ChartCard';
 import { tooltipStyle } from './statistics/chartStyles';
 import { useStatistics, formatEuro, formatMin, activeHours, reorderHours } from './statistics/useStatistics';
 import { exportStatsPdf } from './statistics/pdfExport';
+import { useAuth } from '../../context/useAuth';
+import { termsFor } from '../../utils/terms';
 
 const Statistics = () => {
   const { showToast } = useToast();
+  const { user } = useAuth();
+  const terms = termsFor(user?.businessType);
   const {
     sessions, loading, error,
     selectedSessionIds, toggleSession, setSelectedSessionIds,
     stats, sortedTopProdotti, topProductsMetric, setTopProductsMetric,
     h2hProduct, setH2hProduct, h2hSessionA, setH2hSessionA, h2hSessionB, setH2hSessionB,
     availableProducts, h2hData, sessionAName, sessionBName,
-  } = useStatistics();
+  } = useStatistics(terms);
 
   const [isExportModalOpen, setIsExportModalOpen] = useState(false);
 
@@ -68,7 +72,7 @@ const Statistics = () => {
             className="flex items-center gap-2 px-4 py-2.5 bg-[var(--accent)] hover:bg-[var(--accent-hover)] cursor-pointer text-white text-xs font-black uppercase tracking-wider rounded-xl transition-all">
             <Download size={14} /> Esporta CSV
           </button>
-          <button onClick={() => exportStatsPdf(stats, sessions, selectedSessionIds)}
+          <button onClick={() => exportStatsPdf(stats, sessions, selectedSessionIds, terms)}
             className="flex items-center gap-2 px-4 py-2.5 bg-[var(--accent)] hover:bg-[var(--accent-hover)] cursor-pointer text-white text-xs font-black uppercase tracking-wider rounded-xl transition-all">
             <FileText size={14} /> Esporta PDF
           </button>
@@ -76,7 +80,7 @@ const Statistics = () => {
       </div>
 
       {sessions.length > 0 && (
-        <ChartCard title="Filtra per sessione">
+        <ChartCard title={terms.filter}>
           <div className="flex flex-wrap gap-2">
             {sessions.map(s => {
               const selected = selectedSessionIds.includes(String(s.id));
@@ -103,7 +107,7 @@ const Statistics = () => {
       )}
 
       <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-        <StatCard label="Totale serata" value={formatEuro(stats.totaleSerata)} />
+        <StatCard label={terms.total} value={formatEuro(stats.totaleSerata)} />
         <StatCard label="Importo medio" value={formatEuro(stats.importoMedio)} />
         <StatCard label="Totale ordini" value={stats.numeroTotaleOrdini} />
         <StatCard label="Top prodotto" value={stats.prodottoPiuVenduto || '—'} />
@@ -190,16 +194,16 @@ const Statistics = () => {
           </ChartCard>
 
           {sessions.length > 1 && (
-            <ChartCard title="Confronto prodotto tra serate (head to head)">
+            <ChartCard title={terms.h2h}>
               <div className="flex flex-wrap gap-2 mb-4">
                 <select value={h2hSessionA} onChange={e => setH2hSessionA(e.target.value)}
                   className="px-3 py-2 rounded-xl border border-[var(--border)] bg-[var(--bg-card-2)] text-xs font-bold text-[var(--text-main)]">
-                  <option value="">Serata A…</option>
+                  <option value="">{terms.pickA}</option>
                   {sessions.map(s => <option key={s.id} value={s.id}>{s.name || new Date(s.start_time).toLocaleDateString('it-IT')}</option>)}
                 </select>
                 <select value={h2hSessionB} onChange={e => setH2hSessionB(e.target.value)}
                   className="px-3 py-2 rounded-xl border border-[var(--border)] bg-[var(--bg-card-2)] text-xs font-bold text-[var(--text-main)]">
-                  <option value="">Serata B…</option>
+                  <option value="">{terms.pickB}</option>
                   {sessions.map(s => <option key={s.id} value={s.id}>{s.name || new Date(s.start_time).toLocaleDateString('it-IT')}</option>)}
                 </select>
                 <select value={h2hProduct} onChange={e => setH2hProduct(e.target.value)}
@@ -221,7 +225,7 @@ const Statistics = () => {
                   </BarChart>
                 </ResponsiveContainer>
               ) : (
-                <p className="text-xs text-[var(--text-muted)] text-center py-8">Seleziona un prodotto e due serate da confrontare.</p>
+                <p className="text-xs text-[var(--text-muted)] text-center py-8">{terms.selectTwo}</p>
               )}
             </ChartCard>
           )}
@@ -279,11 +283,11 @@ const Statistics = () => {
           </ChartCard>
 
           {stats.confrontoSerate.length > 1 && (
-            <ChartCard title="Confronto serate">
+            <ChartCard title={terms.compare}>
               <table className="w-full text-sm">
                 <thead>
                   <tr className="border-b border-[var(--border)]">
-                    {['Sessione', 'Totale', 'Ordini', 'Medio'].map(h => (
+                    {[terms.column, 'Totale', 'Ordini', 'Medio'].map(h => (
                       <th key={h} className="text-left p-2 text-[10px] font-black uppercase tracking-widest text-[var(--text-muted)]">{h}</th>
                     ))}
                   </tr>
@@ -318,11 +322,11 @@ const Statistics = () => {
             </div>
             <div className="p-4 max-h-72 overflow-y-auto space-y-2 no-scrollbar">
               {closedSessions.length === 0 ? (
-                <p className="text-xs text-center text-[var(--text-muted)] py-6 italic">Nessuna sessione conclusa disponibile.</p>
+                <p className="text-xs text-center text-[var(--text-muted)] py-6 italic">{terms.none}</p>
               ) : closedSessions.map(s => (
                 <div key={s.id} className="flex items-center justify-between p-3 rounded-xl bg-[var(--bg-card-2)] border border-[var(--border)] hover:border-[var(--accent)]/40 transition-all">
                   <div className="min-w-0 flex-1 pr-2">
-                    <p className="text-sm font-bold text-[var(--text-main)] truncate">{s.name || `Sessione ${s.id}`}</p>
+                    <p className="text-sm font-bold text-[var(--text-main)] truncate">{s.name || `${terms.column} ${s.id}`}</p>
                     <p className="text-[10px] text-[var(--text-muted)]">
                       Chiusa il {new Date(s.end_time).toLocaleDateString('it-IT')} alle {new Date(s.end_time).toLocaleTimeString('it-IT', { hour: '2-digit', minute: '2-digit' })}
                     </p>

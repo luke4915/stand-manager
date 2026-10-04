@@ -2,7 +2,7 @@ import { useState } from 'react';
 
 // Conferma della chiusura serata. Se ci sono ordini ancora aperti (in attesa o in preparazione)
 // l'admin sceglie: completarli (entrano nei conti) o lasciarli fuori da totale atteso e statistiche.
-const EndSessionModal = ({ sessionName, openOrders, openOrdersTotal, onCancel, onConfirm }) => {
+const EndSessionModal = ({ title = 'Terminare Sessione?', sessionName, openOrders, openOrdersTotal, onCancel, onConfirm }) => {
   const [choice, setChoice] = useState(null);
   const needsChoice = openOrders > 0;
 
@@ -19,7 +19,7 @@ const EndSessionModal = ({ sessionName, openOrders, openOrdersTotal, onCancel, o
           </svg>
         </div>
         <div>
-          <h2 className="text-xl font-black text-[var(--text-main)]">Terminare Sessione?</h2>
+          <h2 className="text-xl font-black text-[var(--text-main)]">{title}</h2>
           <p className="text-sm text-gray-400 mt-2">
             Stai per chiudere <span className="font-bold text-[var(--text-main)]">"{sessionName}"</span>.
           </p>

@@ -65,7 +65,7 @@ Disegno completo e decisioni in `docs/design-tavoli.md`. Un passo alla volta; i 
 | 2-7 | Spostare un conto su un altro tavolo libero (`POST /checks/:id/move`) e unire due conti (`POST /checks/:id/merge`: comande, pagamenti e coperti confluiscono, il conto assorbito resta annullato con `merged_into`, migrazione 037). La cucina vede il tavolo nuovo. Nella Sala: «Sposta o unisci tavolo» nel menu del conto. | `[x]` |
 | 2-8 | Pagamento per voce (chi paga cosa): fatto insieme al 2-5. Il raggruppamento per portata arriverà con la Fase 3. | `[x]` |
 | 2-9 | Coperto sul conto: impostazione `cover_charge` (euro a persona, solo admin), fissata su ogni conto all'apertura; è una riga automatica «Coperto × coperti» (comanda di tipo `cover`, già servita), quindi si paga, si sconta e conta nell'incasso come ogni voce ma non come comanda nelle statistiche. «Modifica i coperti» nel menu del conto; l'unione dei conti somma i coperti. Migrazione 038. Lo sconto sul conto c'è dal 2-5 (omaggio/sconto sulle voci). | `[x]` |
-| 2-10 | Servizi (pranzo e cena) al posto delle "serate". | `[ ]` |
+| 2-10 | Servizi al posto delle «serate» per i ristoranti: stesse sessioni lato server, vocabolario del tipo di locale (`utils/terms.js`) in statistiche, PDF e chiusura; il nome del servizio è proposto dall'ora (Pranzo/Cena). | `[x]` |
 
 ## Fase 3: portate e cucina (P1)
 

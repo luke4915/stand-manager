@@ -2,11 +2,11 @@ import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
 import { formatEuro, formatMin } from './useStatistics';
 
-export function exportStatsPdf(stats, sessions, selectedSessionIds) {
+export function exportStatsPdf(stats, sessions, selectedSessionIds, terms) {
   const doc = new jsPDF();
   const scopeLabel = selectedSessionIds.length > 0
     ? sessions.filter(s => selectedSessionIds.includes(String(s.id))).map(s => s.name || s.id).join(', ')
-    : 'Tutte le sessioni';
+    : (terms?.all ?? 'Tutte le sessioni');
 
   doc.setFontSize(16);
   doc.text('Report Statistiche — Stand Manager', 14, 16);
@@ -18,7 +18,7 @@ export function exportStatsPdf(stats, sessions, selectedSessionIds) {
     startY: 34,
     head: [['Indicatore', 'Valore']],
     body: [
-      ['Totale serata', formatEuro(stats.totaleSerata)],
+      [terms?.total ?? 'Totale serata', formatEuro(stats.totaleSerata)],
       ['Importo medio ordine', formatEuro(stats.importoMedio)],
       ['Totale ordini', stats.numeroTotaleOrdini],
       ['Prodotto più venduto', stats.prodottoPiuVenduto || '—'],
@@ -56,7 +56,7 @@ export function exportStatsPdf(stats, sessions, selectedSessionIds) {
   if (stats.confrontoSerate.length > 1) {
     autoTable(doc, {
       startY: doc.lastAutoTable.finalY + 10,
-      head: [['Sessione', 'Totale', 'Ordini', 'Medio']],
+      head: [[terms?.column ?? 'Sessione', 'Totale', 'Ordini', 'Medio']],
       body: stats.confrontoSerate.map(s => [s.name, formatEuro(s.totale), s.numero, formatEuro(s.medio)]),
       theme: 'striped',
       headStyles: { fillColor: [37, 99, 235] },
