@@ -114,15 +114,21 @@ export default function (broadcast) {
 
     // Idempotenza: un ordine già ricevuto (retry dopo un errore di rete o dalla
     // coda offline) non si duplica, si risponde con quello esistente.
-    if (client_order_id) {
-      const existing = await findOrderByClientId(req.db, client_order_id);
-      if (existing) return res.json(duplicateResponse(existing));
-    }
+    let dbProducts;
+    try {
+      if (client_order_id) {
+        const existing = await findOrderByClientId(req.db, client_order_id);
+        if (existing) return res.json(duplicateResponse(existing));
+      }
 
-    const productIds = [...new Set(items.map(i => i.id).filter(Boolean))];
-    const { rows: dbProducts } = await req.db.query(
-      'SELECT id, name, price, category, print_destination FROM products WHERE id = ANY($1)', [productIds]
-    );
+      const productIds = [...new Set(items.map(i => i.id).filter(Boolean))];
+      ({ rows: dbProducts } = await req.db.query(
+        'SELECT id, name, price, category, print_destination FROM products WHERE id = ANY($1)', [productIds]
+      ));
+    } catch (err) {
+      logger.error({ err }, 'Errore POST /api/orders (lettura catalogo)');
+      return res.status(500).json({ error: "Errore durante l'invio dell'ordine" });
+    }
     // Prezzo, nome, categoria e destinazione di stampa vengono dal catalogo, mai dal client
     const productMap = Object.fromEntries(dbProducts.map(p => [p.id, p]));
 

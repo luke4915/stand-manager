@@ -94,6 +94,22 @@ describe('pannello master', () => {
     assert.equal((await appPool.query('SELECT 1 FROM tenants WHERE id = $1', [t1.id])).rows.length, 1);
   });
 
+  it('disattivare un tenant blocca subito le pagine pubbliche, senza aspettare la cache dei sottodomini', async () => {
+    const t = await createTenant();
+    const pub = apiClient(server.port, t.host);
+    try {
+      assert.equal((await pub.get('/products/menu')).status, 200); // ora il sottodominio è in cache
+      assert.equal((await master.request('PATCH', `/master/tenants/${t.id}/active`, { active: false }, masterCookie)).status, 200);
+      const blocked = await pub.get('/products/menu');
+      assert.equal(blocked.status, 403);
+      assert.equal(blocked.body.code, 'TENANT_INACTIVE');
+      assert.equal((await master.request('PATCH', `/master/tenants/${t.id}/active`, { active: true }, masterCookie)).status, 200);
+      assert.equal((await pub.get('/products/menu')).status, 200);
+    } finally {
+      await deleteTenants(t);
+    }
+  });
+
   it('elenco tenant del master con il numero di utenti', async () => {
     const res = await master.request('GET', '/master/tenants', undefined, masterCookie);
     assert.equal(res.status, 200);
