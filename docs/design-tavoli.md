@@ -1,0 +1,132 @@
+# Disegno: sala, tavoli e conti (SmartEats, Fase 2)
+
+Documento di progetto, da approvare prima di scrivere codice. Il piano per fasi sta in `docs/requirements.md`; qui c'è il
+disegno della Fase 2 e l'ordine dei passi. Si aggiorna se cambiano le decisioni.
+
+## 1. Cosa vogliamo
+
+Un cameriere apre un **tavolo** con un certo numero di coperti, vi aggiunge **comande** nel corso del pasto (che vanno in cucina),
+a fine pasto il tavolo chiede il **conto**, che si paga anche in più parti (alla romana o per voce) con contanti, carta o altro.
+Il tavolo torna libero. Tutto è sincronizzato in tempo reale fra i dispositivi della sala.
+
+Resta tutto com'è per le sagre: un ordine pagato subito alla cassa, senza tavolo né conto.
+
+## 2. Il concetto nuovo: il conto
+
+Oggi un ordine è insieme comanda (va in cucina) e pagamento (entra nell'incasso). Al tavolo le due cose si separano:
+
+- **Ordine = comanda.** Ciò che il tavolo ha chiesto in un certo momento. Ha lo stato di cucina di sempre (in attesa, in
+  preparazione, completato = servito, annullato).
+- **Conto = ciò che il tavolo deve pagare.** Raccoglie le comande del tavolo, ha un totale e dei pagamenti.
+
+Un ordine senza conto (`check_id` nullo) si comporta **esattamente come oggi**. Un ordine con conto non entra nell'incasso
+finché il conto non è pagato.
+
+## 3. Dati
+
+Tutte le tabelle nuove sono tenant-scoped con RLS (`CLAUDE.md` §3) e vanno in `TENANT_SCOPED_TABLES`.
+
+```
+rooms        id, tenant_id, name, position, active
+tables       id, tenant_id, room_id, name, seats, x, y (posizione sulla mappa, facoltativa), active
+             unico per (tenant, sala, nome)
+
+checks       id, tenant_id, session_id, table_id (nullo per banco), number (progressivo per sessione),
+             covers, status ('open' | 'paid' | 'void'), opened_by, opened_at, bill_requested_at, closed_at,
+             cover_charge (coperto applicato, fissato all'apertura), discount_* (sconto sul conto, solo ruoli sconto)
+             indice unico: un solo conto aperto per tavolo
+payments     id, tenant_id, check_id, method ('cash' | 'card' | 'other'), amount, paid_by, paid_at
+
+orders       + check_id (nullo = ordine pagato subito, come oggi)
+```
+
+- **Il totale del conto non si fida del client.** Lo calcola il server: somma dei totali degli ordini non annullati, più
+  coperti × coperto, meno lo sconto sul conto. Il conto si chiude quando i pagamenti coprono il totale.
+- **Stato del tavolo** non si memorizza: libero se non ha un conto aperto, occupato se ce l'ha, "conto richiesto" se
+  `bill_requested_at` è valorizzato.
+- **Pagamento per voce** (Passo 2-8): tabella `payment_items` (pagamento, riga d'ordine, quantità). Non serve prima.
+- Le righe degli ordini restano in `order_items` (Fase 1): lo stato per riga e la portata arrivano nella Fase 3.
+
+## 4. Punto critico: cosa conta come incasso
+
+Oggi "incasso" = ordine `completed`, e questa regola è scritta in sei punti:
+
+| Dove | Cosa fa |
+|---|---|
+| `utils/statsSql.js` | righe vendute nelle statistiche |
+| `routes/stats.js` (3 query) | totali, fasce orarie, confronto serate |
+| `utils/session.js` | incasso atteso in contanti |
+| `routes/sessions.js` | completamento forzato alla chiusura |
+| `routes/exports.js` | CSV di sessione |
+| `routes/orders.js` | annullo rapido in modalità semplice |
+
+**Passo 2-0 (nessuna novità visibile):** la regola si porta in un solo punto (`utils/revenue.js`), usato da tutti. Si dimostra
+con i test che nulla cambia. Solo dopo, in quell'unico punto, la regola diventa:
+
+> è incasso un ordine `completed` senza conto, oppure un ordine non annullato di un conto `paid`.
+
+L'incasso **atteso in contanti** conta inoltre, per i conti, solo i pagamenti con metodo `cash` (la carta non entra nel
+cassetto). Oggi tutto è contanti, quindi per le sagre non cambia nulla.
+
+Chiusura serata: i **conti aperti** bloccano la chiusura come oggi gli ordini in attesa (`openOrders`): l'admin sceglie se
+chiuderli o lasciarli fuori.
+
+## 5. API (modulo `tables`)
+
+Tutte dietro `authenticate → tenantScope` e `requireModule('tables')`; il tenant viene dal token.
+
+```
+GET/POST/PUT/DELETE  /rooms, /tables             admin (lettura: tutti i ruoli di cassa)
+GET   /checks?status=open                          conti aperti (mappa della sala)
+POST  /checks            { table_id, covers }      apre il conto (409 se il tavolo ne ha già uno)
+GET   /checks/:id                                  conto con comande, righe, totale, pagamenti
+POST  /checks/:id/bill-request                     chiede il conto
+POST  /checks/:id/payments { method, amount }      registra un pagamento; chiude il conto se copre il totale
+POST  /checks/:id/void                             annulla (solo ruoli sconto; ripristina lo stock)
+POST  /checks/:id/move   { table_id }              sposta il conto su un altro tavolo libero
+POST  /checks/:id/merge  { into }                  unisce due conti
+POST  /orders            + check_id                comanda su un conto aperto
+```
+
+Errori di business con `HttpError` (404, 409 `TABLE_BUSY`, `CHECK_CLOSED`, …). Ogni azione sensibile (apertura, pagamento,
+annullo, spostamento) con `logAudit`.
+
+Eventi WebSocket: `check_updated`, `table_updated`. Il KDS pubblico riceve il nome del tavolo e i coperti, mai importi.
+
+## 6. Interfaccia
+
+Nuova vista **Sala** (voce di menu del modulo `tables`), in componenti dedicati sotto `components/sala/` (non in `App.jsx`):
+elenco o mappa dei tavoli per sala con stato; aprire un tavolo (coperti); il carrello esistente funziona in "modalità
+tavolo" (invia la comanda al conto invece di pagarla); pannello del conto con righe, totale, richiesta del conto e pagamento.
+Mobile e desktop come il resto dell'app.
+
+**Offline:** i tavoli richiedono il server, perché lo stato del conto è condiviso fra più dispositivi. La cassa "banco" resta
+offline-first come oggi. È un limite da dichiarare ai clienti, non un difetto da risolvere in questa fase.
+
+## 7. Ordine dei passi
+
+Ogni passo si può provare e rilasciare da solo; i primi due non cambiano nulla per le sagre.
+
+| Passo | Cosa | Tocca DB | Rischio |
+|---|---|---|---|
+| 2-0 | Regola "incasso" in un solo punto (`utils/revenue.js`) | no | basso, con test di equivalenza |
+| 2-1 | Modulo `tables`, migrazione 031: sale e tavoli, API e gestione admin | sì (nuove tabelle) | basso |
+| 2-2 | Migrazione 032: `checks`, `payments`, `orders.check_id`; ciclo di vita del conto e totali | sì | medio |
+| 2-3 | La regola "incasso" conosce i conti (statistiche, contanti, chiusura serata, CSV) | no | **alto**: si prova che le sagre non cambiano |
+| 2-4 | Comanda su un conto: `POST /orders` con `check_id`, KDS e comanda con tavolo | no | medio |
+| 2-5 | Pagamenti (contanti, carta, alla romana), chiusura conto, ricevuta non fiscale | no | medio |
+| 2-6 | Interfaccia Sala: tavoli, apertura, carrello in modalità tavolo, pannello del conto | no | medio |
+| 2-7 | Spostare un conto, unire due tavoli | no | basso |
+| 2-8 | Pagamento per voce (`payment_items`) | sì | medio |
+| 2-9 | Coperto e sconto sul conto | sì (impostazioni) | basso |
+| 2-10 | Servizi (pranzo/cena) al posto delle "serate" | no | basso |
+
+Prima del passo 2-3 e di ogni migrazione: backup. Dopo ogni passo: test di integrazione, lint, build e un giro a mano.
+
+## 8. Decisioni da prendere
+
+1. **Incasso dei conti:** conta quando il conto è pagato (consigliato; le comande servite ma non ancora pagate non sono denaro).
+2. **Offline dei tavoli:** non supportato in questa fase (vedi §6).
+3. **Ruolo cameriere:** nella Fase 2 bastano i ruoli esistenti (cassa, responsabile, admin); il ruolo `cameriere` con permessi
+   propri (nessun pagamento, sconto o annullo) arriva con la Fase 3.
+4. **Fiscale:** fuori, come deciso; la ricevuta del conto è un documento non fiscale.

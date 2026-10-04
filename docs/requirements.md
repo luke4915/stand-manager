@@ -49,15 +49,21 @@ alla fine il JSONB è sparito. Oggi le righe stanno **solo** in `order_items`.
 
 ## Fase 2: sala, tavoli e conti (P1)
 
+Disegno completo e decisioni in `docs/design-tavoli.md`. Un passo alla volta; i primi due non cambiano nulla per le sagre.
+
 | Id | Requisito | Stato |
 |---|---|---|
-| 2-1 | Sale e tavoli (nome, posti, posizione) con gestione da parte dell'admin. | `[ ]` |
-| 2-2 | Mappa della sala sulla cassa: stato del tavolo (libero, occupato, in attesa del conto). | `[ ]` |
-| 2-3 | Conto aperto per tavolo: si aggiungono comande nel tempo e si chiude al pagamento. | `[ ]` |
-| 2-4 | Spostare un conto da un tavolo a un altro e unire due tavoli. | `[ ]` |
-| 2-5 | Pagamento diviso: alla romana (per persone) e per riga. | `[ ]` |
-| 2-6 | Coperti per tavolo e relativo costo (opzionale per locale). | `[ ]` |
-| 2-7 | Servizi al posto delle "serate": pranzo e cena con apertura e chiusura. | `[ ]` |
+| 2-0 | La regola "cosa conta come incasso" in un solo punto (`utils/revenue.js`), oggi sparsa in sei; test di equivalenza. | `[ ]` |
+| 2-1 | Modulo `tables`: sale e tavoli (migrazione 031), API e gestione da parte dell'admin. | `[ ]` |
+| 2-2 | Conto per tavolo (`checks`, `payments`, `orders.check_id`, migrazione 032): apertura con coperti, totali ricalcolati dal server, richiesta del conto. | `[ ]` |
+| 2-3 | L'incasso conosce i conti: statistiche, contanti attesi, chiusura serata e CSV; le sagre restano identiche. | `[ ]` |
+| 2-4 | Comanda su un conto aperto; il KDS e la comanda mostrano tavolo e coperti. | `[ ]` |
+| 2-5 | Pagamenti (contanti, carta, altro), anche in più parti alla romana; chiusura del conto; ricevuta non fiscale. | `[ ]` |
+| 2-6 | Vista Sala: tavoli per sala con stato, apertura tavolo, carrello in modalità tavolo, pannello del conto, aggiornamento in tempo reale. | `[ ]` |
+| 2-7 | Spostare un conto su un altro tavolo e unire due tavoli. | `[ ]` |
+| 2-8 | Pagamento per voce (chi paga cosa). | `[ ]` |
+| 2-9 | Coperto e sconto sul conto. | `[ ]` |
+| 2-10 | Servizi (pranzo e cena) al posto delle "serate". | `[ ]` |
 
 ## Fase 3: portate e cucina (P1)
 
