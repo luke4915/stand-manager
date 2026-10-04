@@ -1,4 +1,5 @@
 import { toOrderItemRows } from './orderItems.js';
+import { insertOrderItemRows } from './orderItemsWrite.js';
 
 // Riempimento e verifica di `order_items` dai vecchi ordini (orders.items). Le funzioni lavorano su una connessione
 // già legata al tenant (app.tenant_id impostato), come il resto del backend; le chiama scripts/order-items.js.
@@ -9,30 +10,13 @@ import { toOrderItemRows } from './orderItems.js';
 const TENANT = "NULLIF(current_setting('app.tenant_id', true), '')::int";
 
 const BATCH_ORDERS = 500;
-const ROWS_PER_INSERT = 200;
 const EXAMPLES = 5;
-
-const COLUMNS = ['tenant_id', 'order_id', 'position', 'product_id', 'name', 'category', 'print_destination', 'quantity',
-  'unit_price', 'line_total', 'original_price', 'line_type', 'discount_mode', 'discount_value', 'note'];
 
 function addAnomalies(report, orderId, anomalies) {
   for (const type of anomalies) {
     const entry = (report.anomalies[type] ??= { count: 0, examples: [] });
     entry.count++;
     if (entry.examples.length < EXAMPLES && !entry.examples.includes(orderId)) entry.examples.push(orderId);
-  }
-}
-
-async function insertRows(db, tenantId, rows) {
-  for (let i = 0; i < rows.length; i += ROWS_PER_INSERT) {
-    const chunk = rows.slice(i, i + ROWS_PER_INSERT);
-    const params = [];
-    const tuples = chunk.map((r) => {
-      const values = [tenantId, r.order_id, r.position, r.product_id, r.name, r.category, r.print_destination, r.quantity,
-        r.unit_price, r.line_total, r.original_price, r.line_type, r.discount_mode, r.discount_value, r.note];
-      return `(${values.map((v) => { params.push(v); return `$${params.length}`; }).join(', ')})`;
-    });
-    await db.query(`INSERT INTO order_items (${COLUMNS.join(', ')}) VALUES ${tuples.join(', ')} ON CONFLICT (order_id, position) DO NOTHING`, params);
   }
 }
 
@@ -64,7 +48,7 @@ export async function scanTenant(db, tenantId, { apply = false, skipDone = true 
     if (apply && toInsert.length) {
       await db.query('BEGIN');
       try {
-        await insertRows(db, tenantId, toInsert);
+        await insertOrderItemRows(db, tenantId, toInsert);
         await db.query('COMMIT');
       } catch (err) {
         await db.query('ROLLBACK');

@@ -15,6 +15,7 @@ import { formatDisplayCode, formatDeviceCode } from '../utils/displayCode.js';
 import { sumQuantitiesByProduct, lockAndFindShortages, applyStockChange } from '../utils/stock.js';
 import { HttpError, sendHttpError } from '../utils/httpError.js';
 import { computeExpectedCash, clampToSession } from '../utils/session.js';
+import { writeOrderItems } from '../utils/orderItemsWrite.js';
 import { requireModule } from '../utils/tenantModules.js';
 
 const router = express.Router();
@@ -195,6 +196,8 @@ export default function (broadcast) {
           [JSON.stringify(verifiedItems), verifiedTotal, orderStatus, req.user.id, order_type, !!is_takeaway,
             displayCode, session.id, client_order_id ?? null, createdAt, device_id ?? null, device_seq ?? null]
         );
+        // Copia delle righe in order_items (Fase 1): il JSONB resta la fonte di verità, un errore qui non blocca la vendita.
+        await writeOrderItems(db, req.user.tenantId, rows[0].id, verifiedItems);
 
         // Lo stock riguarda la serata in corso: dopo la chiusura non si tocca più
         // (all'apertura della successiva riparte comunque da disponibilità illimitata).
