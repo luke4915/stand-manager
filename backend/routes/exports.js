@@ -5,6 +5,7 @@ import logger from '../logger.js';
 import { validate } from '../middleware/validate.js';
 import { idParamsSchema } from '../schemas/common.js';
 import { withItems } from '../utils/orderItemsRead.js';
+import { isRevenue } from '../utils/revenue.js';
 
 const router = express.Router();
 
@@ -24,9 +25,9 @@ router.get('/session/:id/csv', authenticate, authorizeAdmin, validate({ params: 
     if (!sessionRows.length) return res.status(404).json({ error: 'Sessione non trovata' });
 
     const { rows } = await req.db.query(
-      `SELECT id, created_at, total FROM orders
-       WHERE status='completed' AND session_id = $1
-       ORDER BY created_at ASC`,
+      `SELECT o.id, o.created_at, o.total FROM orders o
+       WHERE ${isRevenue('o')} AND o.session_id = $1
+       ORDER BY o.created_at ASC`,
       [sessionId]
     );
     const orders = await withItems(req.db, rows);

@@ -6,6 +6,7 @@ import logger from '../logger.js';
 import { statsQuerySchema, sharedProductsQuerySchema, headToHeadQuerySchema } from '../schemas/statsSchema.js';
 import { requireModule } from '../utils/tenantModules.js';
 import { COMPLETED_ITEMS, LINE_REVENUE } from '../utils/statsSql.js';
+import { isRevenue } from '../utils/revenue.js';
 import { buildStats, buildSessionComparison } from '../utils/stats.js';
 
 const router = express.Router();
@@ -25,7 +26,7 @@ router.get('/', authenticate, requireModule('stats'), authorizeStats, validate({
                 COUNT(*) FILTER (WHERE o.is_takeaway)::int AS takeaway,
                 AVG(EXTRACT(EPOCH FROM (o.completed_at - o.created_at)) / 60)
                   FILTER (WHERE o.completed_at >= o.created_at AND o.completed_at - o.created_at < interval '180 minutes') AS avg_minutes
-         FROM orders o WHERE o.status = 'completed' ${inSessions}`, [sessionFilter]),
+         FROM orders o WHERE ${isRevenue('o')} ${inSessions}`, [sessionFilter]),
       req.db.query(
         `SELECT COUNT(*)::int AS n, COALESCE(SUM(o.total), 0) AS total
          FROM orders o WHERE o.status = 'canceled' ${inSessions}`, [sessionFilter]),
@@ -34,7 +35,7 @@ router.get('/', authenticate, requireModule('stats'), authorizeStats, validate({
                 AVG(EXTRACT(EPOCH FROM (o.completed_at - o.created_at)) / 60)
                   FILTER (WHERE o.completed_at >= o.created_at AND o.completed_at - o.created_at < interval '180 minutes') AS avg_minutes,
                 COUNT(*) FILTER (WHERE o.completed_at >= o.created_at AND o.completed_at - o.created_at < interval '180 minutes')::int AS n_minutes
-         FROM orders o WHERE o.status = 'completed' ${inSessions}
+         FROM orders o WHERE ${isRevenue('o')} ${inSessions}
          GROUP BY 1`, [sessionFilter, tz]),
       // Per id di prodotto, non per nome: un prodotto rinominato resta uno solo.
       // Il mancato incasso degli omaggi usa il prezzo di listino salvato nell'ordine (original_price).
@@ -50,7 +51,7 @@ router.get('/', authenticate, requireModule('stats'), authorizeStats, validate({
          GROUP BY i.product_id, p.name`, [sessionFilter]),
       req.db.query(
         `SELECT s.id, s.name, s.start_time, COUNT(o.id)::int AS n, COALESCE(SUM(o.total), 0) AS total
-         FROM sessions s LEFT JOIN orders o ON o.session_id = s.id AND o.status = 'completed'
+         FROM sessions s LEFT JOIN orders o ON o.session_id = s.id AND ${isRevenue('o')}
          GROUP BY s.id ORDER BY s.start_time DESC`),
     ]);
     res.json({

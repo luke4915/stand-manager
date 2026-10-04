@@ -49,19 +49,19 @@ orders       + check_id (nullo = ordine pagato subito, come oggi)
 
 ## 4. Punto critico: cosa conta come incasso
 
-Oggi "incasso" = ordine `completed`, e questa regola è scritta in sei punti:
+Oggi "incasso" = ordine `completed`, e questa condizione era scritta in sei punti di quattro file:
 
 | Dove | Cosa fa |
 |---|---|
 | `utils/statsSql.js` | righe vendute nelle statistiche |
 | `routes/stats.js` (3 query) | totali, fasce orarie, confronto serate |
 | `utils/session.js` | incasso atteso in contanti |
-| `routes/sessions.js` | completamento forzato alla chiusura |
 | `routes/exports.js` | CSV di sessione |
-| `routes/orders.js` | annullo rapido in modalità semplice |
 
-**Passo 2-0 (nessuna novità visibile):** la regola si porta in un solo punto (`utils/revenue.js`), usato da tutti. Si dimostra
-con i test che nulla cambia. Solo dopo, in quell'unico punto, la regola diventa:
+(`routes/sessions.js` e `routes/orders.js` nominano `completed` solo per i passaggi di stato, non per l'incasso.)
+
+**Passo 2-0 (fatto, nessuna novità visibile):** la regola sta in un solo punto (`utils/revenue.js`, `isRevenue()`), usato da tutti, e un test
+impedisce di riscriverla a mano altrove. I test di prima passano invariati. Solo dopo, in quell'unico punto, la regola diventa:
 
 > è incasso un ordine `completed` senza conto, oppure un ordine non annullato di un conto `paid`.
 
