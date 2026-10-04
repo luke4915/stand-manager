@@ -28,8 +28,25 @@ export const pool = new Pool({
   connectionTimeoutMillis: 5000,
 });
 
+// Pool del pannello master: un altro utente del database, usato solo dalle route /master (vedi migrazione 025).
+// Può scrivere su `tenants` ed eliminare un tenant; l'utente applicativo no.
+export const masterPool = new Pool({
+  user: process.env.PG_MASTER_USER,
+  host: process.env.PG_HOST,
+  database: process.env.PG_DATABASE,
+  password: process.env.PG_MASTER_PASSWORD,
+  port: parseInt(process.env.PG_PORT) || 5432,
+  max: 3,
+  idleTimeoutMillis: 30000,
+  connectionTimeoutMillis: 5000,
+});
+
 pool.on('error', (err) => {
   logger.error({ err }, 'Pool PostgreSQL: client inattivo in errore');
+});
+
+masterPool.on('error', (err) => {
+  logger.error({ err }, 'Pool master PostgreSQL: client inattivo in errore');
 });
 
 export default pool;

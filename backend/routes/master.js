@@ -1,7 +1,7 @@
 import express from 'express';
 import bcrypt from 'bcrypt';
 import jwt from 'jsonwebtoken';
-import { pool, inTransaction } from '../db.js';
+import { masterPool, inTransaction } from '../db.js';
 import { withTenantClient } from '../middleware/tenantScope.js';
 import { authenticateMaster } from '../middleware/authenticateMaster.js';
 import logger from '../logger.js';
@@ -44,7 +44,7 @@ router.post('/logout', (req, res) => {
 // LISTA TENANT — tabella tenants non ha RLS, query diretta legittima
 router.get('/tenants', authenticateMaster, async (req, res) => {
   try {
-    const { rows } = await pool.query(
+    const { rows } = await masterPool.query(
       `SELECT t.*, COUNT(u.id) AS user_count
        FROM tenants t LEFT JOIN users u ON u.tenant_id = t.id
        GROUP BY t.id ORDER BY t.created_at DESC`
@@ -60,7 +60,7 @@ router.get('/tenants', authenticateMaster, async (req, res) => {
 router.post('/tenants', authenticateMaster, validate({ body: createTenantSchema }), async (req, res) => {
   const { slug, name, plan, expiresInDays, adminUsername, adminPassword } = req.body;
 
-  const client = await pool.connect();
+  const client = await masterPool.connect();
   try {
     await client.query('BEGIN');
 
@@ -99,7 +99,7 @@ router.post('/tenants', authenticateMaster, validate({ body: createTenantSchema 
 router.patch('/tenants/:id/extend', authenticateMaster, validate({ params: idParamsSchema, body: extendLicenseSchema }), async (req, res) => {
   const { days } = req.body;
   try {
-    const { rows } = await pool.query(
+    const { rows } = await masterPool.query(
       `UPDATE tenants SET expires_at = GREATEST(COALESCE(expires_at, now()), now()) + ($1 || ' days')::interval
        WHERE id = $2 RETURNING *`,
       [days, req.params.id]
@@ -115,7 +115,7 @@ router.patch('/tenants/:id/extend', authenticateMaster, validate({ params: idPar
 // ATTIVA/DISATTIVA — reversibile, non tocca i dati
 router.patch('/tenants/:id/active', authenticateMaster, validate({ params: idParamsSchema, body: tenantActiveSchema }), async (req, res) => {
   try {
-    const { rows } = await pool.query(
+    const { rows } = await masterPool.query(
       'UPDATE tenants SET active = $1 WHERE id = $2 RETURNING *',
       [req.body.active, req.params.id]
     );
@@ -128,9 +128,10 @@ router.patch('/tenants/:id/active', authenticateMaster, validate({ params: idPar
 });
 
 // PERSONALIZZAZIONE SCONTRINI — testi e immagini delle copie di un tenant (solo master).
-// Le tabelle del tenant si toccano solo con la sua connessione scoped, mai con pool.query.
+// Le tabelle del tenant si toccano solo con la sua connessione scoped (withTenantClient), mai con masterPool.query.
+// `masterPool` è il pool del ruolo master (vedi db.js e migrazione 025), non quello applicativo.
 async function tenantExists(id) {
-  const { rows } = await pool.query('SELECT 1 FROM tenants WHERE id = $1', [id]);
+  const { rows } = await masterPool.query('SELECT 1 FROM tenants WHERE id = $1', [id]);
   return rows.length > 0;
 }
 
@@ -139,7 +140,7 @@ router.get('/tenants/:id/receipt', authenticateMaster, validate({ params: idPara
   try {
     if (!await tenantExists(id)) return res.status(404).json({ error: 'Tenant non trovato' });
     const { rows } = await withTenantClient(id, (db) =>
-      db.query('SELECT key, value FROM settings WHERE key = ANY($1)', [RECEIPT_SETTINGS_KEYS]));
+      db.query('SELECT key, value FROM settings WHERE key = ANY($1)', [RECEIPT_SETTINGS_KEYS]), masterPool);
     res.json(Object.fromEntries(rows.map(r => [r.key, r.value])));
   } catch (err) {
     logger.error({ err }, 'Errore GET /api/master/tenants/:id/receipt');
@@ -161,7 +162,7 @@ router.put('/tenants/:id/receipt', authenticateMaster, validate({ params: idPara
           await db.query('DELETE FROM settings WHERE key = $1', [key]);
         }
       }
-    }));
+    }), masterPool);
     logger.info({ tenantId: id }, 'Personalizzazione scontrini aggiornata dal master');
     res.json({ ok: true });
   } catch (err) {
@@ -178,7 +179,7 @@ const TENANT_SCOPED_TABLES = ['audit_logs', 'orders', 'devices', 'products', 'se
 router.delete('/tenants/:id', authenticateMaster, validate({ params: idParamsSchema, body: deleteTenantSchema }), async (req, res) => {
   const { id } = req.params;
   try {
-    const { rows: check } = await pool.query('SELECT slug FROM tenants WHERE id = $1', [id]);
+    const { rows: check } = await masterPool.query('SELECT slug FROM tenants WHERE id = $1', [id]);
     if (!check.length) return res.status(404).json({ error: 'Tenant non trovato' });
     if (req.body.confirmSlug !== check[0].slug)
       return res.status(400).json({ error: 'Conferma slug non corrispondente' });
@@ -188,7 +189,7 @@ router.delete('/tenants/:id', authenticateMaster, validate({ params: idParamsSch
         await db.query(`DELETE FROM ${tbl} WHERE tenant_id = $1`, [id]);
       }
       await db.query('DELETE FROM tenants WHERE id = $1', [id]);
-    }));
+    }), masterPool);
     res.json({ ok: true });
   } catch (err) {
     logger.error({ err }, 'Errore eliminazione tenant');

@@ -14,6 +14,11 @@ dotenv.config();
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
+if (!process.env.PG_MASTER_USER || !process.env.PG_MASTER_PASSWORD) {
+  logger.fatal('PG_MASTER_USER e PG_MASTER_PASSWORD non impostate: il pannello master usa un ruolo database separato (vedi migrazione 025)');
+  process.exit(1);
+}
+
 const { missing, weak } = checkSecrets();
 if (missing.length || (weak.length && process.env.NODE_ENV === 'production')) {
   logger.fatal({ problems: [...missing, ...weak] }, 'Segreti non validi nel .env (servono stringhe casuali di almeno 32 caratteri, es. openssl rand -hex 48)');

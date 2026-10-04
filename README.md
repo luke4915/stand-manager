@@ -20,6 +20,7 @@ Regole, convenzioni e struttura nel dettaglio: [`CLAUDE.md`](CLAUDE.md).
 ```bash
 createdb standmanager
 psql -d standmanager -c "CREATE ROLE standmanager_app LOGIN PASSWORD 'una-password'"
+psql -d standmanager -c "CREATE ROLE standmanager_master LOGIN PASSWORD 'un-altra-password'"   # pannello master, vedi sotto
 psql -d standmanager -f backend/schema.sql   # gli avvisi sul ruolo proprietario si possono ignorare
 ```
 
@@ -59,7 +60,7 @@ La CI (`.github/workflows/ci.yml`) esegue lint, test, build e `npm audit` a ogni
 
 - `npm run build` nel frontend; il backend con `NODE_ENV=production` serve API, WebSocket e frontend compilato sulla stessa porta HTTPS.
 - `APP_DOMAIN` è il dominio dell'app: servono un DNS e un certificato wildcard per `*.APP_DOMAIN`, indicato con `HTTPS_KEY_PATH` e `HTTPS_CERT_PATH`.
-- L'app si connette al database con l'utente applicativo (soggetto a RLS). Le migrazioni (`npm run migrate`) usano `MIGRATION_DATABASE_URL`.
+- L'app si connette al database con due utenti: quello applicativo (`PG_USER`, soggetto a RLS, può solo leggere i tenant) e quello del pannello master (`PG_MASTER_USER`, l'unico che crea, modifica ed elimina tenant). I due ruoli vanno creati prima di caricare `schema.sql` o di applicare la migrazione 025. Le migrazioni (`npm run migrate`) usano `MIGRATION_DATABASE_URL`.
 - Avvio con un gestore di processi (systemd o PM2). Un eventuale reverse proxy deve inoltrare anche l'upgrade WebSocket.
 - `GET /api/health` (processo) e `/api/health/ready` (database) per il monitoraggio; `backend/scripts/backup.sh` per i backup.
 - Lista di controllo prima di andare online, rilascio, backup e log: [`docs/deployment.md`](docs/deployment.md).

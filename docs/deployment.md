@@ -8,7 +8,7 @@ Guida per portare Stand Manager in produzione e tenerlo in vita. Le regole di sv
 - [ ] `JWT_SECRET` e `MASTER_JWT_SECRET`: stringhe diverse, casuali, almeno 32 caratteri (`openssl rand -hex 48`).
 - [ ] `MASTER_PASSWORD_HASH`: hash bcrypt di una password lunga e unica per il master panel.
 - [ ] `APP_DOMAIN` = dominio reale. DNS wildcard `*.dominio` e certificato wildcard (`HTTPS_KEY_PATH`, `HTTPS_CERT_PATH`) o TLS terminato da un reverse proxy.
-- [ ] Il database accetta connessioni solo dall'app (rete privata o firewall). Due utenti: quello applicativo (`PG_*`, soggetto a RLS, niente privilegi in più) e quello delle migrazioni (`MIGRATION_DATABASE_URL`, mai usato dall'app).
+- [ ] Il database accetta connessioni solo dall'app (rete privata o firewall). Tre utenti, con password diverse: applicativo (`PG_USER`, soggetto a RLS; sui tenant solo lettura, su `audit_logs` solo lettura e inserimento), master (`PG_MASTER_USER`, usato solo dalle route `/master`: crea, modifica ed elimina tenant) e migrazioni (`MIGRATION_DATABASE_URL`, mai usato dall'app).
 - [ ] Il file `.env` non è nel repository e ha permessi `600`.
 - [ ] Backup notturno pianificato **e un ripristino provato** (vedi sotto).
 - [ ] Il monitoraggio interroga `GET /api/health/ready` (200 = app e database ok, 503 = database giù).

@@ -62,7 +62,7 @@ Lo sviluppo locale usa certificati mkcert per `*.standmanager.local` e un sottod
 L'isolamento tra tenant si basa sulla Row-Level Security di PostgreSQL con la variabile di sessione `app.tenant_id`. Un errore qui significa dati di un cliente visibili a un altro.
 
 1. **Route autenticate:** la catena è sempre `authenticate → (authorizeAdmin | authorizeDiscount)? → tenantScope`, e le query usano **solo `req.db.query(...)`**.
-2. **Mai `pool.query` su tabelle tenant-scoped.** `pool.query` è ammesso solo su tabelle globali (`tenants`, `_migrations`) e nei punti già previsti (login, master panel).
+2. **Mai `pool.query` su tabelle tenant-scoped.** `pool.query` è ammesso solo su tabelle globali (`tenants`, `_migrations`) e nei punti già previsti (login, master panel). Il master panel usa **`masterPool`** (ruolo `standmanager_master`, migrazione 025): è l'unico che scrive su `tenants` o li elimina; l'utente applicativo di `pool` ha solo SELECT su `tenants` e non cancella da `audit_logs`. Non usare `masterPool` fuori da `routes/master.js`.
 3. **Lavoro asincrono dopo la risposta** (job in background): usa `withTenantClient(tenantId, fn)`. `req.db` a quel punto è già stato rilasciato.
 4. **Endpoint pubblici** (`/menu`, `/kds`): `resolveTenantFromHost` + `withTenantClient(req.tenantId, …)`. Non esporre mai colonne interne: seleziona le colonne una per una, niente `SELECT *`.
 5. **Nuova tabella tenant-scoped:** nella stessa migrazione aggiungi `tenant_id INTEGER NOT NULL REFERENCES tenants(id)`, l'indice, `ENABLE` + `FORCE ROW LEVEL SECURITY` e la policy `tenant_isolation`. La policy deve usare `NULLIF(current_setting('app.tenant_id', true), '')::int` (vedi migrazione 009: senza `NULLIF` una connessione riciclata con `''` manda in errore il cast).
@@ -118,7 +118,7 @@ L'isolamento tra tenant si basa sulla Row-Level Security di PostgreSQL con la va
 
 ## 6. Database e migrazioni
 
-- Ogni modifica di schema è una nuova migrazione `backend/migrations/NNN_descrizione.sql`, numerata dopo l'ultima esistente (oggi 024; il numero 012 è saltato, non riusarlo).
+- Ogni modifica di schema è una nuova migrazione `backend/migrations/NNN_descrizione.sql`, numerata dopo l'ultima esistente (oggi 025; il numero 012 è saltato, non riusarlo).
 - **Non modificare mai una migrazione già applicata.** Per correggerla, scrivine una nuova.
 - Le migrazioni devono essere idempotenti dove possibile (`IF NOT EXISTS`, `DROP POLICY IF EXISTS`). `run.js` le esegue in transazione.
 - L'utente applicativo ha solo SELECT/INSERT/UPDATE/DELETE (niente TRUNCATE, TRIGGER, REFERENCES; `audit_logs` non si aggiorna): nelle migrazioni non concedergli altro.

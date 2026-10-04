@@ -2,7 +2,7 @@
 -- PostgreSQL database dump
 --
 
-\restrict fuW3DM1rI3NEV7vTJNdKaETps4eURh90zKf5B0v4WRv1Y0S7GBnvBl7RV5IZnvR
+\restrict 7i0Eaav0NCZTaBhGrtM1vIOFzkoe3NUnZOVSziVAWdA8rOCdcrlz9SRDW2FDcHS
 
 -- Dumped from database version 17.10 (Homebrew)
 -- Dumped by pg_dump version 17.10 (Homebrew)
@@ -879,6 +879,13 @@ ALTER TABLE public.copy_types ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.devices ENABLE ROW LEVEL SECURITY;
 
 --
+-- Name: users master_read; Type: POLICY; Schema: public; Owner: colettas
+--
+
+CREATE POLICY master_read ON public.users FOR SELECT TO standmanager_master USING (true);
+
+
+--
 -- Name: orders; Type: ROW SECURITY; Schema: public; Owner: colettas
 --
 
@@ -982,6 +989,7 @@ ALTER TABLE public.users ENABLE ROW LEVEL SECURITY;
 --
 
 GRANT USAGE ON SCHEMA public TO standmanager_app;
+GRANT USAGE ON SCHEMA public TO standmanager_master;
 
 
 --
@@ -989,6 +997,7 @@ GRANT USAGE ON SCHEMA public TO standmanager_app;
 --
 
 GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE public._migrations TO standmanager_app;
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE public._migrations TO standmanager_master;
 
 
 --
@@ -996,13 +1005,15 @@ GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE public._migrations TO standmanager_ap
 --
 
 GRANT ALL ON SEQUENCE public._migrations_id_seq TO standmanager_app;
+GRANT SELECT,USAGE ON SEQUENCE public._migrations_id_seq TO standmanager_master;
 
 
 --
 -- Name: TABLE audit_logs; Type: ACL; Schema: public; Owner: colettas
 --
 
-GRANT SELECT,INSERT,DELETE ON TABLE public.audit_logs TO standmanager_app;
+GRANT SELECT,INSERT ON TABLE public.audit_logs TO standmanager_app;
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE public.audit_logs TO standmanager_master;
 
 
 --
@@ -1010,6 +1021,7 @@ GRANT SELECT,INSERT,DELETE ON TABLE public.audit_logs TO standmanager_app;
 --
 
 GRANT ALL ON SEQUENCE public.audit_logs_id_seq TO standmanager_app;
+GRANT SELECT,USAGE ON SEQUENCE public.audit_logs_id_seq TO standmanager_master;
 
 
 --
@@ -1017,6 +1029,7 @@ GRANT ALL ON SEQUENCE public.audit_logs_id_seq TO standmanager_app;
 --
 
 GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE public.copy_types TO standmanager_app;
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE public.copy_types TO standmanager_master;
 
 
 --
@@ -1024,6 +1037,7 @@ GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE public.copy_types TO standmanager_app
 --
 
 GRANT ALL ON SEQUENCE public.copy_types_id_seq TO standmanager_app;
+GRANT SELECT,USAGE ON SEQUENCE public.copy_types_id_seq TO standmanager_master;
 
 
 --
@@ -1031,6 +1045,7 @@ GRANT ALL ON SEQUENCE public.copy_types_id_seq TO standmanager_app;
 --
 
 GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE public.devices TO standmanager_app;
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE public.devices TO standmanager_master;
 
 
 --
@@ -1038,6 +1053,7 @@ GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE public.devices TO standmanager_app;
 --
 
 GRANT ALL ON SEQUENCE public.devices_id_seq TO standmanager_app;
+GRANT SELECT,USAGE ON SEQUENCE public.devices_id_seq TO standmanager_master;
 
 
 --
@@ -1045,6 +1061,7 @@ GRANT ALL ON SEQUENCE public.devices_id_seq TO standmanager_app;
 --
 
 GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE public.orders TO standmanager_app;
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE public.orders TO standmanager_master;
 
 
 --
@@ -1052,6 +1069,7 @@ GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE public.orders TO standmanager_app;
 --
 
 GRANT ALL ON SEQUENCE public.orders_id_seq TO standmanager_app;
+GRANT SELECT,USAGE ON SEQUENCE public.orders_id_seq TO standmanager_master;
 
 
 --
@@ -1059,6 +1077,7 @@ GRANT ALL ON SEQUENCE public.orders_id_seq TO standmanager_app;
 --
 
 GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE public.print_settings TO standmanager_app;
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE public.print_settings TO standmanager_master;
 
 
 --
@@ -1066,6 +1085,7 @@ GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE public.print_settings TO standmanager
 --
 
 GRANT ALL ON SEQUENCE public.print_settings_id_seq TO standmanager_app;
+GRANT SELECT,USAGE ON SEQUENCE public.print_settings_id_seq TO standmanager_master;
 
 
 --
@@ -1073,6 +1093,7 @@ GRANT ALL ON SEQUENCE public.print_settings_id_seq TO standmanager_app;
 --
 
 GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE public.products TO standmanager_app;
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE public.products TO standmanager_master;
 
 
 --
@@ -1080,6 +1101,7 @@ GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE public.products TO standmanager_app;
 --
 
 GRANT ALL ON SEQUENCE public.products_id_seq TO standmanager_app;
+GRANT SELECT,USAGE ON SEQUENCE public.products_id_seq TO standmanager_master;
 
 
 --
@@ -1087,6 +1109,7 @@ GRANT ALL ON SEQUENCE public.products_id_seq TO standmanager_app;
 --
 
 GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE public.sessions TO standmanager_app;
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE public.sessions TO standmanager_master;
 
 
 --
@@ -1094,6 +1117,7 @@ GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE public.sessions TO standmanager_app;
 --
 
 GRANT ALL ON SEQUENCE public.sessions_id_seq TO standmanager_app;
+GRANT SELECT,USAGE ON SEQUENCE public.sessions_id_seq TO standmanager_master;
 
 
 --
@@ -1101,13 +1125,15 @@ GRANT ALL ON SEQUENCE public.sessions_id_seq TO standmanager_app;
 --
 
 GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE public.settings TO standmanager_app;
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE public.settings TO standmanager_master;
 
 
 --
 -- Name: TABLE tenants; Type: ACL; Schema: public; Owner: colettas
 --
 
-GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE public.tenants TO standmanager_app;
+GRANT SELECT ON TABLE public.tenants TO standmanager_app;
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE public.tenants TO standmanager_master;
 
 
 --
@@ -1115,6 +1141,7 @@ GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE public.tenants TO standmanager_app;
 --
 
 GRANT ALL ON SEQUENCE public.tenants_id_seq TO standmanager_app;
+GRANT SELECT,USAGE ON SEQUENCE public.tenants_id_seq TO standmanager_master;
 
 
 --
@@ -1122,6 +1149,7 @@ GRANT ALL ON SEQUENCE public.tenants_id_seq TO standmanager_app;
 --
 
 GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE public.users TO standmanager_app;
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE public.users TO standmanager_master;
 
 
 --
@@ -1129,6 +1157,7 @@ GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE public.users TO standmanager_app;
 --
 
 GRANT ALL ON SEQUENCE public.users_id_seq TO standmanager_app;
+GRANT SELECT,USAGE ON SEQUENCE public.users_id_seq TO standmanager_master;
 
 
 --
@@ -1136,6 +1165,7 @@ GRANT ALL ON SEQUENCE public.users_id_seq TO standmanager_app;
 --
 
 ALTER DEFAULT PRIVILEGES FOR ROLE colettas IN SCHEMA public GRANT ALL ON SEQUENCES TO standmanager_app;
+ALTER DEFAULT PRIVILEGES FOR ROLE colettas IN SCHEMA public GRANT SELECT,USAGE ON SEQUENCES TO standmanager_master;
 
 
 --
@@ -1143,11 +1173,12 @@ ALTER DEFAULT PRIVILEGES FOR ROLE colettas IN SCHEMA public GRANT ALL ON SEQUENC
 --
 
 ALTER DEFAULT PRIVILEGES FOR ROLE colettas IN SCHEMA public GRANT SELECT,INSERT,DELETE,UPDATE ON TABLES TO standmanager_app;
+ALTER DEFAULT PRIVILEGES FOR ROLE colettas IN SCHEMA public GRANT SELECT,INSERT,DELETE,UPDATE ON TABLES TO standmanager_master;
 
 
 --
 -- PostgreSQL database dump complete
 --
 
-\unrestrict fuW3DM1rI3NEV7vTJNdKaETps4eURh90zKf5B0v4WRv1Y0S7GBnvBl7RV5IZnvR
+\unrestrict 7i0Eaav0NCZTaBhGrtM1vIOFzkoe3NUnZOVSziVAWdA8rOCdcrlz9SRDW2FDcHS
 

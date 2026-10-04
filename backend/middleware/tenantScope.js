@@ -79,8 +79,8 @@ export async function tenantScope(req, res, next) {
 // (es. stampa in background dopo aver già risposto al client): non si può
 // usare req.db, perché a quel punto è già stato rilasciato al pool. Questa
 // funzione acquisisce/scopa/rilascia una connessione dedicata autonomamente.
-export async function withTenantClient(tenantId, fn) {
-  const client = await pool.connect();
+export async function withTenantClient(tenantId, fn, sourcePool = pool) {
+  const client = await sourcePool.connect();
   try {
     await client.query('SELECT set_config($1, $2, false)', ['app.tenant_id', String(tenantId)]);
     return await fn(client);

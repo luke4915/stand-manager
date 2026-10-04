@@ -3,6 +3,7 @@ import { describe, it, before, after } from 'node:test';
 import assert from 'node:assert/strict';
 import jwt from 'jsonwebtoken';
 import { startServer, createTenant, deleteTenants, closePools, apiClient, adminDb } from './helpers.js';
+import { pool as appPool } from '../../db.js';
 
 process.env.MASTER_JWT_SECRET ||= 'segreto-master-di-prova-lungo-almeno-32-caratteri';
 const masterCookie = { cookie: `master_token=${jwt.sign({ master: true }, process.env.MASTER_JWT_SECRET)}` };
@@ -80,5 +81,23 @@ describe('pannello master', () => {
       assert.equal(rows.length, 0, table);
     }
     assert.equal((await adminDb.query('SELECT 1 FROM tenants WHERE id = $1', [doomed.id])).rows.length, 0);
+  });
+
+  it('l\'utente applicativo non può scrivere sui tenant né cancellare l\'audit; il master non scavalca la RLS', async () => {
+    await assert.rejects(appPool.query('DELETE FROM tenants WHERE id = $1', [t1.id]), /permission denied|permesso negato/i);
+    await assert.rejects(appPool.query(`UPDATE tenants SET active = false WHERE id = $1`, [t1.id]), /permission denied|permesso negato/i);
+    await assert.rejects(appPool.query(`INSERT INTO tenants (slug, name) VALUES ('abusivo', 'x')`), /permission denied|permesso negato/i);
+    await assert.rejects(appPool.query('DELETE FROM audit_logs'), /permission denied|permesso negato/i);
+    await assert.rejects(appPool.query(`UPDATE audit_logs SET action = 'x'`), /permission denied|permesso negato/i);
+    await assert.rejects(appPool.query('TRUNCATE orders'), /permission denied|permesso negato/i);
+    // letture del tenant restano possibili (login, licenza)
+    assert.equal((await appPool.query('SELECT 1 FROM tenants WHERE id = $1', [t1.id])).rows.length, 1);
+  });
+
+  it('elenco tenant del master con il numero di utenti', async () => {
+    const res = await master.request('GET', '/master/tenants', undefined, masterCookie);
+    assert.equal(res.status, 200);
+    const mine = res.body.find(x => x.id === t1.id);
+    assert.equal(Number(mine.user_count), 1);
   });
 });

@@ -21,7 +21,7 @@ if (!process.env.TEST_DATABASE_URL || !process.env.JWT_SECRET) {
 // L'app si importa solo ora, dopo aver caricato la configurazione di test.
 const { createApp } = await import('../../app.js');
 const { createWebSocketHub } = await import('../../ws.js');
-const { pool: appPool } = await import('../../db.js');
+const { pool: appPool, masterPool } = await import('../../db.js');
 
 export const PASSWORD = 'password-di-prova';
 
@@ -42,7 +42,7 @@ export async function startServer() {
 
 // Ogni file di test gira in un processo suo: chiamala nell'after() di ogni file.
 export async function closePools() {
-  await Promise.all([adminDb.end(), appPool.end()]);
+  await Promise.all([adminDb.end(), appPool.end(), masterPool.end()]);
 }
 
 // Tenant di prova con un admin, un prodotto e (a richiesta) una sessione aperta.
