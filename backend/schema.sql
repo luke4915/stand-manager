@@ -235,8 +235,19 @@ CREATE TABLE public.dining_tables (
     name text NOT NULL,
     seats integer DEFAULT 2 NOT NULL,
     active boolean DEFAULT true NOT NULL,
+    x integer,
+    y integer,
+    w integer,
+    h integer,
+    shape text DEFAULT 'rect'::text NOT NULL,
+    CONSTRAINT dining_tables_h_check CHECK (((h >= 1) AND (h <= 30))),
     CONSTRAINT dining_tables_name_check CHECK ((length(btrim(name)) > 0)),
-    CONSTRAINT dining_tables_seats_check CHECK (((seats >= 1) AND (seats <= 99)))
+    CONSTRAINT dining_tables_placement_complete CHECK ((((x IS NULL) AND (y IS NULL) AND (w IS NULL) AND (h IS NULL)) OR ((x IS NOT NULL) AND (y IS NOT NULL) AND (w IS NOT NULL) AND (h IS NOT NULL)))),
+    CONSTRAINT dining_tables_seats_check CHECK (((seats >= 1) AND (seats <= 99))),
+    CONSTRAINT dining_tables_shape_check CHECK ((shape = ANY (ARRAY['rect'::text, 'round'::text]))),
+    CONSTRAINT dining_tables_w_check CHECK (((w >= 1) AND (w <= 30))),
+    CONSTRAINT dining_tables_x_check CHECK ((x >= 0)),
+    CONSTRAINT dining_tables_y_check CHECK ((y >= 0))
 );
 
 ALTER TABLE ONLY public.dining_tables FORCE ROW LEVEL SECURITY;
@@ -469,6 +480,10 @@ CREATE TABLE public.rooms (
     tenant_id integer DEFAULT (NULLIF(current_setting('app.tenant_id'::text, true), ''::text))::integer NOT NULL,
     name text NOT NULL,
     active boolean DEFAULT true NOT NULL,
+    grid_w integer DEFAULT 24 NOT NULL,
+    grid_h integer DEFAULT 16 NOT NULL,
+    CONSTRAINT rooms_grid_h_check CHECK (((grid_h >= 4) AND (grid_h <= 60))),
+    CONSTRAINT rooms_grid_w_check CHECK (((grid_w >= 4) AND (grid_w <= 60))),
     CONSTRAINT rooms_name_check CHECK ((length(btrim(name)) > 0))
 );
 

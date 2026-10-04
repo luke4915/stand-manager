@@ -1,8 +1,9 @@
 import { useState } from 'react';
-import { Pencil, Check, X, Plus, Trash2, Power, ListPlus } from 'lucide-react';
+import { Pencil, Check, X, Plus, Trash2, Power, ListPlus, LayoutTemplate } from 'lucide-react';
 import { fetchWithAuth } from '../../utils/apiClient';
 import { useToast } from '../../context/useToast';
 import TableRow from './TableRow';
+import FloorEditor from '../../smarteats/floor/FloorEditor';
 
 // Una sala con i suoi tavoli: rinomina, attiva/disattiva, elimina (se vuota), aggiunta di un tavolo o di più in serie.
 const inputClass = 'p-2.5 rounded-xl bg-[var(--bg-input)] border border-[var(--border)] text-[var(--text-main)] text-sm outline-none focus:ring-2 focus:ring-[var(--accent)] placeholder:text-[var(--text-muted)]';
@@ -17,6 +18,7 @@ const RoomCard = ({ room, onChanged }) => {
   const [one, setOne] = useState({ name: '', seats: 2 });
   const [bulk, setBulk] = useState({ prefix: 'T', from: 1, to: 10, seats: 4 });
   const [busy, setBusy] = useState(false);
+  const [designing, setDesigning] = useState(false);
 
   const run = async (action, after) => {
     setBusy(true);
@@ -101,8 +103,11 @@ const RoomCard = ({ room, onChanged }) => {
         <div className="flex gap-2">
           <button className={btn} onClick={() => setAdding('one')}><Plus size={12} /> Tavolo</button>
           <button className={btn} onClick={() => setAdding('bulk')}><ListPlus size={12} /> Più tavoli in serie</button>
+          <button className={`${btn} ml-auto`} disabled={room.tables.length === 0} onClick={() => setDesigning(true)}
+            title={room.tables.length ? 'Disegna la pianta della sala' : 'Crea prima dei tavoli'}><LayoutTemplate size={12} /> Disegna pianta</button>
         </div>
       )}
+      {designing && <FloorEditor room={room} onClose={() => setDesigning(false)} onSaved={onChanged} />}
     </section>
   );
 };

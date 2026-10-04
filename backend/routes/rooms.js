@@ -7,14 +7,16 @@ import logger from '../logger.js';
 import { logAudit } from '../utils/auditLogger.js';
 import { requireModule } from '../utils/tenantModules.js';
 import { idParamsSchema } from '../schemas/common.js';
-import { createRoomSchema, updateRoomSchema, createTableSchema, updateTableSchema, bulkTablesSchema } from '../schemas/roomSchema.js';
+import { createRoomSchema, updateRoomSchema, createTableSchema, updateTableSchema, bulkTablesSchema, roomLayoutSchema } from '../schemas/roomSchema.js';
+import { HttpError, sendHttpError } from '../utils/httpError.js';
+import { findLayoutProblem } from '../utils/roomLayout.js';
 
 // Sale e tavoli del locale (modulo `tables`). Si leggono con i ruoli di cassa, si modificano solo da admin.
 export const roomsRouter = express.Router();
 export const tablesRouter = express.Router();
 
-const ROOM_COLUMNS = 'id, name, active';
-const TABLE_COLUMNS = 'id, room_id, name, seats, active';
+const ROOM_COLUMNS = 'id, name, active, grid_w, grid_h';
+const TABLE_COLUMNS = 'id, room_id, name, seats, active, x, y, w, h, shape';
 
 const UNIQUE_ROOM = 'Esiste già una sala con questo nome';
 const UNIQUE_TABLE = 'Esiste già un tavolo con questo nome in questa sala';
@@ -72,6 +74,37 @@ roomsRouter.delete('/:id', authenticate, requireModule('tables'), authorizeAdmin
     if (err.code === '23503') return res.status(409).json({ error: 'La sala ha ancora dei tavoli: eliminali prima, oppure disattivala', code: 'ROOM_NOT_EMPTY' });
     logger.error({ err }, 'Errore DELETE /api/rooms/:id');
     res.status(500).json({ error: 'Errore eliminazione sala' });
+  }
+});
+
+// PUT /api/rooms/:id/layout — salva la pianta: misura della sala e posizione dei tavoli, in un colpo solo.
+// I tavoli non elencati restano come sono; la pianta risultante (tutti i tavoli della sala) deve essere valida.
+roomsRouter.put('/:id/layout', authenticate, requireModule('tables'), authorizeAdmin, validate({ params: idParamsSchema, body: roomLayoutSchema }), tenantScope, async (req, res) => {
+  const { grid_w: gridW, grid_h: gridH, tables: placements } = req.body;
+  try {
+    const result = await inTransaction(req.db, async (db) => {
+      const { rows: room } = await db.query('SELECT id FROM rooms WHERE id = $1 FOR UPDATE', [req.params.id]);
+      if (!room.length) throw new HttpError(404, 'Sala non trovata');
+      await db.query('UPDATE rooms SET grid_w = $1, grid_h = $2 WHERE id = $3', [gridW, gridH, req.params.id]);
+
+      const { rows: current } = await db.query('SELECT id FROM dining_tables WHERE room_id = $1', [req.params.id]);
+      const ids = new Set(current.map(t => t.id));
+      if (placements.some(t => !ids.has(t.id))) throw new HttpError(400, 'Tavolo non appartenente alla sala', 'LAYOUT_INVALID');
+      for (const t of placements)
+        await db.query('UPDATE dining_tables SET x = $1, y = $2, w = $3, h = $4, shape = $5 WHERE id = $6 AND room_id = $7',
+          [t.x, t.y, t.w, t.h, t.shape, t.id, req.params.id]);
+
+      const { rows: tables } = await db.query(`SELECT ${TABLE_COLUMNS} FROM dining_tables WHERE room_id = $1 ORDER BY id`, [req.params.id]);
+      const problem = findLayoutProblem({ gridW, gridH, tables });
+      if (problem) throw new HttpError(400, problem, 'LAYOUT_INVALID');
+      return { id: Number(req.params.id), grid_w: gridW, grid_h: gridH, tables };
+    });
+    await logAudit(req.db, req.user.id, 'UPDATE_ROOM_LAYOUT', { roomId: result.id, gridW, gridH, tables: placements.length });
+    res.json(result);
+  } catch (err) {
+    if (sendHttpError(res, err)) return;
+    logger.error({ err }, 'Errore PUT /api/rooms/:id/layout');
+    res.status(500).json({ error: 'Errore salvataggio pianta' });
   }
 });
 

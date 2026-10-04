@@ -29,7 +29,8 @@ Tutte le tabelle nuove sono tenant-scoped con RLS (`CLAUDE.md` §3) e vanno in `
 ```
 rooms          id, tenant_id, name, active                       (nome unico per tenant)
 dining_tables  id, tenant_id, room_id, name, seats, active       (nome unico per sala)
-               posizione sulla mappa e ordine delle sale: si aggiungono con la vista Sala (2-6)
+               pianta (migrazione 034): rooms.grid_w/grid_h (celle), dining_tables.x/y/w/h (celle, tutti nulli = da piazzare) e shape ('rect'|'round'); niente rotazione
+               ordine delle sale: si aggiunge con la vista Sala (2-6)
 
 checks       id, tenant_id, session_id, table_id → dining_tables (nullo per banco), number (progressivo per sessione),
              covers, status ('open' | 'paid' | 'void'), opened_by, opened_at, bill_requested_at, closed_at,

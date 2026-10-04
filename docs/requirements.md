@@ -61,7 +61,7 @@ Disegno completo e decisioni in `docs/design-tavoli.md`. Un passo alla volta; i 
 | 2-4 | Comanda su un conto aperto; il KDS e la comanda mostrano tavolo e coperti. | `[ ]` |
 | 2-5 | Pagamenti (contanti, carta, altro), anche in più parti alla romana; chiusura del conto; ricevuta non fiscale. | `[ ]` |
 | 2-6 | Vista Sala: tavoli per sala con stato, apertura tavolo, carrello in modalità tavolo, pannello del conto, aggiornamento in tempo reale. | `[ ]` |
-| 2-6a | Editor della pianta: l'admin del locale disegna ogni sala, piazza i tavoli dove vuole e ne sceglie forma e dimensione (trascinamento, ridimensionamento, tocco su tablet); la Sala mostra la stessa pianta con lo stato dal vivo. Migrazione 034 (posizione e misure di tavoli e sale). | `[ ]` |
+| 2-6a | Editor della pianta: l'admin del locale disegna ogni sala, piazza i tavoli dove vuole e ne sceglie forma e dimensione (trascinamento, ridimensionamento, tocco su tablet); la Sala mostra la stessa pianta con lo stato dal vivo. Migrazione 034 (posizione e misure di tavoli e sale). Niente rotazione: la forma si ottiene da larghezza e altezza. | `[x]` |
 | 2-7 | Spostare un conto su un altro tavolo e unire due tavoli. | `[ ]` |
 | 2-8 | Pagamento per voce (chi paga cosa). | `[ ]` |
 | 2-9 | Coperto e sconto sul conto. | `[ ]` |

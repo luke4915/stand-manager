@@ -2,6 +2,8 @@ import { useState, useEffect, useCallback } from 'react';
 import { Users, Receipt } from 'lucide-react';
 import { fetchWithAuth } from '../utils/apiClient';
 import { useToast } from '../context/useToast';
+import FloorCanvas from './floor/FloorCanvas';
+import { isPlaced } from './floor/geometry';
 
 const minutesSince = (iso) => Math.max(0, Math.round((Date.now() - new Date(iso).getTime()) / 60000));
 const euro = (n) => `${Number(n).toFixed(2).replace('.', ',')} €`;
@@ -31,6 +33,19 @@ const TableCard = ({ table, check }) => {
           </p>
         )}
       </div>
+    </div>
+  );
+};
+
+// Un tavolo sulla pianta: forma e misura scelte dall'admin, colore dallo stato.
+const mapTable = (check) => (table, style, cell) => {
+  const state = tableState(check(table));
+  const c = check(table);
+  return (
+    <div key={table.id} style={style} title={`${table.name} · ${STATE_LABEL[state]}`}
+      className={`flex flex-col items-center justify-center border-2 box-border overflow-hidden text-center ${table.shape === 'round' ? 'rounded-full' : 'rounded-lg'} ${STATE_STYLE[state]} ${table.active ? '' : 'opacity-40'}`}>
+      <span className="font-black leading-none text-[var(--text-main)] truncate max-w-full px-1" style={{ fontSize: Math.max(10, Math.min(cell * 0.45, 18)) }}>{table.name}</span>
+      {c && cell >= 24 && table.h > 1 && <span className="leading-none mt-0.5 text-[var(--text-muted)]" style={{ fontSize: Math.max(9, cell * 0.3) }}>{c.covers}p · {euro(c.total)}</span>}
     </div>
   );
 };
@@ -81,8 +96,14 @@ const SalaPage = ({ service, event }) => {
       {activeRooms.map(room => (
         <section key={room.id}>
           <h3 className="text-xs font-black uppercase tracking-widest text-[var(--text-muted)] mb-3">{room.name}</h3>
+          {room.tables.some(isPlaced) && (
+            <div className="mb-3">
+              <FloorCanvas gridW={room.grid_w} gridH={room.grid_h} tables={room.tables} renderTable={mapTable(t => byTable.get(t.id))} />
+            </div>
+          )}
+          {/* Senza pianta disegnata tutti i tavoli sono schede; con la pianta restano schede solo quelli non ancora piazzati */}
           <div className="grid gap-3 grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 2xl:grid-cols-6">
-            {room.tables.map(t => <TableCard key={t.id} table={t} check={byTable.get(t.id)} />)}
+            {room.tables.filter(t => !isPlaced(t)).map(t => <TableCard key={t.id} table={t} check={byTable.get(t.id)} />)}
           </div>
           {!room.tables.length && <p className="text-sm text-[var(--text-muted)]">Nessun tavolo in questa sala.</p>}
         </section>

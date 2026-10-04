@@ -30,3 +30,22 @@ export const bulkTablesSchema = z.object({
   seats: seats.default(2),
 }).refine(v => v.to >= v.from, { message: 'Il numero finale deve essere maggiore o uguale a quello iniziale', path: ['to'] })
   .refine(v => v.to - v.from < 100, { message: 'Al massimo 100 tavoli per volta', path: ['to'] });
+
+// Pianta della sala: misura della griglia e posizione di ogni tavolo (in celle). x, y, w, h vanno insieme:
+// tutti nulli = tavolo da piazzare. Il controllo geometrico (limiti, sovrapposizioni) lo fa la route.
+const cell = z.number().int().min(0).max(60);
+const layoutTable = z.object({
+  id: z.number().int().positive(),
+  x: cell.nullable(),
+  y: cell.nullable(),
+  w: z.number().int().min(1).max(30).nullable(),
+  h: z.number().int().min(1).max(30).nullable(),
+  shape: z.enum(['rect', 'round']),
+}).refine(t => [t.x, t.y, t.w, t.h].every(v => v === null) || [t.x, t.y, t.w, t.h].every(v => v !== null),
+  { message: 'Posizione e misure vanno indicate insieme' });
+
+export const roomLayoutSchema = z.object({
+  grid_w: z.number().int().min(4).max(60),
+  grid_h: z.number().int().min(4).max(60),
+  tables: z.array(layoutTable).max(300),
+}).refine(v => new Set(v.tables.map(t => t.id)).size === v.tables.length, { message: 'Tavolo ripetuto', path: ['tables'] });

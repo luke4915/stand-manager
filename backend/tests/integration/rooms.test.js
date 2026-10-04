@@ -57,7 +57,7 @@ describe('sale e tavoli', () => {
   it('sale: crea, nome unico senza distinguere le maiuscole, rinomina, disattiva', async () => {
     const created = await admin1.post('/rooms', { name: '  Sala interna ' });
     assert.equal(created.status, 201, JSON.stringify(created.body));
-    assert.deepEqual(created.body, { id: created.body.id, name: 'Sala interna', active: true, tables: [] });
+    assert.deepEqual(created.body, { id: created.body.id, name: 'Sala interna', active: true, grid_w: 24, grid_h: 16, tables: [] });
     assert.equal((await admin1.post('/rooms', { name: 'SALA INTERNA' })).status, 409);
     assert.equal((await admin1.post('/rooms', { name: '   ' })).status, 400);
 
@@ -73,7 +73,7 @@ describe('sale e tavoli', () => {
     const [a, b] = [(await admin1.post('/rooms', { name: 'Sala A' })).body, (await admin1.post('/rooms', { name: 'Sala B' })).body];
     const t = await admin1.post(`/rooms/${a.id}/tables`, { name: 'T1', seats: 4 });
     assert.equal(t.status, 201, JSON.stringify(t.body));
-    assert.deepEqual(t.body, { id: t.body.id, room_id: a.id, name: 'T1', seats: 4, active: true });
+    assert.deepEqual(t.body, { id: t.body.id, room_id: a.id, name: 'T1', seats: 4, active: true, x: null, y: null, w: null, h: null, shape: 'rect' });
     assert.equal((await admin1.post(`/rooms/${a.id}/tables`, { name: 't1' })).status, 409);
     assert.equal((await admin1.post(`/rooms/${b.id}/tables`, { name: 'T1' })).status, 201, 'stesso nome in un\'altra sala');
     assert.equal((await admin1.post(`/rooms/${a.id}/tables`, { name: 'T2' })).body.seats, 2, 'posti predefiniti');
@@ -125,6 +125,61 @@ describe('sale e tavoli', () => {
     assert.equal((await admin1.request('DELETE', `/tables/${giardino.tables[0].id}`)).status, 404);
     assert.equal((await admin1.request('DELETE', `/rooms/${giardino.id}`)).status, 200);
     assert.equal((await cashier.request('DELETE', `/rooms/${list[0].id}`)).status, 403);
+  });
+
+  it('pianta della sala: si salva in un colpo, con limiti e sovrapposizioni controllati dal server', async () => {
+    const room = (await admin1.post('/rooms', { name: 'Pianta' })).body;
+    assert.equal(room.grid_w, 24);
+    assert.equal(room.grid_h, 16);
+    const [a, b, c] = (await admin1.post(`/rooms/${room.id}/tables/bulk`, { prefix: 'P', from: 1, to: 3 })).body.created;
+    assert.equal(a.x, null, 'i tavoli nuovi sono da piazzare');
+    assert.equal(a.shape, 'rect');
+    const put = (body) => admin1.put(`/rooms/${room.id}/layout`, body);
+    const ok = { grid_w: 20, grid_h: 10, tables: [
+      { id: a.id, x: 0, y: 0, w: 3, h: 2, shape: 'rect' },
+      { id: b.id, x: 3, y: 0, w: 2, h: 2, shape: 'round' },
+    ] };
+
+    const saved = await put(ok);
+    assert.equal(saved.status, 200, JSON.stringify(saved.body));
+    assert.equal(saved.body.grid_w, 20);
+    const listed = (await admin1.get('/rooms')).body.find(r => r.id === room.id);
+    assert.equal(listed.grid_h, 10);
+    assert.deepEqual(listed.tables.map(t => [t.x, t.y, t.w, t.h, t.shape]), [[0, 0, 3, 2, 'rect'], [3, 0, 2, 2, 'round'], [null, null, null, null, 'rect']]);
+
+    const overlap = await put({ ...ok, tables: [...ok.tables, { id: c.id, x: 1, y: 1, w: 2, h: 2, shape: 'rect' }] });
+    assert.equal(overlap.status, 400);
+    assert.equal(overlap.body.code, 'LAYOUT_INVALID');
+    assert.match(overlap.body.error, /si sovrappongono/);
+    assert.equal((await put({ ...ok, tables: [{ id: c.id, x: 19, y: 0, w: 2, h: 2, shape: 'rect' }] })).status, 400, 'esce dalla sala');
+    // una sala più piccola dei tavoli già piazzati non si salva
+    assert.equal((await put({ grid_w: 4, grid_h: 10, tables: [] })).status, 400);
+    // niente è cambiato dopo i rifiuti
+    const after = (await admin1.get('/rooms')).body.find(r => r.id === room.id);
+    assert.equal(after.grid_w, 20);
+    assert.equal(after.tables.find(t => t.id === c.id).x, null);
+
+    assert.equal((await put({ ...ok, tables: [{ id: a.id, x: 0, y: null, w: 2, h: 2, shape: 'rect' }] })).status, 400, 'posizione incompleta');
+    assert.equal((await put({ ...ok, tables: [{ id: a.id, x: 0, y: 0, w: 0, h: 2, shape: 'rect' }] })).status, 400);
+    assert.equal((await put({ ...ok, tables: [{ id: a.id, x: 0, y: 0, w: 2, h: 2, shape: 'esagono' }] })).status, 400);
+    assert.equal((await put({ ...ok, grid_w: 3 })).status, 400);
+    assert.equal((await put({ ...ok, tables: [ok.tables[0], ok.tables[0]] })).status, 400, 'tavolo ripetuto');
+    assert.equal((await admin1.put('/rooms/999999999/layout', ok)).status, 404);
+
+    // si rimette un tavolo da piazzare
+    const unplace = await put({ ...ok, tables: [{ id: a.id, x: null, y: null, w: null, h: null, shape: 'rect' }] });
+    assert.equal(unplace.status, 200);
+    assert.equal(unplace.body.tables.find(t => t.id === a.id).x, null);
+  });
+
+  it('pianta: solo l\'admin la salva e un altro tenant non la tocca', async () => {
+    const room = (await admin1.post('/rooms', { name: 'Pianta riservata' })).body;
+    const tbl = (await admin1.post(`/rooms/${room.id}/tables`, { name: 'R1' })).body;
+    const body = { grid_w: 10, grid_h: 10, tables: [{ id: tbl.id, x: 0, y: 0, w: 2, h: 2, shape: 'rect' }] };
+    assert.equal((await cashier.put(`/rooms/${room.id}/layout`, body)).status, 403);
+    assert.equal((await admin2.put(`/rooms/${room.id}/layout`, body)).status, 404);
+    assert.equal((await apiClient(server.port, t1.host).put(`/rooms/${room.id}/layout`, body)).status, 401);
+    assert.equal((await admin1.get('/rooms')).body.find(r => r.id === room.id).tables[0].x, null);
   });
 
   it('isolamento: un altro tenant non vede né tocca le sale e i tavoli', async () => {
