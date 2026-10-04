@@ -26,14 +26,8 @@ const Login = ({ onLogin }) => {
       showToast("Login effettuato!", "success");
 
       // Passiamo i dati al chiamante (App.jsx) che aggiornerà l'AuthContext
-      onLogin({
-        id: data.id,
-        username: data.username,
-        role: data.role,
-        needsPassword: data.needsPassword,
-        theme: data.theme,
-        tenantName: data.tenantName
-      });
+      // Tutto ciò che risponde il server (ruolo, tenant, tipo di attività, moduli…): niente elenco di campi da tenere allineato.
+      onLogin(data);
 
     } catch (err) {
       showToast(err.message, "error");
