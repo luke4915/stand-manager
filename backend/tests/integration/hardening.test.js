@@ -2,6 +2,7 @@
 // ordini in ritardo, vincoli del database, file pubblici.
 import { describe, it, before, after } from 'node:test';
 import assert from 'node:assert/strict';
+import http from 'http';
 import { randomUUID } from 'crypto';
 import jwt from 'jsonwebtoken';
 import bcrypt from 'bcrypt';
@@ -131,5 +132,19 @@ describe('rinforzi di sicurezza', () => {
     assert.equal(done.status, 200);
     assert.equal(await statusOf(open2), 'completed');
     assert.equal(Number(done.body.expected_cash), 10);
+  });
+
+  it('health check senza login; JSON malformato: 400 e non 500', async () => {
+    const api = apiClient(server.port, t.host);
+    assert.deepEqual((await api.get('/health')).body, { status: 'ok' });
+    assert.deepEqual((await api.get('/health/ready')).body, { status: 'ok' });
+    const status = await new Promise((resolve, reject) => {
+      const body = '{non json';
+      const req = http.request({ host: '127.0.0.1', port: server.port, method: 'POST', path: '/api/auth/login',
+        headers: { host: t.host, 'content-type': 'application/json', 'content-length': Buffer.byteLength(body) } }, (res) => { res.resume(); resolve(res.statusCode); });
+      req.on('error', reject);
+      req.end(body);
+    });
+    assert.equal(status, 400);
   });
 });

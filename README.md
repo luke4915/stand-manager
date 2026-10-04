@@ -50,8 +50,10 @@ Ogni tenant si apre dal suo sottodominio (es. `default.standmanager.local`): i n
 cd backend
 npm test                      # unitari, senza database
 npm run test:integration      # integrazione su PostgreSQL locale (configura backend/.env.test)
-cd ../frontend && npm run lint
+cd ../frontend && npm run lint && npm test
 ```
+
+La CI (`.github/workflows/ci.yml`) esegue lint, test, build e `npm audit` a ogni push e pull request, con un PostgreSQL vero per i test di integrazione.
 
 ## Produzione
 
@@ -59,3 +61,5 @@ cd ../frontend && npm run lint
 - `APP_DOMAIN` è il dominio dell'app: servono un DNS e un certificato wildcard per `*.APP_DOMAIN`, indicato con `HTTPS_KEY_PATH` e `HTTPS_CERT_PATH`.
 - L'app si connette al database con l'utente applicativo (soggetto a RLS). Le migrazioni (`npm run migrate`) usano `MIGRATION_DATABASE_URL`.
 - Avvio con un gestore di processi (systemd o PM2). Un eventuale reverse proxy deve inoltrare anche l'upgrade WebSocket.
+- `GET /api/health` (processo) e `/api/health/ready` (database) per il monitoraggio; `backend/scripts/backup.sh` per i backup.
+- Lista di controllo prima di andare online, rilascio, backup e log: [`docs/deployment.md`](docs/deployment.md).

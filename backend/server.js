@@ -37,11 +37,19 @@ const hub = createWebSocketHub();
 const server = createServer(httpsOptions, createApp({ broadcast: hub.broadcast }));
 hub.attach(server);
 
-process.on('SIGTERM', () => {
-  logger.info('SIGTERM ricevuto, chiusura server...');
+// Chiusura ordinata: smette di accettare connessioni, chiude i WebSocket e il pool; dopo 10 s esce comunque.
+function shutdown(signal) {
+  logger.info(`${signal} ricevuto, chiusura server...`);
   hub.close();
   server.close(() => pool.end(() => process.exit(0)));
-});
+  setTimeout(() => process.exit(1), 10_000).unref();
+}
+process.on('SIGTERM', () => shutdown('SIGTERM'));
+process.on('SIGINT', () => shutdown('SIGINT'));
+
+// Errori fuori da ogni handler: si registrano e si esce, il gestore di processi (systemd/PM2) riavvia.
+process.on('uncaughtException', (err) => { logger.fatal({ err }, 'Eccezione non gestita'); process.exit(1); });
+process.on('unhandledRejection', (err) => { logger.fatal({ err }, 'Promise rifiutata e non gestita'); process.exit(1); });
 
 const PORT = parseInt(process.env.PORT) || 3000;
 server.listen(PORT, '0.0.0.0', () => logger.info(`API e WSS in ascolto su https://0.0.0.0:${PORT}`));

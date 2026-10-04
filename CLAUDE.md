@@ -49,6 +49,7 @@ Comandi:
 | backend | `npm test` | test unitari (`node --test`) |
 | backend | `npm run test:integration` | test di integrazione (serve `backend/.env.test`, vedi `.env.test.example`) |
 | frontend | `npm run dev` | Vite su https://*.standmanager.local:5173 |
+| backend | `scripts/backup.sh` | dump del database con rotazione (vedi `docs/deployment.md`) |
 | frontend | `npm run lint` | ESLint — deve passare prima di ogni commit |
 | frontend | `npm test` | test (`node --test`) del motore di stampa in `src/print/`, anche contro la stampante simulata |
 | frontend | `npm run mock:epos` | stampante Epson simulata su https://localhost:9443: disegna le copie nel terminale e può rifiutare i lavori (`-- --fail EPTR_COVER_OPEN`) |
@@ -88,6 +89,7 @@ L'isolamento tra tenant si basa sulla Row-Level Security di PostgreSQL con la va
 - Mai segreti nel codice o nei commit. Nuove variabili d'ambiente vanno aggiunte a `.env.example` con un valore fittizio.
 - Password: minimo 8 caratteri, bcrypt costo 12 (`utils/password.js`). Il login è limitato per coppia IP + username.
 - Dal client una riga d'ordine vale solo per `id` e `quantity`: nome, categoria, destinazione di stampa e prezzo si leggono dal catalogo. Un ordine in ritardo (`session_id`) richiede `client_order_id`. Lo stesso vale per il QR del menu (`frontend/src/utils/qrCart.js`).
+- Operatività: `GET /api/health` e `/api/health/ready`; una riga di log per richiesta (`middleware/requestLogger.js`, mai cookie né body); backup con `backend/scripts/backup.sh`. Rilascio e lista pre-produzione in `docs/deployment.md`.
 - Il rate limiting è in `middleware/rateLimiter.js`. Le API e gli ordini contano per utente se c'è una sessione valida, altrimenti per IP: le casse dietro lo stesso IP non si dividono il limite. Gli endpoint nuovi e "costosi" (export, stampa) meritano un limiter dedicato.
 - Origini ammesse (`utils/origins.js`): `APP_DOMAIN` e i suoi sottodomini; localhost e IP LAN solo fuori dalla produzione. Un'origine non ammessa riceve 403 prima di qualsiasi elaborazione.
 

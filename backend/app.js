@@ -12,6 +12,8 @@ import orderRoutes from './routes/orders.js';
 import deviceRoutes from './routes/devices.js';
 import sessionRoutes from './routes/sessions.js';
 import statsRoutes from './routes/stats.js';
+import healthRoutes from './routes/health.js';
+import { requestLogger } from './middleware/requestLogger.js';
 import exportRoutes from './routes/exports.js';
 import printSettingsRoutes from './routes/printSettings.js';
 import settingsRoutes from './routes/settings.js';
@@ -25,7 +27,7 @@ const __dirname = path.dirname(fileURLToPath(import.meta.url));
 // Applicazione Express senza server né porta: la avvia server.js (HTTPS) e la usano
 // i test di integrazione. `broadcast` arriva dal WebSocket (ws.js); `rateLimit: false`
 // serve solo ai test, che inviano molte richieste di fila dallo stesso indirizzo.
-export function createApp({ broadcast, rateLimit = true }) {
+export function createApp({ broadcast, rateLimit = true, logRequests = true }) {
   const app = express();
 
   app.use(helmet({
@@ -50,6 +52,8 @@ export function createApp({ broadcast, rateLimit = true }) {
     next();
   });
   app.use(cors({ origin: true, credentials: true }));
+  app.use('/api/health', healthRoutes); // prima di limiti e log: lo interroga il monitoraggio ogni pochi secondi
+  if (logRequests) app.use('/api', requestLogger);
   app.use(express.json({ limit: '1mb' }));
   // Dalla cartella assets si servono solo i suoni: lì stanno anche loghi che non devono essere pubblici.
   app.use('/api/assets', (req, res, next) => (req.path.endsWith('.mp3') ? next() : res.status(404).json({ error: 'Non trovato' })),
@@ -89,6 +93,9 @@ export function createApp({ broadcast, rateLimit = true }) {
   }
 
   app.use((err, _req, res, _next) => {
+    // JSON malformato o troppo grande: errore di chi chiama, non del server
+    if (err.type === 'entity.parse.failed') return res.status(400).json({ error: 'Corpo della richiesta non valido' });
+    if (err.type === 'entity.too.large') return res.status(413).json({ error: 'Richiesta troppo grande' });
     logger.error({ err }, 'Errore non gestito');
     res.status(500).json({ error: 'Errore interno del server' });
   });

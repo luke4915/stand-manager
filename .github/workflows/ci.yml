@@ -1,0 +1,79 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  frontend:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: frontend
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+      - run: npm ci
+      - run: npm run lint
+      - run: npm test
+      - run: npm run build
+      - run: npm audit --audit-level=high
+
+  backend:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: backend
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: standmanager_test
+        ports: ['5432:5432']
+        options: >-
+          --health-cmd "pg_isready -U postgres"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+    env:
+      PGPASSWORD: postgres
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: backend/package-lock.json
+      - run: npm ci
+      - run: npm audit --audit-level=high --omit=dev
+      - run: npm test
+
+      # Database di prova come in locale: schema.sql con l'utente applicativo soggetto a RLS.
+      # Il ruolo "colettas" è il proprietario nominato nel dump di schema.sql.
+      - name: Prepara il database di prova
+        run: |
+          psql -h localhost -U postgres -c "CREATE ROLE colettas SUPERUSER LOGIN"
+          psql -h localhost -U postgres -c "CREATE ROLE standmanager_app LOGIN PASSWORD 'ci-password'"
+          psql -h localhost -U postgres -d standmanager_test -q -f schema.sql
+          cat > .env.test <<'EOF'
+          PG_USER=standmanager_app
+          PG_PASSWORD=ci-password
+          PG_HOST=localhost
+          PG_PORT=5432
+          PG_DATABASE=standmanager_test
+          TEST_DATABASE_URL=postgres://postgres:postgres@localhost:5432/standmanager_test
+          MIGRATION_DATABASE_URL=postgres://postgres:postgres@localhost:5432/standmanager_test
+          JWT_SECRET=una-stringa-di-prova-lunga-almeno-32-caratteri
+          LOG_LEVEL=silent
+          EOF
+          MIGRATION_DATABASE_URL=postgres://postgres:postgres@localhost:5432/standmanager_test \
+          PG_USER=standmanager_app PG_PASSWORD=ci-password PG_HOST=localhost PG_DATABASE=standmanager_test \
+            npm run db:baseline
+
+      - run: npm run test:integration
