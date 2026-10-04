@@ -8,6 +8,7 @@ import OpenTablePanel from './OpenTablePanel';
 import CheckView from './CheckView';
 import PayView from './PayView';
 import AdjustView from './AdjustView';
+import MoveView from './MoveView';
 import DraftOrder from './DraftOrder';
 
 const Empty = () => (
@@ -18,9 +19,9 @@ const Empty = () => (
 );
 
 // Il conto di un tavolo e le sue viste (conto, incasso, sconto, comanda): sempre nello stesso pannello.
-const CheckSide = ({ checkId, user, service, event, ordering, cart, setCart, products, onBack, onDraftBack, onOrder, onSent, onChanged }) => {
+const CheckSide = ({ checkId, user, service, event, ordering, cart, setCart, products, onBack, onDraftBack, onOrder, onSent, onChanged, onSwitch }) => {
   const { showToast } = useToast();
-  const [view, setView] = useState('check');      // 'check' | 'pay' | 'adjust'
+  const [view, setView] = useState('check');      // 'check' | 'pay' | 'adjust' | 'move'
   const { detail, reload } = useCheckDetail(checkId, event, onBack);
   const refresh = useCallback(async () => { await reload(); onChanged(); }, [reload, onChanged]);
 
@@ -36,8 +37,11 @@ const CheckSide = ({ checkId, user, service, event, ordering, cart, setCart, pro
   if (ordering) return <DraftOrder detail={detail} service={service} cart={cart} setCart={setCart} products={products} onBack={onDraftBack} onSent={() => { onSent(); refresh(); }} />;
   if (view === 'pay') return <PayView detail={detail} onBack={() => setView('check')} onPaid={refresh} onPrint={print} />;
   if (view === 'adjust') return <AdjustView detail={detail} onBack={() => setView('check')} onDone={refresh} />;
+  if (view === 'move') {
+    return <MoveView detail={detail} onBack={() => setView('check')} onMoved={(check) => onSwitch(check)} onMerged={(target) => onSwitch(target)} />;
+  }
   return (
-    <CheckView detail={detail} user={user} service={service} onBack={onBack} onOrder={onOrder} onPay={() => setView('pay')} onAdjust={() => setView('adjust')}
+    <CheckView detail={detail} user={user} service={service} onBack={onBack} onOrder={onOrder} onPay={() => setView('pay')} onAdjust={() => setView('adjust')} onMove={() => setView('move')}
       onChanged={refresh} onDeleted={() => { onChanged(); onBack(); }} onPrint={print} />
   );
 };

@@ -56,7 +56,8 @@ const SalaPage = ({ user, service, event }) => {
       cart={cart} setCart={setCart} products={products}
       onBack={close} onOpened={(check) => { setSelection(s => ({ ...s, checkId: check.id })); load(); }} onBusy={close}
       onOrder={() => setOrdering(true)} onDraftBack={() => (narrow ? setDraftOpen(false) : setOrdering(false))}
-      onSent={() => { reset(); load(); }} onChanged={load} />
+      onSent={() => { reset(); load(); }} onChanged={load}
+      onSwitch={(check) => { reset(); setSelection({ table: rooms.flatMap(r => r.tables).find(t => t.id === check.table_id), checkId: check.id }); load(); }} />
   );
   const floor = <FloorView rooms={rooms} checks={checks} service={service} selectedTableId={selection?.table.id} onSelect={select} />;
   const menu = <OrderMenu products={products} cart={cart} tableName={selection?.table.name} onAdd={add} onBack={() => { setOrdering(false); setDraftOpen(false); }} />;

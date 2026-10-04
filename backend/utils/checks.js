@@ -7,7 +7,7 @@ import { loadPayments, loadLinePayments } from './payments.js';
 // Un conto con tavolo, sala, chi lo ha aperto e il totale delle comande non annullate.
 const SUMMARY_SQL = `
   SELECT c.id, c.number, c.status, c.session_id, c.table_id, t.name AS table_name, t.room_id, r.name AS room_name,
-         c.covers, c.opened_by, u.username AS opened_by_name, c.opened_at, c.bill_requested_at, c.closed_at,
+         c.covers, c.merged_into, c.opened_by, u.username AS opened_by_name, c.opened_at, c.bill_requested_at, c.closed_at,
          COALESCE((SELECT SUM(o.total) FROM orders o WHERE o.check_id = c.id AND o.status <> 'canceled'), 0) AS orders_total,
          (SELECT COUNT(*) FROM orders o WHERE o.check_id = c.id AND o.status <> 'canceled')::int AS orders_count,
          COALESCE((SELECT SUM(p.amount) FROM payments p WHERE p.check_id = c.id), 0) AS paid_total

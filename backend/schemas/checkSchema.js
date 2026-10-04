@@ -48,3 +48,13 @@ export const voidCheckSchema = z.object({
 export const receiptQuerySchema = z.object({
   payment_id: idSchema.optional(),
 });
+
+// Sposta il conto su un altro tavolo libero.
+export const moveCheckSchema = z.object({
+  table_id: idSchema,
+});
+
+// Unisce questo conto in un altro conto aperto (`into`): comande, pagamenti e coperti confluiscono lì.
+export const mergeCheckSchema = z.object({
+  into: idSchema,
+});

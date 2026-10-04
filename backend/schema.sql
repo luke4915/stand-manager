@@ -114,6 +114,7 @@ CREATE TABLE public.checks (
     opened_at timestamp with time zone DEFAULT now() NOT NULL,
     bill_requested_at timestamp with time zone,
     closed_at timestamp with time zone,
+    merged_into integer,
     CONSTRAINT checks_covers_check CHECK (((covers >= 0) AND (covers <= 99))),
     CONSTRAINT checks_number_check CHECK ((number > 0)),
     CONSTRAINT checks_status_check CHECK ((status = ANY (ARRAY['open'::text, 'paid'::text, 'void'::text])))
@@ -1251,6 +1252,14 @@ ALTER TABLE ONLY public.audit_logs
 
 ALTER TABLE ONLY public.audit_logs
     ADD CONSTRAINT audit_logs_user_id_fkey FOREIGN KEY (user_id) REFERENCES public.users(id) ON DELETE SET NULL;
+
+
+--
+-- Name: checks checks_merged_into_fkey; Type: FK CONSTRAINT; Schema: public; Owner: colettas
+--
+
+ALTER TABLE ONLY public.checks
+    ADD CONSTRAINT checks_merged_into_fkey FOREIGN KEY (merged_into) REFERENCES public.checks(id);
 
 
 --

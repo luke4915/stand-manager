@@ -14,7 +14,7 @@ import { sumQuantitiesByProduct, applyStockChange } from '../utils/stock.js';
 import { loadItems } from '../utils/orderItemsRead.js';
 import { withCheckInfo } from '../utils/orderCheck.js';
 import { idParamsSchema } from '../schemas/common.js';
-import { openCheckSchema, listChecksQuerySchema, billRequestSchema, paymentSchema, adjustSchema, voidCheckSchema, receiptQuerySchema } from '../schemas/checkSchema.js';
+import { openCheckSchema, listChecksQuerySchema, billRequestSchema, paymentSchema, adjustSchema, voidCheckSchema, receiptQuerySchema, moveCheckSchema, mergeCheckSchema } from '../schemas/checkSchema.js';
 
 // Conti dei tavoli (modulo `tables`). Eventi WebSocket: `check_updated` (solo personale, mai al KDS pubblico).
 const router = express.Router();
@@ -22,6 +22,14 @@ const guard = [authenticate, requireModule('tables'), authorizeCash];
 
 export default function (broadcast) {
   const notify = (tenantId, check) => broadcast?.(tenantId, { type: 'check_updated', check });
+  // Le comande cambiate (sconto, annullo, nuovo tavolo) si rimandano a cucina e personale, con tavolo e coperti aggiornati.
+  const notifyOrders = async (db, tenantId, orderIds) => {
+    if (!broadcast || !orderIds.length) return;
+    const { rows } = await db.query('SELECT * FROM orders WHERE id = ANY($1::int[])', [orderIds]);
+    const byOrder = await loadItems(db, orderIds);
+    for (const o of await withCheckInfo(db, rows))
+      broadcast(tenantId, { type: 'order_updated', order: { ...o, items: byOrder.get(o.id) ?? [] } });
+  };
 
   // GET /api/checks?status=open&table_id= — elenco (la mappa della sala)
   router.get('/', ...guard, validate({ query: listChecksQuerySchema }), tenantScope, async (req, res) => {
@@ -185,12 +193,7 @@ export default function (broadcast) {
       });
       const check = await getCheckSummary(req.db, req.params.id);
       await logAudit(req.db, req.user.id, 'ADJUST_CHECK', { checkId: check.id, type, discountMode, discountValue, items: ids.length, total: check.total });
-      if (broadcast) {
-        const { rows } = await req.db.query('SELECT * FROM orders WHERE id = ANY($1::int[])', [orderIds]);
-        const byOrder = await loadItems(req.db, orderIds);
-        for (const o of await withCheckInfo(req.db, rows))
-          broadcast(req.user.tenantId, { type: 'order_updated', order: { ...o, items: byOrder.get(o.id) ?? [] } });
-      }
+      await notifyOrders(req.db, req.user.tenantId, orderIds);
       notify(req.user.tenantId, check);
       res.json(check);
     } catch (err) {
@@ -239,21 +242,73 @@ export default function (broadcast) {
       });
       const check = await getCheckSummary(req.db, req.params.id);
       await logAudit(req.db, req.user.id, 'VOID_CHECK', { checkId: check.id, ...(canceledIds.length && { canceledOrders: canceledIds.length }) });
-      if (broadcast) {
-        stockUpdates.forEach(product => broadcast(req.user.tenantId, { type: 'product_stock_updated', product }));
-        if (canceledIds.length) {
-          const { rows } = await req.db.query('SELECT * FROM orders WHERE id = ANY($1::int[])', [canceledIds]);
-          const byOrder = await loadItems(req.db, canceledIds);
-          for (const o of await withCheckInfo(req.db, rows))
-            broadcast(req.user.tenantId, { type: 'order_updated', order: { ...o, items: byOrder.get(o.id) ?? [] } });
-        }
-      }
+      stockUpdates.forEach(product => broadcast?.(req.user.tenantId, { type: 'product_stock_updated', product }));
+      await notifyOrders(req.db, req.user.tenantId, canceledIds);
       notify(req.user.tenantId, check);
       res.json(check);
     } catch (err) {
       if (sendHttpError(res, err)) return;
       logger.error({ err }, 'Errore POST /api/checks/:id/void');
       res.status(500).json({ error: 'Errore annullamento conto' });
+    }
+  });
+
+  // POST /api/checks/:id/move — sposta il conto su un altro tavolo libero (i clienti si cambiano di posto).
+  router.post('/:id/move', ...guard, validate({ params: idParamsSchema, body: moveCheckSchema }), tenantScope, async (req, res) => {
+    const { table_id: tableId } = req.body;
+    try {
+      const { from, orderIds } = await inTransaction(req.db, async (db) => {
+        await lockCheck(db, req.params.id);
+        const { rows: tables } = await db.query('SELECT id, active FROM dining_tables WHERE id = $1', [tableId]);
+        if (!tables.length) throw new HttpError(404, 'Tavolo non trovato');
+        if (!tables[0].active) throw new HttpError(409, 'Il tavolo è disattivato', 'TABLE_INACTIVE');
+        const { rows: [current] } = await db.query('SELECT table_id FROM checks WHERE id = $1', [req.params.id]);
+        if (current.table_id === tableId) throw new HttpError(409, 'Il conto è già su questo tavolo', 'SAME_TABLE');
+        await db.query('UPDATE checks SET table_id = $1 WHERE id = $2', [tableId, req.params.id]);   // l'indice unico rifiuta un tavolo occupato
+        const { rows: active } = await db.query(`SELECT id FROM orders WHERE check_id = $1 AND status IN ('pending', 'preparing')`, [req.params.id]);
+        return { from: current.table_id, orderIds: active.map(o => o.id) };
+      });
+      const check = await getCheckSummary(req.db, req.params.id);
+      await logAudit(req.db, req.user.id, 'MOVE_CHECK', { checkId: check.id, fromTableId: from, toTableId: tableId });
+      await notifyOrders(req.db, req.user.tenantId, orderIds);   // la cucina vede il tavolo nuovo
+      notify(req.user.tenantId, check);
+      res.json(check);
+    } catch (err) {
+      if (err.code === '23505' && err.constraint === 'uniq_checks_open_table')
+        return res.status(409).json({ error: 'Il tavolo ha già un conto aperto: per riunire i tavoli unisci i conti', code: 'TABLE_BUSY' });
+      if (sendHttpError(res, err)) return;
+      logger.error({ err }, 'Errore POST /api/checks/:id/move');
+      res.status(500).json({ error: 'Errore spostamento conto' });
+    }
+  });
+
+  // POST /api/checks/:id/merge — unisce questo conto in un altro conto aperto: comande, pagamenti e coperti confluiscono
+  // nel conto di destinazione, questo resta in archivio come annullato (`merged_into`) e il suo tavolo si libera.
+  router.post('/:id/merge', ...guard, validate({ params: idParamsSchema, body: mergeCheckSchema }), tenantScope, async (req, res) => {
+    const sourceId = Number(req.params.id), targetId = req.body.into;
+    if (sourceId === targetId) return res.status(400).json({ error: 'Scegli un altro conto', code: 'SAME_CHECK' });
+    try {
+      const { orderIds } = await inTransaction(req.db, async (db) => {
+        // Sempre nello stesso ordine (id crescente): due unioni opposte non si incastrano
+        for (const id of [sourceId, targetId].sort((a, b) => a - b)) await lockCheck(db, id);
+        const { rows: moved } = await db.query(`UPDATE orders SET check_id = $1 WHERE check_id = $2 RETURNING id, status`, [targetId, sourceId]);
+        await db.query('UPDATE payments SET check_id = $1 WHERE check_id = $2', [targetId, sourceId]);
+        await db.query(
+          `UPDATE checks t SET covers = LEAST(99, t.covers + s.covers), bill_requested_at = COALESCE(t.bill_requested_at, s.bill_requested_at)
+           FROM checks s WHERE t.id = $1 AND s.id = $2`, [targetId, sourceId]);
+        await db.query(`UPDATE checks SET status = 'void', closed_at = now(), bill_requested_at = NULL, merged_into = $1 WHERE id = $2`, [targetId, sourceId]);
+        return { orderIds: moved.filter(o => ['pending', 'preparing'].includes(o.status)).map(o => o.id) };
+      });
+      const [source, target] = await Promise.all([getCheckSummary(req.db, sourceId), getCheckSummary(req.db, targetId)]);
+      await logAudit(req.db, req.user.id, 'MERGE_CHECK', { fromCheckId: sourceId, intoCheckId: targetId });
+      await notifyOrders(req.db, req.user.tenantId, orderIds);
+      notify(req.user.tenantId, source);
+      notify(req.user.tenantId, target);
+      res.json(target);
+    } catch (err) {
+      if (sendHttpError(res, err)) return;
+      logger.error({ err }, 'Errore POST /api/checks/:id/merge');
+      res.status(500).json({ error: 'Errore unione conti' });
     }
   });
 

@@ -86,8 +86,8 @@ POST  /checks/:id/close                            chiude un conto con residuo z
 POST  /checks/:id/adjust { order_item_ids, type, … } abbuono: omaggio/sconto sulle voci non pagate (ruoli sconto)
 GET   /checks/:id/receipt[?payment_id=]            dati della ricevuta non fiscale (conto o singolo pagamento)
 POST  /checks/:id/void { cancel_orders? }          annulla il conto (ruoli sconto, senza comande attive); con cancel_orders elimina anche le comande (solo admin); mai con pagamenti già incassati
-POST  /checks/:id/move   { table_id }              sposta il conto su un altro tavolo libero
-POST  /checks/:id/merge  { into }                  unisce due conti
+POST  /checks/:id/move   { table_id }              sposta il conto su un altro tavolo libero (409 TABLE_BUSY se occupato)
+POST  /checks/:id/merge  { into }                  unisce questo conto in un altro aperto; i due conti si bloccano in ordine di id
 POST  /orders            + check_id                comanda su un conto aperto
 ```
 

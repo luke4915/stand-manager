@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Plus, Wallet, Lock, BellRing, BellOff, Percent, Printer, Trash2 } from 'lucide-react';
+import { Plus, Wallet, Lock, BellRing, BellOff, Percent, Printer, Trash2, ArrowRightLeft } from 'lucide-react';
 import { fetchWithAuth } from '../../utils/apiClient';
 import { useToast } from '../../context/useToast';
 import PanelFrame from './PanelFrame';
@@ -14,7 +14,7 @@ const DISCOUNT_ROLES = ['admin', 'responsabile'];
 
 // Il conto di un tavolo, nel pannello a destra: righe per comanda e due azioni sempre in vista (Aggiungi, Incassa).
 // Tutto il resto sta nel menu «⋯».
-const CheckView = ({ detail, user, service, onBack, onOrder, onPay, onAdjust, onChanged, onDeleted, onPrint }) => {
+const CheckView = ({ detail, user, service, onBack, onOrder, onPay, onAdjust, onMove, onChanged, onDeleted, onPrint }) => {
   const { showToast } = useToast();
   const [confirmDelete, setConfirmDelete] = useState(false);
   const [busy, setBusy] = useState(false);
@@ -44,6 +44,7 @@ const CheckView = ({ detail, user, service, onBack, onOrder, onPay, onAdjust, on
     { label: billRequested ? 'Annulla richiesta conto' : 'Il cliente chiede il conto', icon: billRequested ? BellOff : BellRing,
       onClick: () => run(() => fetchWithAuth(`/checks/${detail.id}/bill-request`, { method: 'POST', body: { requested: !detail.bill_requested_at } })) },
     { label: 'Stampa il conto', icon: Printer, onClick: () => onPrint() },
+    { label: 'Sposta o unisci tavolo', icon: ArrowRightLeft, onClick: onMove },
     canDiscount && activeOrders.length > 0 && { label: 'Omaggio o sconto', icon: Percent, onClick: onAdjust },
     (user.role === 'admin' || (canDiscount && activeOrders.length === 0)) && { label: 'Elimina conto', icon: Trash2, danger: true, disabled: hasPayments, hint: 'Ci sono già pagamenti', onClick: () => setConfirmDelete(true) },
   ];
