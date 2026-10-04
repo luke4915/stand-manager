@@ -15,7 +15,7 @@ import exportRoutes from './routes/exports.js';
 import printSettingsRoutes from './routes/printSettings.js';
 import settingsRoutes from './routes/settings.js';
 import masterRoutes from './routes/master.js';
-import { loginLimiter, apiLimiter, ordersLimiter, devicesLimiter } from './middleware/rateLimiter.js';
+import { loginLimiter, apiLimiter, ordersLimiter, devicesLimiter, exportsLimiter } from './middleware/rateLimiter.js';
 import { isAllowedOrigin } from './utils/origins.js';
 import logger from './logger.js';
 
@@ -50,7 +50,9 @@ export function createApp({ broadcast, rateLimit = true }) {
   });
   app.use(cors({ origin: true, credentials: true }));
   app.use(express.json({ limit: '1mb' }));
-  app.use('/api/assets', express.static(path.join(__dirname, 'assets')));
+  // Dalla cartella assets si servono solo i suoni: lì stanno anche loghi che non devono essere pubblici.
+  app.use('/api/assets', (req, res, next) => (req.path.endsWith('.mp3') ? next() : res.status(404).json({ error: 'Non trovato' })),
+    express.static(path.join(__dirname, 'assets'), { index: false, dotfiles: 'deny' }));
 
   if (rateLimit) {
     app.use('/api', apiLimiter);
@@ -58,6 +60,7 @@ export function createApp({ broadcast, rateLimit = true }) {
     app.use('/api/master/login', loginLimiter);
     app.use('/api/orders', ordersLimiter);
     app.use('/api/devices', devicesLimiter);
+    app.use('/api/exports', exportsLimiter);
   }
 
   app.use('/api/auth', authRoutes);

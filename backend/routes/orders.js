@@ -31,19 +31,18 @@ const CANCEL_WINDOW_MS = 5 * 60 * 1000;
 // Un ordine offline si può sincronizzare nella sua sessione fino a 24 ore dalla chiusura.
 const LATE_SYNC_WINDOW = '24 hours';
 
-// Riserva il prossimo numero d'ordine incrementando il contatore della sessione:
-// quella aperta, oppure (ordini offline sincronizzati in ritardo) quella in cui
-// l'ordine è stato battuto. Il lock sulla riga mette in fila gli ordini concorrenti.
-async function reserveOrderNumber(db, sessionId) {
-  const { rows } = sessionId === undefined
-    ? await db.query(
-      `UPDATE sessions SET order_counter = order_counter + 1
-       WHERE end_time IS NULL RETURNING id, order_counter, start_time, end_time`)
-    : await db.query(
-      `UPDATE sessions SET order_counter = order_counter + 1
-       WHERE id = $1 AND (end_time IS NULL OR end_time > now() - $2::interval)
-       RETURNING id, order_counter, start_time, end_time`,
-      [sessionId, LATE_SYNC_WINDOW]);
+// Trova la sessione dell'ordine: quella aperta, oppure (ordini offline sincronizzati in ritardo)
+// quella in cui l'ordine è stato battuto.
+// Con `useCounter` (ordini senza dispositivo, accodati prima della 018) incrementa anche il contatore
+// di sessione: il lock sulla riga mette in fila quegli ordini. Gli altri prendono solo un lock condiviso,
+// che non li mette in fila tra loro ma impedisce la chiusura della sessione mentre l'ordine si scrive.
+async function findOrderSession(db, sessionId, useCounter) {
+  const lock = useCounter ? 'UPDATE sessions SET order_counter = order_counter + 1' : null;
+  const target = sessionId === undefined ? 'end_time IS NULL' : 'id = $1 AND (end_time IS NULL OR end_time > now() - $2::interval)';
+  const params = sessionId === undefined ? [] : [sessionId, LATE_SYNC_WINDOW];
+  const { rows } = lock
+    ? await db.query(`${lock} WHERE ${target} RETURNING id, order_counter, start_time, end_time`, params)
+    : await db.query(`SELECT id, order_counter, start_time, end_time FROM sessions WHERE ${target} FOR SHARE`, params);
   if (rows.length) return rows[0];
   throw sessionId === undefined
     ? new HttpError(409, 'Nessuna sessione attiva: apri una sessione prima di inviare ordini', 'NO_ACTIVE_SESSION')
@@ -117,14 +116,15 @@ export default function (broadcast) {
 
     const productIds = [...new Set(items.map(i => i.id).filter(Boolean))];
     const { rows: dbProducts } = await req.db.query(
-      'SELECT id, price FROM products WHERE id = ANY($1)', [productIds]
+      'SELECT id, name, price, category, print_destination FROM products WHERE id = ANY($1)', [productIds]
     );
-    const priceMap = Object.fromEntries(dbProducts.map(p => [p.id, parseFloat(p.price)]));
+    // Prezzo, nome, categoria e destinazione di stampa vengono dal catalogo, mai dal client
+    const productMap = Object.fromEntries(dbProducts.map(p => [p.id, p]));
 
     // zod garantisce già che id/quantity siano numeri validi nella FORMA;
     // qui verifichiamo solo che il prodotto esista davvero a catalogo.
     for (const item of items) {
-      if (!(item.id in priceMap))
+      if (!(item.id in productMap))
         return res.status(400).json({ error: `Prodotto non valido: ${item.id}` });
     }
 
@@ -137,12 +137,13 @@ export default function (broadcast) {
     }
 
     const verifiedItems = items.map(i => {
-      const original_price = priceMap[i.id];
+      const product = productMap[i.id];
+      const original_price = parseFloat(product.price);
       const adjustment = sanitizeAdjustment(i, authorized);
       const line_total = computeLineTotal(original_price, i.quantity, adjustment);
       return {
         id: i.id,
-        name: i.name,
+        name: product.name,
         quantity: i.quantity,
         price: line_total / i.quantity, // unitario effettivo; il riferimento è line_total
         line_total,
@@ -151,8 +152,8 @@ export default function (broadcast) {
         discountMode: adjustment.discountMode,
         discountValue: adjustment.discountValue,
         note: i.note || '',
-        category: i.category,
-        print_destination: i.print_destination || 'both',
+        category: product.category || 'Altro',
+        print_destination: product.print_destination || 'both',
       };
     });
     const verifiedTotal = verifiedItems.reduce((sum, i) => sum + Math.round(i.line_total * 100), 0) / 100;
@@ -164,7 +165,7 @@ export default function (broadcast) {
 
     try {
       const { order, orderStatus, sessionOpen, stockUpdates } = await inTransaction(req.db, async (db) => {
-        const session = await reserveOrderNumber(db, session_id);
+        const session = await findOrderSession(db, session_id, device_id === undefined);
         const sessionOpen = !session.end_time;
         const displayCode = await resolveDisplayCode(db, session, device_id, device_seq);
         const totals = sumQuantitiesByProduct(verifiedItems);

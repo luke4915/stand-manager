@@ -5,6 +5,8 @@ import { pool, inTransaction } from '../db.js';
 import { withTenantClient } from '../middleware/tenantScope.js';
 import { authenticateMaster } from '../middleware/authenticateMaster.js';
 import logger from '../logger.js';
+import { SIGN_OPTIONS } from '../utils/jwtConfig.js';
+import { hashPassword } from '../utils/password.js';
 import { validate } from '../middleware/validate.js';
 import { idParamsSchema } from '../schemas/common.js';
 import { masterLoginSchema, createTenantSchema, extendLicenseSchema, tenantActiveSchema, deleteTenantSchema, receiptCustomizationSchema } from '../schemas/masterSchema.js';
@@ -29,7 +31,7 @@ router.post('/login', validate({ body: masterLoginSchema }), async (req, res) =>
   const valid = await bcrypt.compare(password, process.env.MASTER_PASSWORD_HASH);
   if (!valid) return res.status(401).json({ error: 'Password errata' });
 
-  const token = jwt.sign({ master: true }, process.env.MASTER_JWT_SECRET, { expiresIn: '4h' });
+  const token = jwt.sign({ master: true }, process.env.MASTER_JWT_SECRET, { ...SIGN_OPTIONS, expiresIn: '4h' });
   setMasterCookie(res, token);
   res.json({ ok: true });
 });
@@ -77,7 +79,7 @@ router.post('/tenants', authenticateMaster, validate({ body: createTenantSchema 
     await client.query('SELECT set_config($1, $2, false)', ['app.tenant_id', String(tenant.id)]);
     const { rows: userRows } = await client.query(
       `INSERT INTO users (username, role, tenant_id, password_hash, must_change_password) VALUES ($1, 'admin', $2, $3, true) RETURNING id, username, role`,
-      [adminUsername, tenant.id, await bcrypt.hash(adminPassword, 10)]
+      [adminUsername, tenant.id, await hashPassword(adminPassword)]
     );
 
     await client.query('COMMIT');

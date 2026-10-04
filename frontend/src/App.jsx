@@ -384,7 +384,7 @@ const App = () => {
   const canDiscount = DISCOUNT_ROLES.includes(user?.role);
 
   const cartProps = {
-    cart, setCart, total, addToCart, removeFromCart,
+    products, cart, setCart, total, addToCart, removeFromCart,
     removeLastItem, clearCart, sendOrder,
     sessionActive, setShowReversePopup, updateItemType, applyOrderDiscount, canDiscount
   };

@@ -20,8 +20,8 @@ Elenco verificato sul codice. Quando ne risolvi una, toglila da qui nello stesso
 **Evoluzione (priorità 2)**
 - `orders.items` è un array JSONB dentro l'ordine. Per la ristorazione avanzata (tavoli, stato per singola riga nel KDS, conti divisi) servirà una tabella `order_items`.
 
-**Dalla revisione del 4 ottobre 2026 (fasi 2-4)**
-- Sicurezza: sessioni non revocabili e segreti non controllati all'avvio (cookie `SameSite=None`, algoritmo JWT non fissato); WebSocket senza `maxPayload` né limiti di connessioni; QR del menu considerato affidabile; nome e categoria delle righe d'ordine presi dal client invece che dal catalogo; ordini "in ritardo" (`session_id`) apribili anche a ruoli e momenti non previsti; CSV con iniezione di formule; password minima 6 e bcrypt 10; `/api/assets` serve loghi di altri marchi; l'utente applicativo del DB serve anche il master (serve un ruolo separato).
-- Dati e scalabilità: `GET /orders` senza paginazione e statistiche calcolate nel browser; mancano indici composti; il contatore di sessione mette in fila le casse; mancano vincoli CHECK su `orders.status`, `users.role`, `products.print_destination`; `audit_logs` senza retention.
-- Frontend: tre implementazioni del WebSocket; file troppo grandi (`ProductConfig.jsx`, `App.jsx`, `PrintProfiles.jsx`); il ruolo `responsabile` non ha voci di menu; lo storno mostra l'id interno e non il `display_code`; statistiche per nome e non per id.
-- Operatività: CI, health check, log, backup, controllo dei segreti, ordine di rilascio codice/migrazione.
+**Dalla revisione del 4 ottobre 2026 (fasi 3-4)**
+- Sicurezza: l'utente applicativo del DB serve anche il master (serve un ruolo separato); `/api/assets` serve solo `.mp3`, ma i loghi di altri marchi sono ancora nel repository (`backend/assets`, `branding/`); gli ordini in ritardo arrivati dopo la chiusura non compaiono nel report di sessione.
+- Dati e scalabilità: `GET /orders` senza paginazione e statistiche calcolate nel browser; mancano indici composti; `audit_logs` senza retention.
+- Frontend: tre implementazioni del WebSocket; file troppo grandi (`ProductConfig.jsx`, `App.jsx`, `PrintProfiles.jsx`); statistiche per nome e non per id.
+- Operatività: CI, health check, log, backup, ordine di rilascio codice/migrazione.

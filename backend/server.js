@@ -8,15 +8,18 @@ import { createApp } from './app.js';
 import { createWebSocketHub } from './ws.js';
 import { pool } from './db.js';
 import logger from './logger.js';
+import { checkSecrets } from './utils/jwtConfig.js';
 
 dotenv.config();
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
-if (!process.env.JWT_SECRET) {
-  logger.fatal('JWT_SECRET non impostata nel .env');
+const { missing, weak } = checkSecrets();
+if (missing.length || (weak.length && process.env.NODE_ENV === 'production')) {
+  logger.fatal({ problems: [...missing, ...weak] }, 'Segreti non validi nel .env (servono stringhe casuali di almeno 32 caratteri, es. openssl rand -hex 48)');
   process.exit(1);
 }
+if (weak.length) logger.warn({ problems: weak }, 'Segreti deboli: in produzione l\'app non partirebbe');
 
 // Certificati HTTPS (mkcert in sviluppo): percorsi da env, con fallback sui file locali
 const keyPath = process.env.HTTPS_KEY_PATH || path.resolve(__dirname, '_wildcard.standmanager.local+4-key.pem');

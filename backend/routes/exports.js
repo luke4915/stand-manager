@@ -2,16 +2,21 @@ import express from 'express';
 import { authenticate, authorizeAdmin } from '../middleware/authenticate.js';
 import { tenantScope } from '../middleware/tenantScope.js';
 import logger from '../logger.js';
+import { validate } from '../middleware/validate.js';
+import { idParamsSchema } from '../schemas/common.js';
 
 const router = express.Router();
 
 const fmt = (n) => Number(n || 0).toFixed(2).replace('.', ',');
-const esc = (s) => `"${String(s || '').replace(/"/g, '""')}"`;
+// Valori che iniziano con = + - @ (o tab/CR) Excel li legge come formule: si antepone un apostrofo.
+const esc = (s) => {
+  const text = String(s || '');
+  const safe = /^[=+\-@\t\r]/.test(text) ? `'${text}` : text;
+  return `"${safe.replace(/"/g, '""')}"`;
+};
 
-router.get('/session/:id/csv', authenticate, authorizeAdmin, tenantScope, async (req, res) => {
-
-  const sessionId = parseInt(req.params.id);
-  if (isNaN(sessionId)) return res.status(400).json({ error: 'ID sessione non valido' });
+router.get('/session/:id/csv', authenticate, authorizeAdmin, validate({ params: idParamsSchema }), tenantScope, async (req, res) => {
+  const sessionId = req.params.id;
 
   try {
     const { rows: sessionRows } = await req.db.query('SELECT id FROM sessions WHERE id=$1', [sessionId]);

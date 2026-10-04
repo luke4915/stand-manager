@@ -82,7 +82,7 @@ const ReverseOrder = ({ onClose }) => {
               return (
                 <li key={order.id} className="flex justify-between items-center p-4 bg-[var(--bg-card-2)] rounded-2xl border border-[var(--border)]">
                   <div>
-                    <span className="font-black text-sm uppercase tracking-tight text-[var(--text-main)]">Ordine #{order.id}</span>
+                    <span className="font-black text-sm uppercase tracking-tight text-[var(--text-main)]">Ordine {order.display_code || `#${order.id}`}</span>
                     <div className="text-xs text-[var(--text-muted)] mt-0.5">
                       {order.items?.map(i => `${i.quantity}× ${i.name}`).join(', ')}
                     </div>

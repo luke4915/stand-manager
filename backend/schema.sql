@@ -2,7 +2,7 @@
 -- PostgreSQL database dump
 --
 
-\restrict 8PUDWUC83cURWfoyY3QrPwN6fhSBaLm9FJvDfeWEXZb5yyf4HTr5P7cbEP4H6wA
+\restrict EKVcw0XqXsnheRRtfMNTHImpRwDH9KuXCTtAgYGIhBx5rFCeGU4fhJaAQrqLQ8q
 
 -- Dumped from database version 17.10 (Homebrew)
 -- Dumped by pg_dump version 17.10 (Homebrew)
@@ -198,7 +198,8 @@ CREATE TABLE public.orders (
     device_seq integer,
     CONSTRAINT orders_device_pair_check CHECK (((device_id IS NULL) = (device_seq IS NULL))),
     CONSTRAINT orders_device_seq_check CHECK ((device_seq > 0)),
-    CONSTRAINT orders_order_type_check CHECK (((order_type)::text = ANY (ARRAY[('sale'::character varying)::text, ('gift'::character varying)::text, ('discount'::character varying)::text])))
+    CONSTRAINT orders_order_type_check CHECK (((order_type)::text = ANY (ARRAY[('sale'::character varying)::text, ('gift'::character varying)::text, ('discount'::character varying)::text]))),
+    CONSTRAINT orders_status_check CHECK ((status = ANY (ARRAY['pending'::text, 'preparing'::text, 'completed'::text, 'canceled'::text])))
 );
 
 ALTER TABLE ONLY public.orders FORCE ROW LEVEL SECURITY;
@@ -284,7 +285,8 @@ CREATE TABLE public.products (
     print_destination character varying(10) DEFAULT 'both'::character varying NOT NULL,
     stock integer,
     stock_enabled boolean DEFAULT false NOT NULL,
-    tenant_id integer DEFAULT (NULLIF(current_setting('app.tenant_id'::text, true), ''::text))::integer NOT NULL
+    tenant_id integer DEFAULT (NULLIF(current_setting('app.tenant_id'::text, true), ''::text))::integer NOT NULL,
+    CONSTRAINT products_print_destination_check CHECK (((print_destination)::text = ANY ((ARRAY['bar'::character varying, 'kitchen'::character varying, 'both'::character varying])::text[])))
 );
 
 ALTER TABLE ONLY public.products FORCE ROW LEVEL SECURITY;
@@ -421,7 +423,8 @@ CREATE TABLE public.users (
     password_hash text,
     role character varying(20) NOT NULL,
     tenant_id integer DEFAULT (NULLIF(current_setting('app.tenant_id'::text, true), ''::text))::integer NOT NULL,
-    must_change_password boolean DEFAULT false NOT NULL
+    must_change_password boolean DEFAULT false NOT NULL,
+    CONSTRAINT users_role_check CHECK (((role)::text = ANY ((ARRAY['admin'::character varying, 'responsabile'::character varying, 'cassa'::character varying, 'cucina'::character varying])::text[])))
 );
 
 ALTER TABLE ONLY public.users FORCE ROW LEVEL SECURITY;
@@ -1146,5 +1149,5 @@ ALTER DEFAULT PRIVILEGES FOR ROLE colettas IN SCHEMA public GRANT SELECT,INSERT,
 -- PostgreSQL database dump complete
 --
 
-\unrestrict 8PUDWUC83cURWfoyY3QrPwN6fhSBaLm9FJvDfeWEXZb5yyf4HTr5P7cbEP4H6wA
+\unrestrict EKVcw0XqXsnheRRtfMNTHImpRwDH9KuXCTtAgYGIhBx5rFCeGU4fhJaAQrqLQ8q
 

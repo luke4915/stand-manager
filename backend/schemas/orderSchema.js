@@ -37,6 +37,10 @@ export const createOrderSchema = z.object({
 ).refine(
     (o) => (o.session_id === undefined) === (o.client_created_at === undefined),
     { message: 'session_id e client_created_at vanno inviati insieme' }
+).refine(
+    // Un ordine in ritardo senza chiave di idempotenza si potrebbe inviare più volte nella sessione chiusa.
+    (o) => o.session_id === undefined || o.client_order_id !== undefined,
+    { message: 'client_order_id è obbligatorio per gli ordini in ritardo' }
 );
 export const ORDER_STATUSES = ['pending', 'preparing', 'completed', 'canceled'];
 

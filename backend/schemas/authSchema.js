@@ -3,7 +3,7 @@ import { ROLES } from '../middleware/authenticate.js';
 
 const username = z.string().trim().min(1).max(50);
 
-export const passwordSchema = z.string().min(6, 'Password troppo corta (min 6 caratteri)').max(200);
+export const passwordSchema = z.string().min(8, 'Password troppo corta (min 8 caratteri)').max(200);
 
 export const loginSchema = z.object({
     username,

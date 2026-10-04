@@ -1,6 +1,8 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { useIsMobile } from '../../hooks/useBreakpoint';
 import { getFullTotal, getDiscountedTotal } from '../../utils/pricing';
+import { useToast } from '../../context/useToast';
+import { itemsFromQr } from '../../utils/qrCart';
 import { cartKey, mergeCartItems } from './cartUtils';
 
 import CartDesktopView from './desktop/CartDesktopView';
@@ -13,11 +15,12 @@ import ClearCartModal from './modals/ClearCartModal';
 // ─── Componente Cart Principale (Container Logico) ────────────────
 // Gestisce solo stato/orchestrazione: la UI vera vive in CartDesktopView /
 // CartMobileView, e le modali di business logic sono in ./modals.
-const Cart = ({ cart, setCart, total, addToCart, removeFromCart, removeLastItem, clearCart, sendOrder, sessionActive, children, onClose, setShowReversePopup, updateItemType, applyOrderDiscount, canDiscount }) => {
+const Cart = ({ products, cart, setCart, total, addToCart, removeFromCart, removeLastItem, clearCart, sendOrder, sessionActive, children, onClose, setShowReversePopup, updateItemType, applyOrderDiscount, canDiscount }) => {
   const [selectedItem, setSelectedItem] = useState(null);
   const [amountReceived, setAmountReceived] = useState('');
   const [change, setChange] = useState(0);
   const [isReprintModalOpen, setIsReprintModalOpen] = useState(false);
+  const { showToast } = useToast();
   const [isQRScanModalOpen, setIsQRScanModalOpen] = useState(false);
   const [isClearModalOpen, setIsClearModalOpen] = useState(false);
   const [isTakeaway, setIsTakeaway] = useState(false);
@@ -108,12 +111,16 @@ const Cart = ({ cart, setCart, total, addToCart, removeFromCart, removeLastItem,
     setIsClearModalOpen(false);
   };
 
-  const handleQRReplace = (items) => {
-    setCart(items.map(i => ({ ...i, note: i.note || '' })));
+  const handleQRReplace = (scanned) => {
+    const items = itemsFromQr(scanned, products);
+    if (!items.length) return showToast('Nessun prodotto del QR è nel catalogo', 'warning');
+    setCart(items);
     setIsQRScanModalOpen(false);
   };
 
-  const handleQRMerge = (items) => {
+  const handleQRMerge = (scanned) => {
+    const items = itemsFromQr(scanned, products);
+    if (!items.length) return showToast('Nessun prodotto del QR è nel catalogo', 'warning');
     setCart(prev => {
       const nextCart = [...prev];
 

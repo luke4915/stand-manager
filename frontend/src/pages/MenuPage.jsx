@@ -83,10 +83,8 @@ export default function MenuPage() {
 
     const qrData = useMemo(() => {
         if (!cartItems.length) return '';
-        return btoa(JSON.stringify(cartItems.map(i => ({
-            id: i.id, name: i.name, quantity: i.quantity, price: i.price,
-            category: i.category || '', print_destination: i.print_destination || 'both'
-        }))));
+        // Solo id e quantità: la cassa legge il resto dal proprio catalogo
+        return btoa(JSON.stringify(cartItems.map(i => ({ id: i.id, quantity: i.quantity }))));
     }, [cartItems]);
 
     const grouped = useMemo(() => {

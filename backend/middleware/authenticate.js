@@ -1,9 +1,11 @@
 import jwt from 'jsonwebtoken';
 import logger from '../logger.js';
+import { VERIFY_OPTIONS } from '../utils/jwtConfig.js';
+import { getUserStatus } from '../utils/userStatus.js';
 
 // Finché l'utente non cambia la password temporanea il server rifiuta ogni chiamata
 // (tranne quelle che servono a cambiarla): non basta nascondere l'interfaccia.
-function verifyRequest(req, res, next, { allowPasswordChange }) {
+async function verifyRequest(req, res, next, { allowPasswordChange }) {
   let token = req.cookies?.token;
   if (!token) {
     const auth = req.headers['authorization'] || req.headers['Authorization'];
@@ -17,16 +19,27 @@ function verifyRequest(req, res, next, { allowPasswordChange }) {
   }
 
   try {
-    const { id, username, role, tenantId, tenantName, mustChangePassword } = jwt.verify(token, process.env.JWT_SECRET);
+    const { id, username, role, tenantId, tenantName, mustChangePassword } = jwt.verify(token, process.env.JWT_SECRET, VERIFY_OPTIONS);
     req.user = { id, username, role, tenantId, tenantName, mustChangePassword: !!mustChangePassword };
-    if (req.user.mustChangePassword && !allowPasswordChange)
-      return res.status(403).json({ error: 'Devi prima cambiare la password temporanea', code: 'PASSWORD_CHANGE_REQUIRED' });
-    next();
   } catch (err) {
     if (err.name === 'TokenExpiredError')
       return res.status(401).json({ error: 'Token scaduto', code: 'TOKEN_EXPIRED' });
     return res.status(403).json({ error: 'Token non valido' });
   }
+
+  // Il token da solo non basta: l'utente deve esistere ancora e vale il ruolo di adesso, non quello del login.
+  try {
+    const current = await getUserStatus(req.user.tenantId, req.user.id);
+    if (!current) return res.status(401).json({ error: 'Utente non più abilitato', code: 'USER_REVOKED' });
+    req.user.role = current.role;
+  } catch (err) {
+    logger.error({ err }, 'Errore verifica utente');
+    return res.status(500).json({ error: 'Errore interno' });
+  }
+
+  if (req.user.mustChangePassword && !allowPasswordChange)
+    return res.status(403).json({ error: 'Devi prima cambiare la password temporanea', code: 'PASSWORD_CHANGE_REQUIRED' });
+  next();
 }
 
 export const authenticate = (req, res, next) => verifyRequest(req, res, next, { allowPasswordChange: false });

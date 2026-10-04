@@ -1,6 +1,8 @@
 import { WebSocketServer, WebSocket } from 'ws';
 import jwt from 'jsonwebtoken';
 import logger from './logger.js';
+import { VERIFY_OPTIONS } from './utils/jwtConfig.js';
+import { getUserStatus } from './utils/userStatus.js';
 import { isAllowedOrigin } from './utils/origins.js';
 import { toPublicOrder } from './utils/publicOrder.js';
 import { extractSlug, findTenantBySlug } from './middleware/resolveTenantFromHost.js';
@@ -13,6 +15,18 @@ export const WS_CLOSE_UNAUTHORIZED = 4401;
 export const WS_CLOSE_FORBIDDEN = 4403;
 
 const HEARTBEAT_MS = 30 * 1000;
+
+// Il server non riceve messaggi dai client: bastano pochi KB. Le connessioni per IP sono limitate
+// (il KDS pubblico non richiede il login). Una sagra esce spesso da un solo IP: il tetto è largo.
+const MAX_PAYLOAD_BYTES = 4 * 1024;
+const MAX_CONNECTIONS_PER_IP = 60;
+
+// IP del client: dietro il proxy (trust proxy = 1) conta l'ultimo valore di X-Forwarded-For, quello aggiunto dal proxy.
+function clientIp(req) {
+  const forwarded = req.headers['x-forwarded-for'];
+  if (forwarded) return forwarded.split(',').pop().trim();
+  return req.socket.remoteAddress;
+}
 
 // Eventi che arrivano anche al KDS pubblico, già ridotti ai soli dati per la cucina.
 const PUBLIC_EVENTS = {
@@ -58,7 +72,7 @@ async function authorizeUpgrade(req) {
 
   let decoded;
   try {
-    decoded = jwt.verify(token, process.env.JWT_SECRET);
+    decoded = jwt.verify(token, process.env.JWT_SECRET, VERIFY_OPTIONS);
   } catch {
     return { closeCode: WS_CLOSE_UNAUTHORIZED, reason: 'Token non valido o scaduto' };
   }
@@ -67,6 +81,7 @@ async function authorizeUpgrade(req) {
   }
   const denied = await checkTenantAccess(decoded.tenantId);
   if (denied) return { closeCode: WS_CLOSE_FORBIDDEN, reason: denied.error };
+  if (!await getUserStatus(decoded.tenantId, decoded.id)) return { closeCode: WS_CLOSE_UNAUTHORIZED, reason: 'Utente non più abilitato' };
 
   return {
     audience: 'staff',
@@ -80,7 +95,8 @@ async function authorizeUpgrade(req) {
 // server HTTP(S) con attach(server). Ogni client appartiene a un solo tenant:
 // broadcast(tenantId, msg) non esce mai da lì.
 export function createWebSocketHub() {
-  const wss = new WebSocketServer({ noServer: true });
+  const wss = new WebSocketServer({ noServer: true, maxPayload: MAX_PAYLOAD_BYTES });
+  const connectionsByIp = new Map();
 
   const handleUpgrade = async (req, socket, head) => {
     socket.on('error', (err) => logger.warn({ err }, 'WS: errore socket durante handshake'));
@@ -93,8 +109,20 @@ export function createWebSocketHub() {
     }
     if (ctx.reject) return rejectUpgrade(socket, ...ctx.reject);
 
+    const ip = clientIp(req);
+    if ((connectionsByIp.get(ip) || 0) >= MAX_CONNECTIONS_PER_IP) {
+      logger.warn({ ip }, 'WS: troppe connessioni dallo stesso IP');
+      return rejectUpgrade(socket, 429, 'Too Many Requests');
+    }
+
     wss.handleUpgrade(req, socket, head, (ws) => {
       if (ctx.closeCode) return ws.close(ctx.closeCode, ctx.reason);
+
+      connectionsByIp.set(ip, (connectionsByIp.get(ip) || 0) + 1);
+      ws.on('close', () => {
+        const left = (connectionsByIp.get(ip) || 1) - 1;
+        if (left > 0) connectionsByIp.set(ip, left); else connectionsByIp.delete(ip);
+      });
 
       ws.tenantId = ctx.tenantId;
       ws.audience = ctx.audience;

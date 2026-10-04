@@ -2,11 +2,11 @@ import React from 'react';
 import { LayoutDashboard, UtensilsCrossed, BarChart3, Settings, Database, ChevronLeft, ChevronRight, Power } from 'lucide-react';
 
 const menuItems = [
-  { id: 'dashboard', icon: <LayoutDashboard size={22} />, label: 'Cassa', roles: ['admin', 'cassa'] },
+  { id: 'dashboard', icon: <LayoutDashboard size={22} />, label: 'Cassa', roles: ['admin', 'responsabile', 'cassa'] },
   { id: 'kitchen', icon: <UtensilsCrossed size={22} />, label: 'Cucina', roles: ['admin', 'cucina'] },
-  { id: 'statistics', icon: <BarChart3 size={22} />, label: 'Stats', roles: ['admin'] },
+  { id: 'statistics', icon: <BarChart3 size={22} />, label: 'Stats', roles: ['admin', 'responsabile'] },
   { id: 'config', icon: <Database size={22} />, label: 'Menu', roles: ['admin'] },
-  { id: 'setup', icon: <Settings size={22} />, label: 'Sistema', roles: ['admin', 'cassa'] },
+  { id: 'setup', icon: <Settings size={22} />, label: 'Sistema', roles: ['admin', 'responsabile', 'cassa'] },
 ];
 
 const Sidebar = ({ view, setView, isOpen, toggleSidebar, currentUser, sessionActive, setSessionActive }) => (

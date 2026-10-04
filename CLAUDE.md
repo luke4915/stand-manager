@@ -79,11 +79,14 @@ L'isolamento tra tenant si basa sulla Row-Level Security di PostgreSQL con la va
 - Dispositivi (`devices`, `routes/devices.js`): ogni cassa si abbina una volta e riceve una lettera (max 26 per tenant, assegnata sotto lock di transazione). Un dispositivo con ordini non si elimina. Una nuova tabella tenant-scoped va aggiunta anche a `TENANT_SCOPED_TABLES` in `routes/master.js` (eliminazione tenant), nell'ordine delle chiavi esterne.
 - Stock: conta solo con `stock_enabled = true` e `stock` valorizzato, altrimenti la disponibilità è illimitata. Si modifica solo con `utils/stock.js`, che somma le righe dello stesso prodotto e blocca i prodotti con `FOR UPDATE`. L'apertura di una sessione riporta tutti i prodotti a disponibilità illimitata.
 - Le azioni sensibili (creazione ordine, storno, ristampa, modifiche admin) si registrano con `logAudit(req.db, req.user.id, 'AZIONE', dettagli)`: usa la connessione del tenant, quindi i log sono isolati dalla RLS. Chiamala fuori da transazioni aperte.
+- Token: HS256 fissato (`utils/jwtConfig.js`), cookie `SameSite=Lax`. `authenticate` controlla a ogni richiesta (cache 15 s, `utils/userStatus.js`) che l'utente esista ancora e usa il suo ruolo attuale, non quello del token: 401 `USER_REVOKED` altrimenti. All'avvio `JWT_SECRET` e `MASTER_JWT_SECRET` devono esserci, essere diversi e lunghi almeno 32 caratteri (in produzione l'app non parte se deboli).
 - Sessione: il token JWT dura 8 ore. `/auth/refresh` lo rinnova solo se è scaduto da meno di 24 ore e se il login (`loginAt` nel token) risale a meno di 7 giorni; oltre serve un nuovo login (`SESSION_EXPIRED`). Il refresh verifica anche tenant attivo e licenza.
 - Impostazioni per tenant (`settings`): le chiavi ammesse sono in `schemas/settingsSchema.js`. Solo quelle in `PUBLIC_SETTINGS_KEYS` escono dall'endpoint pubblico `GET /settings`. L'admin del tenant scrive solo quelle in `TENANT_WRITABLE_SETTINGS_KEYS`; le `receipt_*` (scontrini) le scrive solo il master.
 - Ruoli esistenti (`ROLES` in `authenticate.js`): `admin`, `responsabile`, `cassa`, `cucina`. Gruppi: `CASH_ROLES` (admin, responsabile, cassa: creano, stornano e ristampano ordini, gestiscono lo stock), `DISCOUNT_ROLES` (sconti e omaggi). La cucina vede gli ordini e ne fa avanzare lo stato, nient'altro. Le autorizzazioni si controllano lato server (`authorizeCash`, `authorizeAdmin`, …), non solo nascondendo la UI.
 - Password: nessun utente esiste senza password. Master e admin ne impostano una **temporanea** alla creazione (`must_change_password`): finché non è cambiata il server risponde 403 `PASSWORD_CHANGE_REQUIRED` a tutto tranne `/auth/me`, `/auth/change-password` e logout. `POST /auth/admin/users/:id/reset-password` la reimposta. Il login non distingue utente inesistente, senza password o password errata.
 - Mai segreti nel codice o nei commit. Nuove variabili d'ambiente vanno aggiunte a `.env.example` con un valore fittizio.
+- Password: minimo 8 caratteri, bcrypt costo 12 (`utils/password.js`). Il login è limitato per coppia IP + username.
+- Dal client una riga d'ordine vale solo per `id` e `quantity`: nome, categoria, destinazione di stampa e prezzo si leggono dal catalogo. Un ordine in ritardo (`session_id`) richiede `client_order_id`. Lo stesso vale per il QR del menu (`frontend/src/utils/qrCart.js`).
 - Il rate limiting è in `middleware/rateLimiter.js`. Le API e gli ordini contano per utente se c'è una sessione valida, altrimenti per IP: le casse dietro lo stesso IP non si dividono il limite. Gli endpoint nuovi e "costosi" (export, stampa) meritano un limiter dedicato.
 - Origini ammesse (`utils/origins.js`): `APP_DOMAIN` e i suoi sottodomini; localhost e IP LAN solo fuori dalla produzione. Un'origine non ammessa riceve 403 prima di qualsiasi elaborazione.
 
@@ -112,7 +115,7 @@ L'isolamento tra tenant si basa sulla Row-Level Security di PostgreSQL con la va
 
 ## 6. Database e migrazioni
 
-- Ogni modifica di schema è una nuova migrazione `backend/migrations/NNN_descrizione.sql`, numerata dopo l'ultima esistente (oggi 022; il numero 012 è saltato, non riusarlo).
+- Ogni modifica di schema è una nuova migrazione `backend/migrations/NNN_descrizione.sql`, numerata dopo l'ultima esistente (oggi 023; il numero 012 è saltato, non riusarlo).
 - **Non modificare mai una migrazione già applicata.** Per correggerla, scrivine una nuova.
 - Le migrazioni devono essere idempotenti dove possibile (`IF NOT EXISTS`, `DROP POLICY IF EXISTS`). `run.js` le esegue in transazione.
 - L'utente applicativo ha solo SELECT/INSERT/UPDATE/DELETE (niente TRUNCATE, TRIGGER, REFERENCES; `audit_logs` non si aggiorna): nelle migrazioni non concedergli altro.

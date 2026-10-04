@@ -6,10 +6,12 @@ import { authenticate, authenticateAllowingPasswordChange, authorizeAdmin } from
 import { tenantScope, withTenantClient, checkTenantAccess } from '../middleware/tenantScope.js';
 import { resolveTenantFromHost } from '../middleware/resolveTenantFromHost.js';
 import logger from '../logger.js';
+import { VERIFY_OPTIONS, SIGN_OPTIONS } from '../utils/jwtConfig.js';
 import { validate } from '../middleware/validate.js';
 import { loginSchema, createUserSchema, changePasswordSchema, resetPasswordSchema } from '../schemas/authSchema.js';
 import { idParamsSchema } from '../schemas/common.js';
 import { logAudit } from '../utils/auditLogger.js';
+import { hashPassword } from '../utils/password.js';
 
 const router = express.Router();
 
@@ -29,14 +31,14 @@ const signToken = (user, loginAt = Math.floor(Date.now() / 1000)) => {
   return jwt.sign(
     { id: user.id, username: user.username, role: user.role, theme: user.theme || 'dark', tenantId: user.tenant_id, tenantName: user.tenant_name, mustChangePassword: !!user.must_change_password, loginAt },
     process.env.JWT_SECRET,
-    { expiresIn }
+    { ...SIGN_OPTIONS, expiresIn }
   );
 };
 
 const setCookie = (res, token) => res.cookie('token', token, {
   httpOnly: true,
   secure: true,
-  sameSite: 'none',
+  sameSite: 'lax', // app e API stanno sullo stesso sito
   path: '/',
   maxAge: TOKEN_TTL_S * 1000,
 });
@@ -44,7 +46,7 @@ const setCookie = (res, token) => res.cookie('token', token, {
 const clearCookie = (res) => res.cookie('token', '', {
   httpOnly: true,
   secure: true,
-  sameSite: 'none',
+  sameSite: 'lax', // app e API stanno sullo stesso sito
   path: '/',
   expires: new Date(0),
 });
@@ -95,7 +97,7 @@ router.post('/refresh', async (req, res) => {
 
   let decoded;
   try {
-    decoded = jwt.verify(token, process.env.JWT_SECRET, { ignoreExpiration: true });
+    decoded = jwt.verify(token, process.env.JWT_SECRET, { ...VERIFY_OPTIONS, ignoreExpiration: true });
   } catch (err) {
     logger.warn({ err }, 'Tentativo di refresh con token corrotto o alterato');
     return res.status(401).json({ error: 'Token non valido' });
@@ -154,7 +156,7 @@ router.post('/change-password', authenticateAllowingPasswordChange, validate({ b
     if (oldPassword === newPassword)
       return res.status(400).json({ error: 'La nuova password deve essere diversa da quella attuale' });
 
-    await req.db.query('UPDATE users SET password_hash=$1, must_change_password=false WHERE id=$2', [await bcrypt.hash(newPassword, 10), req.user.id]);
+    await req.db.query('UPDATE users SET password_hash=$1, must_change_password=false WHERE id=$2', [await hashPassword(newPassword), req.user.id]);
     await logAudit(req.db, req.user.id, 'CHANGE_PASSWORD', {});
 
     // Il token portava il blocco del primo accesso: se ne emette uno nuovo senza, mantenendo l'inizio sessione.
@@ -174,7 +176,7 @@ router.post('/admin/createUser', authenticate, authorizeAdmin, validate({ body: 
   try {
     const { rows } = await req.db.query(
       'INSERT INTO users (username, role, tenant_id, password_hash, must_change_password) VALUES ($1, $2, $3, $4, true) RETURNING id, username, role',
-      [username, role, req.user.tenantId, await bcrypt.hash(password, 10)]
+      [username, role, req.user.tenantId, await hashPassword(password)]
     );
     await logAudit(req.db, req.user.id, 'CREATE_USER', { userId: rows[0].id, role });
 
@@ -193,7 +195,7 @@ router.post('/admin/users/:id/reset-password', authenticate, authorizeAdmin, val
   try {
     const { rows } = await req.db.query(
       'UPDATE users SET password_hash=$1, must_change_password=true WHERE id=$2 RETURNING id, username',
-      [await bcrypt.hash(req.body.password, 10), req.params.id]
+      [await hashPassword(req.body.password), req.params.id]
     );
     if (!rows.length) return res.status(404).json({ error: 'Utente non trovato' });
     await logAudit(req.db, req.user.id, 'RESET_PASSWORD', { userId: rows[0].id });
