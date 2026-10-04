@@ -4,6 +4,7 @@ import { tenantScope } from '../middleware/tenantScope.js';
 import logger from '../logger.js';
 import { validate } from '../middleware/validate.js';
 import { idParamsSchema } from '../schemas/common.js';
+import { withItems } from '../utils/orderItemsRead.js';
 
 const router = express.Router();
 
@@ -22,23 +23,22 @@ router.get('/session/:id/csv', authenticate, authorizeAdmin, validate({ params: 
     const { rows: sessionRows } = await req.db.query('SELECT id FROM sessions WHERE id=$1', [sessionId]);
     if (!sessionRows.length) return res.status(404).json({ error: 'Sessione non trovata' });
 
-    const { rows: orders } = await req.db.query(
-      `SELECT id, created_at, items, total FROM orders
+    const { rows } = await req.db.query(
+      `SELECT id, created_at, total FROM orders
        WHERE status='completed' AND session_id = $1
        ORDER BY created_at ASC`,
       [sessionId]
     );
+    const orders = await withItems(req.db, rows);
 
     const headers = ['ID Ordine', 'Data/Ora', 'Prodotto', 'Categoria', 'Quantita', 'Prezzo Unitario', 'Prezzo Riga', 'Note', 'Totale Ordine'];
-    const rows = [headers.join(';')];
+    const lines = [headers.join(';')];
 
     for (const order of orders) {
-      let items = [];
-      try { items = typeof order.items === 'string' ? JSON.parse(order.items) : (order.items || []); } catch { }
-      for (const item of items) {
+      for (const item of order.items) {
         const qty = Number(item.quantity || 0);
         const price = Number(item.price || 0);
-        rows.push([
+        lines.push([
           order.id,
           new Date(order.created_at).toLocaleString('it-IT'),
           esc(item.name),
@@ -54,7 +54,7 @@ router.get('/session/:id/csv', authenticate, authorizeAdmin, validate({ params: 
 
     res.setHeader('Content-Type', 'text/csv; charset=utf-8');
     res.setHeader('Content-Disposition', `attachment; filename=report_sessione_${sessionId}.csv`);
-    res.status(200).send('\uFEFF' + rows.join('\n'));
+    res.status(200).send('\uFEFF' + lines.join('\n'));
   } catch (err) {
     logger.error({ err }, 'Errore CSV')
     res.status(500).json({ error: 'Errore generazione CSV' });

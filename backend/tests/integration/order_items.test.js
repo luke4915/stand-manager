@@ -135,6 +135,12 @@ describe('order_items', () => {
     assert.equal(r.counts.riga_in_piu, 1);
     assert.equal(r.errors, 3);
 
+    // anche una differenza sottile in un altro campo (qui il prezzo unitario arrotondato a 4 decimali)
+    await adminDb.query(`UPDATE order_items SET unit_price = 1.6667 WHERE tenant_id = $1 AND name = 'Combo'`, [t1.id]);
+    assert.equal((await asScript(t1, verifyTenant)).counts.valori_diversi, 2);
+    await adminDb.query(`UPDATE order_items SET note = 'cambiata' WHERE tenant_id = $1 AND name = 'Prodotto vecchio'`, [t1.id]);
+    assert.equal((await asScript(t1, verifyTenant)).counts.valori_diversi, 3);
+
     // si ripara ripetendo da zero: cancello le righe del tenant e riempio
     await adminDb.query('DELETE FROM order_items WHERE tenant_id = $1', [t1.id]);
     await asScript(t1, (db) => scanTenant(db, t1.id, { apply: true }));

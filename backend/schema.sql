@@ -190,7 +190,7 @@ CREATE TABLE public.order_items (
     category text,
     print_destination text,
     quantity integer NOT NULL,
-    unit_price numeric(12,4) NOT NULL,
+    unit_price numeric(16,8) NOT NULL,
     line_total numeric(12,2) NOT NULL,
     original_price numeric(12,4),
     line_type text DEFAULT 'sale'::text NOT NULL,

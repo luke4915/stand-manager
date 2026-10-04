@@ -66,7 +66,8 @@ const PRICE = num(`j.item->>'price'`);
 const LINE_TOTAL = num(`j.item->>'line_total'`);
 const PRODUCT_ID = `(CASE WHEN (j.item->>'id') ~ '^[0-9]{1,16}(\\.0+)?$' AND ((j.item->>'id')::numeric) BETWEEN 1 AND 9007199254740991 THEN ((j.item->>'id')::numeric)::bigint END)`;
 
-// Confronta, riga per riga, il JSONB con la tabella: stessa posizione, nome, quantità, importo e prodotto.
+// Confronta, riga per riga, il JSONB con la tabella: stessa posizione e tutti i campi (nome, quantità, prezzi, importo,
+// tipo, sconto, nota, categoria, destinazione, prodotto).
 // "attese" sono le righe che non si possono rappresentare (quantità non valida): senza riga per scelta.
 export async function verifyTenant(db) {
   const { rows } = await db.query(`
@@ -92,6 +93,14 @@ export async function verifyTenant(db) {
        OR n.quantity::numeric IS DISTINCT FROM ${QTY}
        OR abs(n.line_total - COALESCE(${LINE_TOTAL}, ${PRICE} * ${QTY}, 0)) > 0.005
        OR n.product_id IS DISTINCT FROM ${PRODUCT_ID}
+       OR abs(n.unit_price - COALESCE(${PRICE}, 0)) > 0.0000001
+       OR n.note IS DISTINCT FROM COALESCE(j.item->>'note', '')
+       OR n.category IS DISTINCT FROM (j.item->>'category')
+       OR n.print_destination IS DISTINCT FROM (CASE WHEN j.item->>'print_destination' IN ('bar', 'kitchen', 'both') THEN j.item->>'print_destination' END)
+       OR n.line_type IS DISTINCT FROM (CASE WHEN COALESCE(j.item->>'type', 'sale') IN ('sale', 'gift', 'discount') THEN COALESCE(j.item->>'type', 'sale') ELSE 'sale' END)
+       OR n.original_price IS DISTINCT FROM ${num(`j.item->>'original_price'`)}
+       OR n.discount_mode IS DISTINCT FROM (j.item->>'discountMode')
+       OR n.discount_value IS DISTINCT FROM ${num(`j.item->>'discountValue'`)}
     ORDER BY 1, 2`);
 
   const counts = { manca_riga: 0, riga_in_piu: 0, valori_diversi: 0, attesa_quantita_non_valida: 0 };

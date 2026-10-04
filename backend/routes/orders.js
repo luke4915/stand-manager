@@ -15,15 +15,11 @@ import { formatDisplayCode, formatDeviceCode } from '../utils/displayCode.js';
 import { sumQuantitiesByProduct, lockAndFindShortages, applyStockChange } from '../utils/stock.js';
 import { HttpError, sendHttpError } from '../utils/httpError.js';
 import { computeExpectedCash, clampToSession } from '../utils/session.js';
+import { loadItems, withItems } from '../utils/orderItemsRead.js';
 import { writeOrderItems } from '../utils/orderItemsWrite.js';
 import { requireModule } from '../utils/tenantModules.js';
 
 const router = express.Router();
-
-function safeParseJSON(value, fallback = []) {
-  try { return Array.isArray(value) ? value : JSON.parse(value || '[]'); }
-  catch { return fallback; }
-}
 
 const TERMINAL_STATUSES = ['canceled', 'completed'];
 
@@ -93,15 +89,14 @@ export default function (broadcast) {
       const categoryMap = Object.fromEntries(dbProducts.map(p => [p.id, p.category || 'Altro']));
 
       // Rispediamo i dati mappandoli in modo che ogni item abbia la sua categoria reale
-      const mappedRows = rows.map(o => {
-        const parsedItems = safeParseJSON(o.items).map(i => ({
+      const mappedRows = (await withItems(req.db, rows)).map(o => ({
+        ...o,
+        items: o.items.map(i => ({
           ...i,
-          note: i.note || '',
-          // Se l'item non ha la categoria nel JSON, la prendiamo dalla mappa aggiornata tramite l'ID prodotto
+          // Se la riga non ha la categoria, la prendiamo dalla mappa aggiornata tramite l'ID prodotto
           category: i.category || categoryMap[i.id] || 'Altro'
-        }));
-        return { ...o, items: parsedItems };
-      });
+        })),
+      }));
 
       res.json(mappedRows);
     } catch (err) {
@@ -282,9 +277,9 @@ export default function (broadcast) {
            WHERE id = $2 RETURNING *`,
           [status, id]
         );
-        const updated = { ...rows[0], items: safeParseJSON(rows[0].items) };
+        const updated = { ...rows[0], items: (await loadItems(db, [id])).get(id) ?? [] };
         const stockUpdates = status === 'canceled'
-          ? await applyStockChange(db, sumQuantitiesByProduct(updated.items), +1)
+          ? await applyStockChange(db, sumQuantitiesByProduct(updated.items.filter(i => i.id !== null)), +1)
           : [];
         return { previousStatus: order.status, updated, stockUpdates };
       });
@@ -329,12 +324,12 @@ export default function (broadcast) {
   router.post('/:id/reprint', authenticate, authorizeCash, validate({ params: idParamsSchema }), tenantScope, async (req, res) => {
     try {
       const { rows } = await req.db.query(
-        'SELECT id, display_code, created_at, items, total, is_takeaway FROM orders WHERE id = $1', [req.params.id]);
+        'SELECT id, display_code, created_at, total, is_takeaway FROM orders WHERE id = $1', [req.params.id]);
       if (!rows.length) return res.status(404).json({ error: 'Ordine non trovato' });
-      const order = rows[0];
+      const [order] = await withItems(req.db, rows);
 
       await logAudit(req.db, req.user.id, 'REPRINT_ORDER', { orderId: order.id });
-      res.json({ ...order, items: safeParseJSON(order.items), total: parseFloat(order.total) });
+      res.json({ ...order, total: parseFloat(order.total) });
     } catch (err) {
       logger.error({ err }, 'Errore ristampa');
       res.status(500).json({ error: 'Errore durante la ristampa' });
@@ -346,11 +341,11 @@ export default function (broadcast) {
     try {
       const data = await withTenantClient(req.tenantId, async (db) => {
         const { rows } = await db.query(
-          `SELECT o.id, o.display_code, o.status, o.is_takeaway, o.created_at, o.items
+          `SELECT o.id, o.display_code, o.status, o.is_takeaway, o.created_at
            FROM orders o JOIN sessions s ON s.id = o.session_id AND s.end_time IS NULL
            WHERE o.status IN ('pending', 'preparing') ORDER BY o.created_at DESC`
         );
-        return rows.map(o => toPublicOrder({ ...o, items: safeParseJSON(o.items) }));
+        return (await withItems(db, rows)).map(toPublicOrder);
       });
       res.json(data);
     } catch (err) {
