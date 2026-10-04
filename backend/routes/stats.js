@@ -5,20 +5,12 @@ import { tenantScope } from '../middleware/tenantScope.js';
 import logger from '../logger.js';
 import { statsQuerySchema, sharedProductsQuerySchema, headToHeadQuerySchema } from '../schemas/statsSchema.js';
 import { requireModule } from '../utils/tenantModules.js';
+import { COMPLETED_ITEMS, LINE_REVENUE } from '../utils/statsSql.js';
 import { buildStats, buildSessionComparison } from '../utils/stats.js';
 
 const router = express.Router();
 
 const authorizeStats = authorizeRoles(['admin', 'responsabile'], 'Le statistiche sono riservate ad admin e responsabili');
-
-// Righe d'ordine espanse (una per prodotto venduto) degli ordini completati; import SQL condiviso.
-// Il ricavo di riga è line_total (ordini nuovi) oppure prezzo × quantità (ordini precedenti).
-const COMPLETED_ITEMS = `
-  FROM orders o
-  CROSS JOIN LATERAL jsonb_array_elements(CASE WHEN jsonb_typeof(o.items) = 'array' THEN o.items ELSE '[]'::jsonb END) i
-  LEFT JOIN products p ON p.id = (i->>'id')::bigint
-  WHERE o.status = 'completed'`;
-const LINE_REVENUE = `COALESCE((i->>'line_total')::numeric, (i->>'price')::numeric * (i->>'quantity')::numeric, 0)`;
 
 // GET /api/stats?sessions=1,2&tz=Europe/Rome — statistiche aggregate dal database (nessun ordine viaggia verso il browser).
 // Senza `sessions` valgono tutte le serate. Le ore sono nel fuso `tz` del dispositivo.
@@ -47,15 +39,15 @@ router.get('/', authenticate, requireModule('stats'), authorizeStats, validate({
       // Per id di prodotto, non per nome: un prodotto rinominato resta uno solo.
       // Il mancato incasso degli omaggi usa il prezzo di listino salvato nell'ordine (original_price).
       req.db.query(
-        `SELECT (i->>'id')::bigint AS product_id,
-                COALESCE(p.name, MAX(i->>'name')) AS name,
-                COALESCE(MAX(i->>'category'), MAX(p.category), 'Altro') AS category,
-                SUM((i->>'quantity')::int) AS quantity,
+        `SELECT i.product_id,
+                COALESCE(p.name, MAX(i.name)) AS name,
+                COALESCE(MAX(i.category), MAX(p.category), 'Altro') AS category,
+                SUM(i.quantity) AS quantity,
                 SUM(${LINE_REVENUE}) AS revenue,
                 SUM(CASE WHEN ${LINE_REVENUE} = 0
-                         THEN COALESCE((i->>'original_price')::numeric, p.price, 0) * (i->>'quantity')::numeric ELSE 0 END) AS missed
+                         THEN COALESCE(i.original_price, p.price, 0) * i.quantity ELSE 0 END) AS missed
          ${COMPLETED_ITEMS} ${inSessions}
-         GROUP BY (i->>'id')::bigint, p.name`, [sessionFilter]),
+         GROUP BY i.product_id, p.name`, [sessionFilter]),
       req.db.query(
         `SELECT s.id, s.name, s.start_time, COUNT(o.id)::int AS n, COALESCE(SUM(o.total), 0) AS total
          FROM sessions s LEFT JOIN orders o ON o.session_id = s.id AND o.status = 'completed'
@@ -76,10 +68,10 @@ router.get('/shared-products', authenticate, requireModule('stats'), authorizeSt
   const { a, b } = req.validQuery;
   try {
     const { rows } = await req.db.query(
-      `SELECT (i->>'id')::bigint AS id, COALESCE(p.name, MAX(i->>'name')) AS name
+      `SELECT i.product_id AS id, COALESCE(p.name, MAX(i.name)) AS name
        ${COMPLETED_ITEMS}
          AND ($1::int IS NULL OR $2::int IS NULL OR o.session_id IN ($1, $2))
-       GROUP BY (i->>'id')::bigint, p.name
+       GROUP BY i.product_id, p.name
        HAVING $1::int IS NULL OR $2::int IS NULL
           OR (COUNT(DISTINCT o.session_id) FILTER (WHERE o.session_id = $1) > 0
           AND COUNT(DISTINCT o.session_id) FILTER (WHERE o.session_id = $2) > 0)
@@ -96,8 +88,8 @@ router.get('/head-to-head', authenticate, requireModule('stats'), authorizeStats
   const { a, b, product } = req.validQuery;
   try {
     const { rows } = await req.db.query(
-      `SELECT o.session_id, SUM((i->>'quantity')::int) AS quantity, SUM(${LINE_REVENUE}) AS revenue
-       ${COMPLETED_ITEMS} AND o.session_id IN ($1, $2) AND (i->>'id')::bigint = $3
+      `SELECT o.session_id, SUM(i.quantity) AS quantity, SUM(${LINE_REVENUE}) AS revenue
+       ${COMPLETED_ITEMS} AND o.session_id IN ($1, $2) AND i.product_id = $3
        GROUP BY o.session_id`, [a, b, product]);
     const of = (id) => {
       const row = rows.find((r) => r.session_id === id);

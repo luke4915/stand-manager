@@ -2,6 +2,8 @@
 import { describe, it, before, after } from 'node:test';
 import assert from 'node:assert/strict';
 import bcrypt from 'bcrypt';
+import { toOrderItemRows } from '../../utils/orderItems.js';
+import { insertOrderItemRows } from '../../utils/orderItemsWrite.js';
 import { startServer, createTenant, deleteTenants, closePools, apiClient, adminDb, PASSWORD } from './helpers.js';
 
 describe('statistiche e paginazione', () => {
@@ -12,6 +14,8 @@ describe('statistiche e paginazione', () => {
       `INSERT INTO orders (items, total, status, session_id, is_takeaway, created_at, completed_at, tenant_id, order_type)
        VALUES ($1, $2, $3, $4, $5, $6, $6::timestamptz + ($7 || ' minutes')::interval, $8, 'sale') RETURNING id`,
       [JSON.stringify(items), total, status, session, takeaway, at, completedAfterMin === null ? null : String(completedAfterMin), t.id]);
+    // le statistiche leggono le righe da order_items: si scrivono con la stessa mappatura che usa l'app
+    await insertOrderItemRows(adminDb, t.id, toOrderItemRows(items).rows.map(r => ({ ...r, order_id: o.id })));
     return o.id;
   };
   const line = (id, name, quantity, line_total, extra = {}) => ({ id, name, quantity, price: line_total / quantity, line_total, category: 'Cibo', ...extra });
@@ -94,6 +98,26 @@ describe('statistiche e paginazione', () => {
     assert.equal(all.length, 3);
     const h2h = (await admin.get(`/stats/head-to-head?a=${s1}&b=${s2}&product=${t.productId}`)).body;
     assert.deepEqual(h2h, [{ metric: 'Quantità venduta', A: 3, B: 3 }, { metric: 'Incasso (€)', A: 10, B: 15 }]);
+  });
+
+  it('righe vecchie e irregolari (senza line_total, id fuori catalogo o enorme) non rompono le statistiche', async () => {
+    const before = (await admin.get('/stats?tz=Europe/Rome')).body;
+    const oddId = await insertOrder({ session: s2, items: [
+      { id: 'vecchio', name: 'Prodotto storico', price: 3, quantity: 2, category: 'Altro' },
+      { id: 99999999999999, name: 'Id enorme', price: 1.5, quantity: 4 },
+    ], total: 12, at: '2026-10-03T19:00:00Z', completedAfterMin: 5 });
+    const res = await admin.get('/stats?tz=Europe/Rome');
+    assert.equal(res.status, 200, JSON.stringify(res.body));
+    assert.equal(res.body.numeroTotaleOrdini, before.numeroTotaleOrdini + 1);
+    assert.equal(Math.round((res.body.totaleSerata - before.totaleSerata) * 100) / 100, 12);
+    // il ricavo di riga senza line_total è prezzo × quantità
+    const storico = res.body.topProdotti.find(p => p.prodotto === 'Prodotto storico');
+    assert.ok(storico, 'la riga con id non numerico c\'è');
+    assert.equal(storico.count, 2);
+    assert.equal((await admin.get('/stats/shared-products')).status, 200);
+    // l'ordine di prova non deve alterare gli altri test
+    await adminDb.query('DELETE FROM order_items WHERE order_id = $1', [oddId]);
+    await adminDb.query('DELETE FROM orders WHERE id = $1', [oddId]);
   });
 
   it('parametri non validi e permessi', async () => {
