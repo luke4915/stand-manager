@@ -1,7 +1,7 @@
 import { test, afterEach } from 'node:test';
 import assert from 'node:assert/strict';
 import { EposBuilder } from './eposBuilder.js';
-import { TEMPLATES, DEFAULT_BRANDING, wrapText, encodeOrderId, filterItems } from './templates.js';
+import { TEMPLATES, DEFAULT_BRANDING, wrapText, encodeOrderId, filterItems, tableLabel } from './templates.js';
 import { brandingFromSettings, imagesFromSettings } from './branding.js';
 import { buildCopyPreviews } from './copyPreviews.js';
 import { renderReceipt, renderReceiptParts } from './preview.js';
@@ -177,4 +177,19 @@ test('anteprima delle copie: usa testi e immagini del tenant e salta le copie vu
   const cliente = previews.find(p => p.name === 'Cliente').text;
   assert.ok(cliente.includes('PRO LOCO PROVA') && cliente.includes('TOTALE OFFERTA') && cliente.includes('[immagine 512x100px]'));
   assert.ok(previews.find(p => p.name === 'Numeretto').text.includes('[immagine 512x150px]'));
+});
+
+test('la comanda di un tavolo mostra tavolo e coperti nelle copie di cucina e bar; un ordine al banco no', async () => {
+  const atTable = { ...order, table_name: 'T5', covers: 4 };
+  for (const copy of ['Cucina', 'Ritiro Gastronomia', 'Ritiro Bar']) {
+    const xml = await render(copy, atTable);
+    assert.ok(xml.includes('TAVOLO T5 · 4 COPERTI'), `${copy}: manca il tavolo`);
+    assert.ok(!(await render(copy, order)).includes('TAVOLO'), `${copy}: ordine al banco senza tavolo`);
+  }
+});
+
+test('etichetta del tavolo: singolare, senza coperti, nessun tavolo', () => {
+  assert.equal(tableLabel({ table_name: 'Terrazza 2', covers: 1 }), 'TAVOLO TERRAZZA 2 · 1 COPERTO');
+  assert.equal(tableLabel({ table_name: 'T1', covers: 0 }), 'TAVOLO T1');
+  assert.equal(tableLabel({ table_name: null, covers: null }), null);
 });

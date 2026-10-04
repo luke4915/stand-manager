@@ -31,6 +31,11 @@ const OrderCard = ({ order, onComplete }) => {
               ? 'line-through text-[var(--text-muted)]'
               : 'text-[var(--text-main)]'
           }`}>#{orderCode}</span>
+          {order.table_name && (
+            <span className="px-2 py-0.5 bg-[var(--accent)]/10 border border-[var(--accent)]/40 text-[var(--accent)] rounded-full text-[9px] font-black uppercase">
+              {order.table_name}{order.covers > 0 && ` · ${order.covers} cop.`}
+            </span>
+          )}
           {order.is_takeaway && (
             <span className="px-2 py-0.5 bg-green-500/10 border border-green-500/30 text-green-500 rounded-full text-[9px] font-black uppercase">Asporto</span>
           )}

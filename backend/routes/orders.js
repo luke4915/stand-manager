@@ -17,7 +17,9 @@ import { HttpError, sendHttpError } from '../utils/httpError.js';
 import { computeExpectedCash, clampToSession } from '../utils/session.js';
 import { loadItems, withItems } from '../utils/orderItemsRead.js';
 import { writeOrderItems } from '../utils/orderItemsWrite.js';
-import { requireModule } from '../utils/tenantModules.js';
+import { requireModule, getTenantModules } from '../utils/tenantModules.js';
+import { withCheckInfo } from '../utils/orderCheck.js';
+import { getCheckSummary } from '../utils/checks.js';
 
 const router = express.Router();
 
@@ -89,7 +91,7 @@ export default function (broadcast) {
       const categoryMap = Object.fromEntries(dbProducts.map(p => [p.id, p.category || 'Altro']));
 
       // Rispediamo i dati mappandoli in modo che ogni item abbia la sua categoria reale
-      const mappedRows = (await withItems(req.db, rows)).map(o => ({
+      const mappedRows = (await withCheckInfo(req.db, await withItems(req.db, rows))).map(o => ({
         ...o,
         items: o.items.map(i => ({
           ...i,
@@ -107,7 +109,7 @@ export default function (broadcast) {
 
   // POST /orders (Creazione Ordine)
   router.post('/', authenticate, authorizeCash, validate({ body: createOrderSchema }), tenantScope, async (req, res) => {
-    const { items, status, is_takeaway, client_order_id, session_id, client_created_at, device_id, device_seq } = req.body;
+    const { items, status, is_takeaway, client_order_id, session_id, client_created_at, device_id, device_seq, check_id } = req.body;
 
     // Idempotenza: un ordine già ricevuto (retry dopo un errore di rete o dalla
     // coda offline) non si duplica, si risponde con quello esistente.
@@ -115,6 +117,10 @@ export default function (broadcast) {
       const existing = await findOrderByClientId(req.db, client_order_id);
       if (existing) return res.json(duplicateResponse(existing));
     }
+
+    // Le comande dei tavoli esistono solo nei locali con il modulo `tables`.
+    if (check_id !== undefined && !(await getTenantModules(req.user.tenantId))?.modules.includes('tables'))
+      return res.status(403).json({ error: 'Funzione non attiva per questo locale', code: 'MODULE_DISABLED' });
 
     const productIds = [...new Set(items.map(i => i.id).filter(Boolean))];
     const { rows: dbProducts } = await req.db.query(
@@ -170,6 +176,15 @@ export default function (broadcast) {
         const session = await findOrderSession(db, session_id, device_id === undefined);
         const sessionOpen = !session.end_time;
         const displayCode = await resolveDisplayCode(db, session, device_id, device_seq);
+
+        // Comanda su un conto: deve essere aperto e della sessione in corso. Il lock condiviso lascia entrare più
+        // comande insieme ma impedisce di annullare o chiudere il conto mentre se ne scrive una.
+        if (check_id !== undefined) {
+          const { rows: checks } = await db.query('SELECT id, status, session_id FROM checks WHERE id = $1 FOR SHARE', [check_id]);
+          if (!checks.length) throw new HttpError(404, 'Conto non trovato');
+          if (checks[0].status !== 'open' || checks[0].session_id !== session.id)
+            throw new HttpError(409, 'Il conto non è aperto', 'CHECK_CLOSED');
+        }
         const totals = sumQuantitiesByProduct(verifiedItems);
 
         // Un ordine sincronizzato in ritardo è già stato venduto: non si rifiuta per stock.
@@ -186,10 +201,10 @@ export default function (broadcast) {
         const createdAt = isLateSync ? clampToSession(client_created_at, session) : null;
 
         const { rows } = await db.query(
-          `INSERT INTO orders (total, status, created_by, order_type, is_takeaway, display_code, session_id, client_order_id, created_at, device_id, device_seq)
-           VALUES ($1, $2, $3, $4, $5, $6, $7, $8, COALESCE($9, now()), $10, $11) RETURNING id, created_at, display_code`,
+          `INSERT INTO orders (total, status, created_by, order_type, is_takeaway, display_code, session_id, client_order_id, created_at, device_id, device_seq, check_id)
+           VALUES ($1, $2, $3, $4, $5, $6, $7, $8, COALESCE($9, now()), $10, $11, $12) RETURNING id, created_at, display_code`,
           [verifiedTotal, orderStatus, req.user.id, order_type, !!is_takeaway,
-            displayCode, session.id, client_order_id ?? null, createdAt, device_id ?? null, device_seq ?? null]
+            displayCode, session.id, client_order_id ?? null, createdAt, device_id ?? null, device_seq ?? null, check_id ?? null]
         );
         // Le righe sono parte dell'ordine: se non si scrivono, l'ordine non nasce (la transazione si annulla).
         await writeOrderItems(db, req.user.tenantId, rows[0].id, verifiedItems);
@@ -210,11 +225,17 @@ export default function (broadcast) {
         orderId: order.id,
         total: verifiedTotal,
         itemCount: verifiedItems.length,
+        ...(check_id !== undefined && { checkId: check_id }),
         ...(isLateSync && { lateSync: true, sessionId: session_id, sessionClosed: !sessionOpen })
       });
 
+      const [withTable] = await withCheckInfo(req.db, [{ check_id }]);
       const orderData = {
         id: order.id,
+        check_id: check_id ?? null,
+        table_name: withTable.table_name,
+        covers: withTable.covers,
+        check_number: withTable.check_number,
         display_code: order.display_code,
         status: orderStatus,
         created_at: order.created_at,
@@ -226,9 +247,10 @@ export default function (broadcast) {
       if (broadcast) {
         stockUpdates.forEach(product => broadcast(req.user.tenantId, { type: 'product_stock_updated', product }));
         if (sessionOpen) broadcast(req.user.tenantId, { type: 'order_created', order: orderData });
+        if (check_id !== undefined) broadcast(req.user.tenantId, { type: 'check_updated', check: await getCheckSummary(req.db, check_id) });
       }
 
-      res.json({ success: true, orderId: order.id, displayCode: order.display_code });
+      res.json({ success: true, orderId: order.id, displayCode: order.display_code, ...(check_id !== undefined && { checkId: check_id }) });
     } catch (err) {
       // Due invii contemporanei dello stesso ordine: il secondo trova un vincolo di unicità
       // (sulla chiave di idempotenza o sul numero del dispositivo, a seconda di quale scatta prima).
@@ -257,7 +279,8 @@ export default function (broadcast) {
     try {
       const { previousStatus, updated, stockUpdates } = await inTransaction(req.db, async (db) => {
         const { rows: current } = await db.query(
-          'SELECT status, completed_at, created_at FROM orders WHERE id = $1 FOR UPDATE',
+          `SELECT o.status, o.completed_at, o.created_at, o.check_id, c.status AS check_status
+           FROM orders o LEFT JOIN checks c ON c.id = o.check_id WHERE o.id = $1 FOR UPDATE OF o`,
           [id]
         );
         if (!current.length) throw new HttpError(404, 'Ordine non trovato');
@@ -271,13 +294,18 @@ export default function (broadcast) {
           throw new HttpError(409, `Impossibile modificare un ordine in stato "${order.status}"`);
         }
 
+        // Una comanda di un conto già pagato o annullato fa parte dell'incasso: non si storna.
+        if (status === 'canceled' && order.check_id && order.check_status !== 'open')
+          throw new HttpError(409, 'Il conto è chiuso: la comanda non si può stornare', 'CHECK_CLOSED');
+
         const { rows } = await db.query(
           `UPDATE orders SET status = $1,
              completed_at = CASE WHEN $1 = 'completed' THEN now() ELSE completed_at END
            WHERE id = $2 RETURNING *`,
           [status, id]
         );
-        const updated = { ...rows[0], items: (await loadItems(db, [id])).get(id) ?? [] };
+        const [withInfo] = await withCheckInfo(db, [rows[0]]);
+        const updated = { ...withInfo, items: (await loadItems(db, [id])).get(id) ?? [] };
         const stockUpdates = status === 'canceled'
           ? await applyStockChange(db, sumQuantitiesByProduct(updated.items.filter(i => i.id !== null)), +1)
           : [];
@@ -293,6 +321,7 @@ export default function (broadcast) {
       if (broadcast) {
         stockUpdates.forEach(product => broadcast(req.user.tenantId, { type: 'product_stock_updated', product }));
         broadcast(req.user.tenantId, { type: 'order_updated', order: updated });
+        if (updated.check_id) broadcast(req.user.tenantId, { type: 'check_updated', check: await getCheckSummary(req.db, updated.check_id) });
       }
       res.json(updated);
     } catch (err) {
@@ -324,9 +353,9 @@ export default function (broadcast) {
   router.post('/:id/reprint', authenticate, authorizeCash, validate({ params: idParamsSchema }), tenantScope, async (req, res) => {
     try {
       const { rows } = await req.db.query(
-        'SELECT id, display_code, created_at, total, is_takeaway FROM orders WHERE id = $1', [req.params.id]);
+        'SELECT id, display_code, created_at, total, is_takeaway, check_id FROM orders WHERE id = $1', [req.params.id]);
       if (!rows.length) return res.status(404).json({ error: 'Ordine non trovato' });
-      const [order] = await withItems(req.db, rows);
+      const [order] = await withCheckInfo(req.db, await withItems(req.db, rows));
 
       await logAudit(req.db, req.user.id, 'REPRINT_ORDER', { orderId: order.id });
       res.json({ ...order, total: parseFloat(order.total) });
@@ -341,11 +370,11 @@ export default function (broadcast) {
     try {
       const data = await withTenantClient(req.tenantId, async (db) => {
         const { rows } = await db.query(
-          `SELECT o.id, o.display_code, o.status, o.is_takeaway, o.created_at
+          `SELECT o.id, o.display_code, o.status, o.is_takeaway, o.created_at, o.check_id
            FROM orders o JOIN sessions s ON s.id = o.session_id AND s.end_time IS NULL
            WHERE o.status IN ('pending', 'preparing') ORDER BY o.created_at DESC`
         );
-        return (await withItems(db, rows)).map(toPublicOrder);
+        return (await withCheckInfo(db, await withItems(db, rows))).map(toPublicOrder);
       });
       res.json(data);
     } catch (err) {

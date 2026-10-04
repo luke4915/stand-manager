@@ -83,6 +83,21 @@ export async function renderNumberSlip(printer, order, ctx) {
   printer.cut();
 }
 
+// "TAVOLO T5 · 4 COPERTI" per le comande dei tavoli; nulla per gli ordini pagati subito.
+export function tableLabel(order) {
+  if (!order.table_name) return null;
+  const covers = order.covers > 0 ? ` · ${order.covers} ${order.covers === 1 ? 'COPERTO' : 'COPERTI'}` : '';
+  return `TAVOLO ${order.table_name}${covers}`.toUpperCase();
+}
+
+// Il tavolo in evidenza in cima alla copia, dove la cucina guarda per prima.
+function renderTableBanner(printer, order) {
+  const label = tableLabel(order);
+  if (!label) return;
+  printer.align('CT').reverse(true).size(2, 2).style('B').text(` ${label} `).size(1, 1).style('NORMAL').reverse(false);
+  printer.align('CT').text(DIVIDER_THIN);
+}
+
 async function renderTopHeaderImage(printer, ctx, displayCode) {
   const banner = await ctx.images.numberBanner(displayCode, 'header');
   if (!banner) return;
@@ -214,6 +229,7 @@ export async function renderAssociation(printer, order, ctx) {
 export async function renderKitchen(printer, order, ctx) {
   const items = filterItems(order.items, 'kitchen');
   if (!items.length) return;
+  renderTableBanner(printer, order);
   await renderHeader(printer, ctx, { title: '=== COPIA CUCINA ===' });
   renderItems(printer, ctx, items, 'kitchen');
   renderFooter(printer, ctx, {});
@@ -224,6 +240,7 @@ export async function renderGastronomy(printer, order, ctx) {
   if (!items.length) return;
 
   await renderTopHeaderImage(printer, ctx, order.display_code);
+  renderTableBanner(printer, order);
 
   if (order.is_takeaway) {
     printer.align('CT').reverse(true).size(2, 2).style('B').text(' DA ASPORTO ').size(1, 1).style('NORMAL').reverse(false);
@@ -242,6 +259,7 @@ export async function renderBar(printer, order, ctx) {
   if (!items.length) return;
 
   await renderTopHeaderImage(printer, ctx, order.display_code);
+  renderTableBanner(printer, order);
 
   await renderHeader(printer, ctx, {
     title: '*** COPIA OMAGGIO BAR ***', subtitle: 'RITIRO BAR', pickupStatus: 'valid', showLogo: false,

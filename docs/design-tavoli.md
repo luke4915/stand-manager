@@ -68,7 +68,7 @@ impedisce di riscriverla a mano altrove. I test di prima passano invariati. Solo
 
 L'incasso **atteso in contanti** (`expectedCashSql`) è: gli ordini pagati subito (tutti contanti) più **tutti i pagamenti `cash` dei conti della sessione**, anche parziali e anche se il conto è ancora aperto (i soldi sono nel cassetto); la carta è incasso ma non entra nel cassetto. Per le sagre non cambia nulla.
 
-Chiusura serata: i **conti aperti** bloccano la chiusura (409 `OPEN_CHECKS`) senza scelta "lascia fuori": i soldi non sono stati incassati. Le comande dei tavoli non contano come `openOrders`, le tiene il conto. Il modo di chiudere un conto non pagato (abbuono, cliente andato via) è da decidere con il 2-5.
+Chiusura serata: i **conti aperti** bloccano la chiusura (409 `OPEN_CHECKS`) senza scelta "lascia fuori": i soldi non sono stati incassati. Le comande dei tavoli non contano come `openOrders`, le tiene il conto. Un conto che non sarà pagato (cliente andato via) si chiude solo con un **abbuono** (omaggio o sconto sul conto, come per gli ordini) oppure **eliminando il tavolo con il suo conto** (annulla le comande, solo admin, con audit): decisione dell'utente, si realizza nel 2-5.
 
 ## 5. API (modulo `tables`)
 

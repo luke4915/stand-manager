@@ -31,7 +31,13 @@ export const createOrderSchema = z.object({
     // Dispositivo (cassa) e numero progressivo che ha dato all'ordine: il codice è lettera + numero.
     device_id: z.number().int().positive().optional(),
     device_seq: z.number().int().positive().max(99999).optional(),
+    // Comanda su un conto aperto di un tavolo (modulo `tables`): non si paga subito e richiede il server.
+    check_id: z.number().int().positive().optional(),
 }).refine(
+    // Le comande dei tavoli sono sempre online: niente sessione in ritardo, niente numero del dispositivo.
+    (o) => o.check_id === undefined || (o.session_id === undefined && o.device_id === undefined),
+    { message: 'Una comanda di un tavolo non si invia con sessione in ritardo o dispositivo' }
+).refine(
     (o) => (o.device_id === undefined) === (o.device_seq === undefined),
     { message: 'device_id e device_seq vanno inviati insieme' }
 ).refine(
