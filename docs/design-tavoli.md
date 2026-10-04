@@ -35,7 +35,7 @@ checks       id, tenant_id, session_id, table_id → dining_tables (nullo per ba
              covers, status ('open' | 'paid' | 'void'), opened_by, opened_at, bill_requested_at, closed_at,
              cover_charge (coperto applicato, fissato all'apertura), discount_* (sconto sul conto, solo ruoli sconto)
              indice unico: un solo conto aperto per tavolo
-payments     id, tenant_id, check_id, method ('cash' | 'card' | 'other'), amount, paid_by, paid_at
+payments     (migrazione del passo 2-5) id, tenant_id, check_id, method ('cash' | 'card' | 'other'), amount, paid_by, paid_at
 
 orders       + check_id (nullo = ordine pagato subito, come oggi)
 ```
@@ -82,7 +82,7 @@ POST  /checks            { table_id, covers }      apre il conto (409 se il tavo
 GET   /checks/:id                                  conto con comande, righe, totale, pagamenti
 POST  /checks/:id/bill-request                     chiede il conto
 POST  /checks/:id/payments { method, amount }      registra un pagamento; chiude il conto se copre il totale
-POST  /checks/:id/void                             annulla (solo ruoli sconto; ripristina lo stock)
+POST  /checks/:id/void                             annulla un conto aperto per errore (solo ruoli sconto, e solo senza comande attive)
 POST  /checks/:id/move   { table_id }              sposta il conto su un altro tavolo libero
 POST  /checks/:id/merge  { into }                  unisce due conti
 POST  /orders            + check_id                comanda su un conto aperto

@@ -99,6 +99,54 @@ ALTER SEQUENCE public.audit_logs_id_seq OWNED BY public.audit_logs.id;
 
 
 --
+-- Name: checks; Type: TABLE; Schema: public; Owner: colettas
+--
+
+CREATE TABLE public.checks (
+    id integer NOT NULL,
+    tenant_id integer DEFAULT (NULLIF(current_setting('app.tenant_id'::text, true), ''::text))::integer NOT NULL,
+    session_id integer NOT NULL,
+    table_id integer,
+    number integer NOT NULL,
+    covers integer DEFAULT 0 NOT NULL,
+    status text DEFAULT 'open'::text NOT NULL,
+    opened_by integer,
+    opened_at timestamp with time zone DEFAULT now() NOT NULL,
+    bill_requested_at timestamp with time zone,
+    closed_at timestamp with time zone,
+    CONSTRAINT checks_covers_check CHECK (((covers >= 0) AND (covers <= 99))),
+    CONSTRAINT checks_number_check CHECK ((number > 0)),
+    CONSTRAINT checks_status_check CHECK ((status = ANY (ARRAY['open'::text, 'paid'::text, 'void'::text])))
+);
+
+ALTER TABLE ONLY public.checks FORCE ROW LEVEL SECURITY;
+
+
+ALTER TABLE public.checks OWNER TO colettas;
+
+--
+-- Name: checks_id_seq; Type: SEQUENCE; Schema: public; Owner: colettas
+--
+
+CREATE SEQUENCE public.checks_id_seq
+    AS integer
+    START WITH 1
+    INCREMENT BY 1
+    NO MINVALUE
+    NO MAXVALUE
+    CACHE 1;
+
+
+ALTER SEQUENCE public.checks_id_seq OWNER TO colettas;
+
+--
+-- Name: checks_id_seq; Type: SEQUENCE OWNED BY; Schema: public; Owner: colettas
+--
+
+ALTER SEQUENCE public.checks_id_seq OWNED BY public.checks.id;
+
+
+--
 -- Name: copy_types; Type: TABLE; Schema: public; Owner: colettas
 --
 
@@ -291,6 +339,7 @@ CREATE TABLE public.orders (
     client_order_id uuid,
     device_id integer,
     device_seq integer,
+    check_id integer,
     CONSTRAINT orders_device_pair_check CHECK (((device_id IS NULL) = (device_seq IS NULL))),
     CONSTRAINT orders_device_seq_check CHECK ((device_seq > 0)),
     CONSTRAINT orders_order_type_check CHECK (((order_type)::text = ANY (ARRAY[('sale'::character varying)::text, ('gift'::character varying)::text, ('discount'::character varying)::text]))),
@@ -606,6 +655,13 @@ ALTER TABLE ONLY public.audit_logs ALTER COLUMN id SET DEFAULT nextval('public.a
 
 
 --
+-- Name: checks id; Type: DEFAULT; Schema: public; Owner: colettas
+--
+
+ALTER TABLE ONLY public.checks ALTER COLUMN id SET DEFAULT nextval('public.checks_id_seq'::regclass);
+
+
+--
 -- Name: copy_types id; Type: DEFAULT; Schema: public; Owner: colettas
 --
 
@@ -704,6 +760,14 @@ ALTER TABLE ONLY public._migrations
 
 ALTER TABLE ONLY public.audit_logs
     ADD CONSTRAINT audit_logs_pkey PRIMARY KEY (id);
+
+
+--
+-- Name: checks checks_pkey; Type: CONSTRAINT; Schema: public; Owner: colettas
+--
+
+ALTER TABLE ONLY public.checks
+    ADD CONSTRAINT checks_pkey PRIMARY KEY (id);
 
 
 --
@@ -848,6 +912,13 @@ CREATE INDEX idx_audit_logs_tenant ON public.audit_logs USING btree (tenant_id);
 
 
 --
+-- Name: idx_checks_tenant_status; Type: INDEX; Schema: public; Owner: colettas
+--
+
+CREATE INDEX idx_checks_tenant_status ON public.checks USING btree (tenant_id, status);
+
+
+--
 -- Name: idx_copy_types_tenant; Type: INDEX; Schema: public; Owner: colettas
 --
 
@@ -880,6 +951,13 @@ CREATE INDEX idx_order_items_tenant ON public.order_items USING btree (tenant_id
 --
 
 CREATE INDEX idx_order_items_tenant_product ON public.order_items USING btree (tenant_id, product_id);
+
+
+--
+-- Name: idx_orders_check; Type: INDEX; Schema: public; Owner: colettas
+--
+
+CREATE INDEX idx_orders_check ON public.orders USING btree (check_id) WHERE (check_id IS NOT NULL);
 
 
 --
@@ -922,6 +1000,20 @@ CREATE INDEX idx_sessions_tenant ON public.sessions USING btree (tenant_id);
 --
 
 CREATE INDEX idx_users_tenant ON public.users USING btree (tenant_id);
+
+
+--
+-- Name: uniq_checks_open_table; Type: INDEX; Schema: public; Owner: colettas
+--
+
+CREATE UNIQUE INDEX uniq_checks_open_table ON public.checks USING btree (table_id) WHERE ((status = 'open'::text) AND (table_id IS NOT NULL));
+
+
+--
+-- Name: uniq_checks_session_number; Type: INDEX; Schema: public; Owner: colettas
+--
+
+CREATE UNIQUE INDEX uniq_checks_session_number ON public.checks USING btree (session_id, number);
 
 
 --
@@ -997,6 +1089,38 @@ ALTER TABLE ONLY public.audit_logs
 
 
 --
+-- Name: checks checks_opened_by_fkey; Type: FK CONSTRAINT; Schema: public; Owner: colettas
+--
+
+ALTER TABLE ONLY public.checks
+    ADD CONSTRAINT checks_opened_by_fkey FOREIGN KEY (opened_by) REFERENCES public.users(id) ON DELETE SET NULL;
+
+
+--
+-- Name: checks checks_session_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: colettas
+--
+
+ALTER TABLE ONLY public.checks
+    ADD CONSTRAINT checks_session_id_fkey FOREIGN KEY (session_id) REFERENCES public.sessions(id);
+
+
+--
+-- Name: checks checks_table_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: colettas
+--
+
+ALTER TABLE ONLY public.checks
+    ADD CONSTRAINT checks_table_id_fkey FOREIGN KEY (table_id) REFERENCES public.dining_tables(id);
+
+
+--
+-- Name: checks checks_tenant_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: colettas
+--
+
+ALTER TABLE ONLY public.checks
+    ADD CONSTRAINT checks_tenant_id_fkey FOREIGN KEY (tenant_id) REFERENCES public.tenants(id);
+
+
+--
 -- Name: copy_types copy_types_tenant_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: colettas
 --
 
@@ -1042,6 +1166,14 @@ ALTER TABLE ONLY public.order_items
 
 ALTER TABLE ONLY public.order_items
     ADD CONSTRAINT order_items_tenant_id_fkey FOREIGN KEY (tenant_id) REFERENCES public.tenants(id);
+
+
+--
+-- Name: orders orders_check_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: colettas
+--
+
+ALTER TABLE ONLY public.orders
+    ADD CONSTRAINT orders_check_id_fkey FOREIGN KEY (check_id) REFERENCES public.checks(id);
 
 
 --
@@ -1131,6 +1263,12 @@ ALTER TABLE ONLY public.users
 ALTER TABLE public.audit_logs ENABLE ROW LEVEL SECURITY;
 
 --
+-- Name: checks; Type: ROW SECURITY; Schema: public; Owner: colettas
+--
+
+ALTER TABLE public.checks ENABLE ROW LEVEL SECURITY;
+
+--
 -- Name: copy_types; Type: ROW SECURITY; Schema: public; Owner: colettas
 --
 
@@ -1202,6 +1340,13 @@ ALTER TABLE public.settings ENABLE ROW LEVEL SECURITY;
 --
 
 CREATE POLICY tenant_isolation ON public.audit_logs USING ((tenant_id = (NULLIF(current_setting('app.tenant_id'::text, true), ''::text))::integer));
+
+
+--
+-- Name: checks tenant_isolation; Type: POLICY; Schema: public; Owner: colettas
+--
+
+CREATE POLICY tenant_isolation ON public.checks USING ((tenant_id = (NULLIF(current_setting('app.tenant_id'::text, true), ''::text))::integer));
 
 
 --
@@ -1325,6 +1470,22 @@ GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE public.audit_logs TO standmanager_mas
 
 GRANT ALL ON SEQUENCE public.audit_logs_id_seq TO standmanager_app;
 GRANT SELECT,USAGE ON SEQUENCE public.audit_logs_id_seq TO standmanager_master;
+
+
+--
+-- Name: TABLE checks; Type: ACL; Schema: public; Owner: colettas
+--
+
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE public.checks TO standmanager_app;
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE public.checks TO standmanager_master;
+
+
+--
+-- Name: SEQUENCE checks_id_seq; Type: ACL; Schema: public; Owner: colettas
+--
+
+GRANT ALL ON SEQUENCE public.checks_id_seq TO standmanager_app;
+GRANT SELECT,USAGE ON SEQUENCE public.checks_id_seq TO standmanager_master;
 
 
 --

@@ -281,7 +281,7 @@ router.post('/tenants/:id/users/:userId/reset-password', authenticateMaster, val
 // Richiede conferma esplicita (slug ripetuto) lato client prima di chiamarla.
 // Tutto in un'unica transazione sulla connessione scoped al tenant: o sparisce
 // tutto o non sparisce niente. L'ordine rispetta le foreign key (audit_logs → users).
-const TENANT_SCOPED_TABLES = ['audit_logs', 'order_items', 'orders', 'dining_tables', 'rooms', 'devices', 'products', 'sessions', 'print_settings', 'copy_types', 'settings', 'users'];
+const TENANT_SCOPED_TABLES = ['audit_logs', 'order_items', 'orders', 'checks', 'dining_tables', 'rooms', 'devices', 'products', 'sessions', 'print_settings', 'copy_types', 'settings', 'users'];
 router.delete('/tenants/:id', authenticateMaster, validate({ params: idParamsSchema, body: deleteTenantSchema }), async (req, res) => {
   const { id } = req.params;
   try {

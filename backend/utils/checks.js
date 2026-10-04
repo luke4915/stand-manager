@@ -1,0 +1,43 @@
+import { withItems } from './orderItemsRead.js';
+import { HttpError } from './httpError.js';
+
+// Conti dei tavoli: lettura con i totali calcolati dal server. Il client non decide mai importi (CLAUDE.md §4).
+
+// Un conto con tavolo, sala, chi lo ha aperto e il totale delle comande non annullate.
+const SUMMARY_SQL = `
+  SELECT c.id, c.number, c.status, c.session_id, c.table_id, t.name AS table_name, t.room_id, r.name AS room_name,
+         c.covers, c.opened_by, u.username AS opened_by_name, c.opened_at, c.bill_requested_at, c.closed_at,
+         COALESCE((SELECT SUM(o.total) FROM orders o WHERE o.check_id = c.id AND o.status <> 'canceled'), 0) AS orders_total,
+         (SELECT COUNT(*) FROM orders o WHERE o.check_id = c.id AND o.status <> 'canceled')::int AS orders_count
+  FROM checks c
+  LEFT JOIN dining_tables t ON t.id = c.table_id
+  LEFT JOIN rooms r ON r.id = t.room_id
+  LEFT JOIN users u ON u.id = c.opened_by`;
+
+// Importi in euro come numeri (pg restituisce i numeric come stringhe). `paid` e `due` arrivano coi pagamenti.
+const toSummary = (row) => {
+  const total = Number(row.orders_total);
+  return { ...row, orders_total: total, total, paid: 0, due: total };
+};
+
+export async function listChecks(db, { status = 'open', tableId = null } = {}) {
+  const { rows } = await db.query(
+    `${SUMMARY_SQL} WHERE c.status = $1 AND ($2::int IS NULL OR c.table_id = $2) ORDER BY c.opened_at DESC, c.id DESC`,
+    [status, tableId]);
+  return rows.map(toSummary);
+}
+
+export async function getCheckSummary(db, id) {
+  const { rows } = await db.query(`${SUMMARY_SQL} WHERE c.id = $1`, [id]);
+  return rows[0] ? toSummary(rows[0]) : null;
+}
+
+// Il conto con le sue comande e le righe di ciascuna.
+export async function getCheckDetail(db, id) {
+  const summary = await getCheckSummary(db, id);
+  if (!summary) throw new HttpError(404, 'Conto non trovato');
+  const { rows } = await db.query(
+    `SELECT id, display_code, status, created_at, total, is_takeaway FROM orders WHERE check_id = $1 ORDER BY id`, [id]);
+  const orders = (await withItems(db, rows)).map(o => ({ ...o, total: Number(o.total) }));
+  return { ...summary, orders };
+}
