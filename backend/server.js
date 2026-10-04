@@ -1,4 +1,5 @@
-import { createServer } from 'https';
+import { createServer as createHttpsServer } from 'https';
+import { createServer as createHttpServer } from 'http';
 import fs from 'fs';
 import path from 'path';
 import { fileURLToPath } from 'url';
@@ -26,20 +27,27 @@ if (missing.length || (weak.length && process.env.NODE_ENV === 'production')) {
 }
 if (weak.length) logger.warn({ problems: weak }, 'Segreti deboli: in produzione l\'app non partirebbe');
 
+// TLS_TERMINATED_BY_PROXY=true: l'HTTPS lo gestisce la piattaforma o il reverse proxy davanti
+// (Railway, Render, nginx...), che inoltra in HTTP semplice. Altrimenti il server fa HTTPS da sé.
+const behindTlsProxy = process.env.TLS_TERMINATED_BY_PROXY === 'true';
+
 // Certificati HTTPS (mkcert in sviluppo): percorsi da env, con fallback sui file locali
-const keyPath = process.env.HTTPS_KEY_PATH || path.resolve(__dirname, '_wildcard.standmanager.local+4-key.pem');
-const certPath = process.env.HTTPS_CERT_PATH || path.resolve(__dirname, '_wildcard.standmanager.local+4.pem');
 let httpsOptions;
-try {
-  httpsOptions = { key: fs.readFileSync(keyPath), cert: fs.readFileSync(certPath) };
-} catch (err) {
-  logger.fatal({ err }, 'Certificati HTTPS mancanti o non leggibili');
-  process.exit(1);
+if (!behindTlsProxy) {
+  const keyPath = process.env.HTTPS_KEY_PATH || path.resolve(__dirname, '_wildcard.standmanager.local+4-key.pem');
+  const certPath = process.env.HTTPS_CERT_PATH || path.resolve(__dirname, '_wildcard.standmanager.local+4.pem');
+  try {
+    httpsOptions = { key: fs.readFileSync(keyPath), cert: fs.readFileSync(certPath) };
+  } catch (err) {
+    logger.fatal({ err }, 'Certificati HTTPS mancanti o non leggibili (dietro un proxy TLS imposta TLS_TERMINATED_BY_PROXY=true)');
+    process.exit(1);
+  }
 }
 
-// WebSocket sullo stesso server HTTPS (quindi WSS), isolato per tenant: vedi ws.js
+// WebSocket sullo stesso server (WSS verso il browser), isolato per tenant: vedi ws.js
 const hub = createWebSocketHub();
-const server = createServer(httpsOptions, createApp({ broadcast: hub.broadcast }));
+const app = createApp({ broadcast: hub.broadcast });
+const server = behindTlsProxy ? createHttpServer(app) : createHttpsServer(httpsOptions, app);
 hub.attach(server);
 
 // Chiusura ordinata: smette di accettare connessioni, chiude i WebSocket e il pool; dopo 10 s esce comunque.
@@ -57,4 +65,4 @@ process.on('uncaughtException', (err) => { logger.fatal({ err }, 'Eccezione non 
 process.on('unhandledRejection', (err) => { logger.fatal({ err }, 'Promise rifiutata e non gestita'); process.exit(1); });
 
 const PORT = parseInt(process.env.PORT) || 3000;
-server.listen(PORT, '0.0.0.0', () => logger.info(`API e WSS in ascolto su https://0.0.0.0:${PORT}`));
+server.listen(PORT, '0.0.0.0', () => logger.info(`API e WebSocket in ascolto su ${behindTlsProxy ? 'http' : 'https'}://0.0.0.0:${PORT}`));

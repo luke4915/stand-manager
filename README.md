@@ -59,7 +59,8 @@ La CI (`.github/workflows/ci.yml`) esegue lint, test, build e `npm audit` a ogni
 ## Produzione
 
 - `npm run build` nel frontend; il backend con `NODE_ENV=production` serve API, WebSocket e frontend compilato sulla stessa porta HTTPS.
-- `APP_DOMAIN` è il dominio dell'app: servono un DNS e un certificato wildcard per `*.APP_DOMAIN`, indicato con `HTTPS_KEY_PATH` e `HTTPS_CERT_PATH`.
+- `APP_DOMAIN` è il dominio dell'app: servono un DNS e un certificato wildcard per `*.APP_DOMAIN`, indicato con `HTTPS_KEY_PATH` e `HTTPS_CERT_PATH`, oppure gestito dalla piattaforma davanti (`TLS_TERMINATED_BY_PROXY=true`).
+- Il `Dockerfile` nella radice costruisce l'immagine completa; `railway.json` la configura su Railway (percorso consigliato, passo per passo in [`docs/deployment.md`](docs/deployment.md)). Su un database vuoto `npm run db:prepare` crea ruoli e schema, poi applica le migrazioni.
 - L'app si connette al database con due utenti: quello applicativo (`PG_USER`, soggetto a RLS, può solo leggere i tenant) e quello del pannello master (`PG_MASTER_USER`, l'unico che crea, modifica ed elimina tenant). I due ruoli vanno creati prima di caricare `schema.sql` o di applicare la migrazione 025. Le migrazioni (`npm run migrate`) usano `MIGRATION_DATABASE_URL`.
 - Avvio con un gestore di processi (systemd o PM2). Un eventuale reverse proxy deve inoltrare anche l'upgrade WebSocket.
 - `GET /api/health` (processo) e `/api/health/ready` (database) per il monitoraggio; `backend/scripts/backup.sh` per i backup.
