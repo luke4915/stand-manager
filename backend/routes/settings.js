@@ -41,7 +41,14 @@ router.get('/all', authenticate, tenantScope, async (req, res) => {
 // PUT /api/settings/:key — solo admin, solo chiavi note
 router.put('/:key', authenticate, authorizeAdmin, validate({ params: settingParamsSchema, body: settingValueSchema }), tenantScope, async (req, res) => {
     const { key } = req.params;
-    const { value } = req.body;
+    let { value } = req.body;
+    if (key === 'cover_charge' && value !== null && value !== '') {
+        // Euro per persona: numero da 0 a 100 con al massimo due decimali, salvato col punto
+        const text = value.trim().replace(',', '.');
+        if (!/^\d{1,3}(\.\d{1,2})?$/.test(text) || Number(text) > 100)
+            return res.status(400).json({ error: 'value: indica un importo in euro da 0 a 100 (es. 2,50)' });
+        value = Number(text).toFixed(2);
+    }
     try {
         await req.db.query(
             'INSERT INTO settings (key, value) VALUES ($1, $2) ON CONFLICT (tenant_id, key) DO UPDATE SET value = $2',

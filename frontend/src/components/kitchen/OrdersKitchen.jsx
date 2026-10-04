@@ -205,9 +205,11 @@ const OrdersKitchen = () => {
     if (videoRef.current) videoRef.current.srcObject = null;
   };
 
-  const pending = orders.filter(o => o.status === 'pending' || o.status === 'preparing');
-  const completed = orders.filter(o => o.status === 'completed');
-  const canceled = orders.filter(o => o.status === 'canceled');
+  // La riga automatica del coperto non è una comanda per la cucina
+  const kitchenOrders = orders.filter(o => o.order_type !== 'cover');
+  const pending = kitchenOrders.filter(o => o.status === 'pending' || o.status === 'preparing');
+  const completed = kitchenOrders.filter(o => o.status === 'completed');
+  const canceled = kitchenOrders.filter(o => o.status === 'canceled');
 
   return (
     <div className="h-full flex flex-col gap-4">

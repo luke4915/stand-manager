@@ -286,12 +286,14 @@ export default function (broadcast) {
           if (pre[0]?.check_id) await lockCheck(db, pre[0].check_id, { mustBeOpen: false });
         }
         const { rows: current } = await db.query(
-          `SELECT o.status, o.completed_at, o.created_at, o.check_id, c.status AS check_status
+          `SELECT o.status, o.completed_at, o.created_at, o.check_id, o.order_type, c.status AS check_status
            FROM orders o LEFT JOIN checks c ON c.id = o.check_id WHERE o.id = $1 FOR UPDATE OF o`,
           [id]
         );
         if (!current.length) throw new HttpError(404, 'Ordine non trovato');
         const order = current[0];
+        if (status === 'canceled' && order.order_type === 'cover')
+          throw new HttpError(409, 'Il coperto si cambia dai coperti del tavolo', 'COVER_ORDER');
 
         const isSimpleModeQuickCancel = status === 'canceled'
           && order.status === 'completed'

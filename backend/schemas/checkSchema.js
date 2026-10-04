@@ -58,3 +58,8 @@ export const moveCheckSchema = z.object({
 export const mergeCheckSchema = z.object({
   into: idSchema,
 });
+
+// Cambia i coperti di un conto aperto (il coperto, se previsto, si adegua).
+export const coversSchema = z.object({
+  covers: z.number().int().min(0).max(99),
+});

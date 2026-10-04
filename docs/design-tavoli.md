@@ -34,7 +34,7 @@ dining_tables  id, tenant_id, room_id, name, seats, active       (nome unico per
 
 checks       id, tenant_id, session_id, table_id → dining_tables (nullo per banco), number (progressivo per sessione),
              covers, status ('open' | 'paid' | 'void'), opened_by, opened_at, bill_requested_at, closed_at,
-             cover_charge (coperto applicato, fissato all'apertura), discount_* (sconto sul conto, solo ruoli sconto)
+             cover_charge (coperto a persona, fissato all'apertura; vive come riga automatica «Coperto», vedi utils/cover.js); lo sconto sul conto si fa con l'abbuono sulle voci (adjust)
              indice unico: un solo conto aperto per tavolo
 payments     (migrazione 035) id, tenant_id, check_id, method ('cash' | 'card' | 'other'), amount, paid_by, paid_at
 
@@ -86,6 +86,7 @@ POST  /checks/:id/close                            chiude un conto con residuo z
 POST  /checks/:id/adjust { order_item_ids, type, … } abbuono: omaggio/sconto sulle voci non pagate (ruoli sconto)
 GET   /checks/:id/receipt[?payment_id=]            dati della ricevuta non fiscale (conto o singolo pagamento)
 POST  /checks/:id/void { cancel_orders? }          annulla il conto (ruoli sconto, senza comande attive); con cancel_orders elimina anche le comande (solo admin); mai con pagamenti già incassati
+POST  /checks/:id/covers { covers }               cambia i coperti (il coperto si adegua)
 POST  /checks/:id/move   { table_id }              sposta il conto su un altro tavolo libero (409 TABLE_BUSY se occupato)
 POST  /checks/:id/merge  { into }                  unisce questo conto in un altro aperto; i due conti si bloccano in ordine di id
 POST  /orders            + check_id                comanda su un conto aperto

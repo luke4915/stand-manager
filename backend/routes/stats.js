@@ -6,7 +6,7 @@ import logger from '../logger.js';
 import { statsQuerySchema, sharedProductsQuerySchema, headToHeadQuerySchema } from '../schemas/statsSchema.js';
 import { requireModule } from '../utils/tenantModules.js';
 import { COMPLETED_ITEMS, LINE_REVENUE } from '../utils/statsSql.js';
-import { isRevenue } from '../utils/revenue.js';
+import { isRevenue, isKitchenOrder } from '../utils/revenue.js';
 import { buildStats, buildSessionComparison } from '../utils/stats.js';
 
 const router = express.Router();
@@ -22,19 +22,19 @@ router.get('/', authenticate, requireModule('stats'), authorizeStats, validate({
   try {
     const [totals, canceled, byHour, products, comparison] = await Promise.all([
       req.db.query(
-        `SELECT COUNT(*)::int AS n, COALESCE(SUM(o.total), 0) AS total,
+        `SELECT COUNT(*) FILTER (WHERE ${isKitchenOrder('o')})::int AS n, COALESCE(SUM(o.total), 0) AS total,
                 COUNT(*) FILTER (WHERE o.is_takeaway)::int AS takeaway,
                 AVG(EXTRACT(EPOCH FROM (o.completed_at - o.created_at)) / 60)
-                  FILTER (WHERE o.completed_at >= o.created_at AND o.completed_at - o.created_at < interval '180 minutes') AS avg_minutes
+                  FILTER (WHERE ${isKitchenOrder('o')} AND o.completed_at >= o.created_at AND o.completed_at - o.created_at < interval '180 minutes') AS avg_minutes
          FROM orders o WHERE ${isRevenue('o')} ${inSessions}`, [sessionFilter]),
       req.db.query(
         `SELECT COUNT(*)::int AS n, COALESCE(SUM(o.total), 0) AS total
-         FROM orders o WHERE o.status = 'canceled' ${inSessions}`, [sessionFilter]),
+         FROM orders o WHERE o.status = 'canceled' AND ${isKitchenOrder('o')} ${inSessions}`, [sessionFilter]),
       req.db.query(
-        `SELECT EXTRACT(hour FROM o.created_at AT TIME ZONE $2)::int AS hour, COUNT(*)::int AS n, SUM(o.total) AS total,
+        `SELECT EXTRACT(hour FROM o.created_at AT TIME ZONE $2)::int AS hour, COUNT(*) FILTER (WHERE ${isKitchenOrder('o')})::int AS n, SUM(o.total) AS total,
                 AVG(EXTRACT(EPOCH FROM (o.completed_at - o.created_at)) / 60)
-                  FILTER (WHERE o.completed_at >= o.created_at AND o.completed_at - o.created_at < interval '180 minutes') AS avg_minutes,
-                COUNT(*) FILTER (WHERE o.completed_at >= o.created_at AND o.completed_at - o.created_at < interval '180 minutes')::int AS n_minutes
+                  FILTER (WHERE ${isKitchenOrder('o')} AND o.completed_at >= o.created_at AND o.completed_at - o.created_at < interval '180 minutes') AS avg_minutes,
+                COUNT(*) FILTER (WHERE ${isKitchenOrder('o')} AND o.completed_at >= o.created_at AND o.completed_at - o.created_at < interval '180 minutes')::int AS n_minutes
          FROM orders o WHERE ${isRevenue('o')} ${inSessions}
          GROUP BY 1`, [sessionFilter, tz]),
       // Per id di prodotto, non per nome: un prodotto rinominato resta uno solo.
@@ -50,7 +50,7 @@ router.get('/', authenticate, requireModule('stats'), authorizeStats, validate({
          ${COMPLETED_ITEMS} ${inSessions}
          GROUP BY i.product_id, p.name`, [sessionFilter]),
       req.db.query(
-        `SELECT s.id, s.name, s.start_time, COUNT(o.id)::int AS n, COALESCE(SUM(o.total), 0) AS total
+        `SELECT s.id, s.name, s.start_time, COUNT(o.id) FILTER (WHERE ${isKitchenOrder('o')})::int AS n, COALESCE(SUM(o.total), 0) AS total
          FROM sessions s LEFT JOIN orders o ON o.session_id = s.id AND ${isRevenue('o')}
          GROUP BY s.id ORDER BY s.start_time DESC`),
     ]);

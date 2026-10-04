@@ -15,6 +15,7 @@ import UserProfile from '../components/shared/UserProfile';
 import ProductConfig from '../components/products/ProductConfig';
 import RoomsSettings from '../components/setup/RoomsSettings';
 import UsersSettings from '../components/setup/UsersSettings';
+import CoverSettings from './CoverSettings';
 
 const OrdersKitchen = lazy(() => import('../components/kitchen/OrdersKitchen'));
 const Statistics = lazy(() => import('../components/shared/Statistics'));
@@ -54,7 +55,7 @@ const CartaPage = () => {
 const SettingsPage = ({ user }) => (
   <div className="space-y-6">
     <h2 className="text-3xl font-black tracking-tighter text-[var(--text-main)]">IMPOSTAZIONI</h2>
-    {user.modules?.includes('tables') && <RoomsSettings />}
+    {user.modules?.includes('tables') && <><CoverSettings /><RoomsSettings /></>}
     <UsersSettings />
   </div>
 );

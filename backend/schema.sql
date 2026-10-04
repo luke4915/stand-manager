@@ -115,6 +115,8 @@ CREATE TABLE public.checks (
     bill_requested_at timestamp with time zone,
     closed_at timestamp with time zone,
     merged_into integer,
+    cover_charge numeric(8,2) DEFAULT 0 NOT NULL,
+    CONSTRAINT checks_cover_charge_check CHECK ((cover_charge >= (0)::numeric)),
     CONSTRAINT checks_covers_check CHECK (((covers >= 0) AND (covers <= 99))),
     CONSTRAINT checks_number_check CHECK ((number > 0)),
     CONSTRAINT checks_status_check CHECK ((status = ANY (ARRAY['open'::text, 'paid'::text, 'void'::text])))
@@ -354,7 +356,7 @@ CREATE TABLE public.orders (
     check_id integer,
     CONSTRAINT orders_device_pair_check CHECK (((device_id IS NULL) = (device_seq IS NULL))),
     CONSTRAINT orders_device_seq_check CHECK ((device_seq > 0)),
-    CONSTRAINT orders_order_type_check CHECK (((order_type)::text = ANY (ARRAY[('sale'::character varying)::text, ('gift'::character varying)::text, ('discount'::character varying)::text]))),
+    CONSTRAINT orders_order_type_check CHECK (((order_type)::text = ANY ((ARRAY['sale'::character varying, 'gift'::character varying, 'discount'::character varying, 'cover'::character varying])::text[]))),
     CONSTRAINT orders_status_check CHECK ((status = ANY (ARRAY['pending'::text, 'preparing'::text, 'completed'::text, 'canceled'::text])))
 );
 

@@ -29,11 +29,13 @@ const CheckOrders = ({ detail, onChanged }) => {
   }
 
   return detail.orders.map(order => {
+    const isCover = order.order_type === 'cover';
+    if (isCover && order.status === 'canceled') return null;   // coperto tolto: nessuna traccia da mostrare
     const [text, tone] = STATUS[order.status] ?? [order.status, ''];
     const canceled = order.status === 'canceled';
     return (
       <section key={order.id} className={`space-y-1.5 ${canceled ? 'opacity-50' : ''}`}>
-        <div className="flex items-center gap-2 px-1 pt-2">
+        {!isCover && <div className="flex items-center gap-2 px-1 pt-2">
           <span className="text-[10px] font-black uppercase tracking-widest text-[var(--text-muted)]">#{order.display_code} · {time(order.created_at)}</span>
           <span className={`text-[10px] font-black uppercase tracking-widest ${tone}`}>{text}</span>
           {open && ['pending', 'preparing'].includes(order.status) && (
@@ -46,7 +48,7 @@ const CheckOrders = ({ detail, onChanged }) => {
               ) : <button className={`${iconBtn} !p-1`} title="Storna la comanda" aria-label={`Storna la comanda ${order.display_code}`} onClick={() => setConfirming(order.id)}><Undo2 size={14} /></button>}
             </span>
           )}
-        </div>
+        </div>}
         {order.items.map(item => {
           const paid = item.paid_quantity > 0;
           return (

@@ -18,3 +18,7 @@ export const expectedCashSql = (param = '$1') =>
   `(SELECT COALESCE(SUM(o.total), 0) FROM orders o WHERE o.check_id IS NULL AND ${isRevenue('o')} AND o.session_id = ${param})
    + (SELECT COALESCE(SUM(p.amount), 0) FROM payments p JOIN checks c ON c.id = p.check_id
       WHERE p.method = 'cash' AND c.session_id = ${param})`;
+
+// Le comande vere, cioè quelle che passano dalla cucina: esclude la riga automatica del coperto (order_type 'cover'),
+// che è incasso ma non una comanda. Serve a contare gli ordini e i tempi nelle statistiche.
+export const isKitchenOrder = (alias = 'o') => `${alias}.order_type <> 'cover'`;

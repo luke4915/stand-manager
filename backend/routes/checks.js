@@ -13,8 +13,9 @@ import { computeLineTotal, sanitizeAdjustment } from '../utils/pricing.js';
 import { sumQuantitiesByProduct, applyStockChange } from '../utils/stock.js';
 import { loadItems } from '../utils/orderItemsRead.js';
 import { withCheckInfo } from '../utils/orderCheck.js';
+import { readCoverCharge, syncCoverOrder } from '../utils/cover.js';
 import { idParamsSchema } from '../schemas/common.js';
-import { openCheckSchema, listChecksQuerySchema, billRequestSchema, paymentSchema, adjustSchema, voidCheckSchema, receiptQuerySchema, moveCheckSchema, mergeCheckSchema } from '../schemas/checkSchema.js';
+import { openCheckSchema, listChecksQuerySchema, billRequestSchema, paymentSchema, adjustSchema, voidCheckSchema, receiptQuerySchema, moveCheckSchema, mergeCheckSchema, coversSchema } from '../schemas/checkSchema.js';
 
 // Conti dei tavoli (modulo `tables`). Eventi WebSocket: `check_updated` (solo personale, mai al KDS pubblico).
 const router = express.Router();
@@ -56,9 +57,10 @@ export default function (broadcast) {
         // Aperture contemporanee nella stessa sessione si mettono in fila: ognuna vede l'ultimo numero dato.
         await db.query(`SELECT pg_advisory_xact_lock(hashtextextended('checks:' || current_setting('app.tenant_id') || ':' || $1::text, 0))`, [sessions[0].id]);
         const { rows } = await db.query(
-          `INSERT INTO checks (session_id, table_id, number, covers, opened_by)
-           VALUES ($1, $2, (SELECT COALESCE(MAX(number), 0) + 1 FROM checks WHERE session_id = $1), $3, $4) RETURNING id`,
-          [sessions[0].id, table_id, covers, req.user.id]);
+          `INSERT INTO checks (session_id, table_id, number, covers, opened_by, cover_charge)
+           VALUES ($1, $2, (SELECT COALESCE(MAX(number), 0) + 1 FROM checks WHERE session_id = $1), $3, $4, $5) RETURNING id`,
+          [sessions[0].id, table_id, covers, req.user.id, await readCoverCharge(db)]);
+        await syncCoverOrder(db, req.user.tenantId, rows[0].id, req.user.id);
         return rows[0].id;
       });
       const check = await getCheckSummary(req.db, id);
@@ -180,7 +182,7 @@ export default function (broadcast) {
         }
         const affected = [...new Set(lines.map(l => l.order_id))];
         await db.query(
-          `UPDATE orders o SET total = t.total, order_type = t.order_type
+          `UPDATE orders o SET total = t.total, order_type = CASE WHEN o.order_type = 'cover' THEN 'cover' ELSE t.order_type END
            FROM (SELECT order_id, SUM(line_total) AS total,
                         CASE WHEN bool_and(line_type = 'gift') THEN 'gift' WHEN bool_or(line_type <> 'sale') THEN 'discount' ELSE 'sale' END AS order_type
                  FROM order_items WHERE order_id = ANY($1::int[]) GROUP BY order_id) t
@@ -229,8 +231,9 @@ export default function (broadcast) {
         if (payments.length) throw new HttpError(409, 'Il conto ha già dei pagamenti: non si può annullare', 'CHECK_HAS_PAYMENTS');
 
         let canceledIds = [], stockUpdates = [];
-        const { rows: active } = await db.query(`SELECT id FROM orders WHERE check_id = $1 AND status <> 'canceled' FOR UPDATE`, [req.params.id]);
-        if (active.length && !cancelOrders) throw new HttpError(409, 'Il conto ha comande attive: annullale prima', 'CHECK_HAS_ORDERS');
+        const { rows: active } = await db.query(`SELECT id, order_type FROM orders WHERE check_id = $1 AND status <> 'canceled' FOR UPDATE`, [req.params.id]);
+        // Il coperto è automatico: non conta come comanda, si annulla insieme al conto.
+        if (active.some(o => o.order_type !== 'cover') && !cancelOrders) throw new HttpError(409, 'Il conto ha comande attive: annullale prima', 'CHECK_HAS_ORDERS');
         if (active.length) {
           canceledIds = active.map(o => o.id);
           await db.query(`UPDATE orders SET status = 'canceled' WHERE id = ANY($1::int[])`, [canceledIds]);
@@ -250,6 +253,27 @@ export default function (broadcast) {
       if (sendHttpError(res, err)) return;
       logger.error({ err }, 'Errore POST /api/checks/:id/void');
       res.status(500).json({ error: 'Errore annullamento conto' });
+    }
+  });
+
+  // POST /api/checks/:id/covers — cambia i coperti (arrivano altri clienti, o qualcuno se ne va); il coperto si adegua.
+  router.post('/:id/covers', ...guard, validate({ params: idParamsSchema, body: coversSchema }), tenantScope, async (req, res) => {
+    try {
+      const previous = await inTransaction(req.db, async (db) => {
+        await lockCheck(db, req.params.id);
+        const { rows: [before] } = await db.query('SELECT covers FROM checks WHERE id = $1', [req.params.id]);
+        await db.query('UPDATE checks SET covers = $1 WHERE id = $2', [req.body.covers, req.params.id]);
+        await syncCoverOrder(db, req.user.tenantId, req.params.id, req.user.id);
+        return before.covers;
+      });
+      const check = await getCheckSummary(req.db, req.params.id);
+      await logAudit(req.db, req.user.id, 'CHANGE_COVERS', { checkId: check.id, from: previous, to: check.covers });
+      notify(req.user.tenantId, check);
+      res.json(check);
+    } catch (err) {
+      if (sendHttpError(res, err)) return;
+      logger.error({ err }, 'Errore POST /api/checks/:id/covers');
+      res.status(500).json({ error: 'Errore modifica coperti' });
     }
   });
 
@@ -291,12 +315,17 @@ export default function (broadcast) {
       const { orderIds } = await inTransaction(req.db, async (db) => {
         // Sempre nello stesso ordine (id crescente): due unioni opposte non si incastrano
         for (const id of [sourceId, targetId].sort((a, b) => a - b)) await lockCheck(db, id);
+        // Il coperto del conto assorbito si annulla (se non è stato pagato) e quello di destinazione si riallinea ai coperti sommati
+        const { rows: [{ covers: sourceCovers }] } = await db.query('SELECT covers FROM checks WHERE id = $1', [sourceId]);
+        await db.query(`UPDATE checks SET covers = 0 WHERE id = $1`, [sourceId]);
+        await syncCoverOrder(db, req.user.tenantId, sourceId, req.user.id);
         const { rows: moved } = await db.query(`UPDATE orders SET check_id = $1 WHERE check_id = $2 RETURNING id, status`, [targetId, sourceId]);
         await db.query('UPDATE payments SET check_id = $1 WHERE check_id = $2', [targetId, sourceId]);
         await db.query(
-          `UPDATE checks t SET covers = LEAST(99, t.covers + s.covers), bill_requested_at = COALESCE(t.bill_requested_at, s.bill_requested_at)
-           FROM checks s WHERE t.id = $1 AND s.id = $2`, [targetId, sourceId]);
+          `UPDATE checks t SET covers = LEAST(99, t.covers + $3), bill_requested_at = COALESCE(t.bill_requested_at, s.bill_requested_at)
+           FROM checks s WHERE t.id = $1 AND s.id = $2`, [targetId, sourceId, sourceCovers]);
         await db.query(`UPDATE checks SET status = 'void', closed_at = now(), bill_requested_at = NULL, merged_into = $1 WHERE id = $2`, [targetId, sourceId]);
+        await syncCoverOrder(db, req.user.tenantId, targetId, req.user.id);
         return { orderIds: moved.filter(o => ['pending', 'preparing'].includes(o.status)).map(o => o.id) };
       });
       const [source, target] = await Promise.all([getCheckSummary(req.db, sourceId), getCheckSummary(req.db, targetId)]);

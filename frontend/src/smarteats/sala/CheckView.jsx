@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Plus, Wallet, Lock, BellRing, BellOff, Percent, Printer, Trash2, ArrowRightLeft } from 'lucide-react';
+import { Plus, Wallet, Lock, BellRing, BellOff, Percent, Printer, Trash2, ArrowRightLeft, Users } from 'lucide-react';
 import { fetchWithAuth } from '../../utils/apiClient';
 import { useToast } from '../../context/useToast';
 import PanelFrame from './PanelFrame';
@@ -14,13 +14,15 @@ const DISCOUNT_ROLES = ['admin', 'responsabile'];
 
 // Il conto di un tavolo, nel pannello a destra: righe per comanda e due azioni sempre in vista (Aggiungi, Incassa).
 // Tutto il resto sta nel menu «⋯».
-const CheckView = ({ detail, user, service, onBack, onOrder, onPay, onAdjust, onMove, onChanged, onDeleted, onPrint }) => {
+const CheckView = ({ detail, user, service, onBack, onOrder, onPay, onAdjust, onMove, onCovers, onChanged, onDeleted, onPrint }) => {
   const { showToast } = useToast();
   const [confirmDelete, setConfirmDelete] = useState(false);
   const [busy, setBusy] = useState(false);
 
   const open = detail.status === 'open';
   const activeOrders = detail.orders.filter(o => o.status !== 'canceled');
+  // Il coperto è una riga automatica: non conta come comanda quando si decide se il conto è vuoto
+  const realOrders = activeOrders.filter(o => o.order_type !== 'cover');
   const canDiscount = DISCOUNT_ROLES.includes(user.role);
   const hasPayments = detail.payments.length > 0;
   const billRequested = open && detail.bill_requested_at;
@@ -33,7 +35,7 @@ const CheckView = ({ detail, user, service, onBack, onOrder, onPay, onAdjust, on
   const deleteCheck = async () => {
     setBusy(true);
     try {
-      await fetchWithAuth(`/checks/${detail.id}/void`, { method: 'POST', body: { cancel_orders: activeOrders.length > 0 } });
+      await fetchWithAuth(`/checks/${detail.id}/void`, { method: 'POST', body: { cancel_orders: realOrders.length > 0 } });
       showToast('Conto eliminato', 'info');
       onDeleted();
     } catch (err) { showToast(err.message, 'error'); await onChanged(); }
@@ -44,9 +46,10 @@ const CheckView = ({ detail, user, service, onBack, onOrder, onPay, onAdjust, on
     { label: billRequested ? 'Annulla richiesta conto' : 'Il cliente chiede il conto', icon: billRequested ? BellOff : BellRing,
       onClick: () => run(() => fetchWithAuth(`/checks/${detail.id}/bill-request`, { method: 'POST', body: { requested: !detail.bill_requested_at } })) },
     { label: 'Stampa il conto', icon: Printer, onClick: () => onPrint() },
+    { label: 'Modifica i coperti', icon: Users, onClick: onCovers },
     { label: 'Sposta o unisci tavolo', icon: ArrowRightLeft, onClick: onMove },
     canDiscount && activeOrders.length > 0 && { label: 'Omaggio o sconto', icon: Percent, onClick: onAdjust },
-    (user.role === 'admin' || (canDiscount && activeOrders.length === 0)) && { label: 'Elimina conto', icon: Trash2, danger: true, disabled: hasPayments, hint: 'Ci sono già pagamenti', onClick: () => setConfirmDelete(true) },
+    (user.role === 'admin' || (canDiscount && realOrders.length === 0)) && { label: 'Elimina conto', icon: Trash2, danger: true, disabled: hasPayments, hint: 'Ci sono già pagamenti', onClick: () => setConfirmDelete(true) },
   ];
 
   const subtitle = billRequested ? `Conto richiesto · ${detail.covers} cop.` : `${{ open: 'Aperto', paid: 'Pagato', void: 'Annullato' }[detail.status]} · ${detail.covers} cop. · n. ${detail.number}`;
@@ -77,7 +80,7 @@ const CheckView = ({ detail, user, service, onBack, onOrder, onPay, onAdjust, on
       {confirmDelete && (
         <div className="p-3 rounded-xl border border-red-500/40 bg-red-500/5 space-y-2">
           <p className="text-xs text-[var(--text-main)]">
-            {activeOrders.length > 0 ? `Elimina il conto e annulla ${activeOrders.length} ${activeOrders.length === 1 ? 'comanda' : 'comande'}: i prodotti tornano disponibili.` : 'Annulla il conto vuoto: il tavolo torna libero.'}
+            {realOrders.length > 0 ? `Elimina il conto e annulla ${realOrders.length} ${realOrders.length === 1 ? 'comanda' : 'comande'}: i prodotti tornano disponibili.` : 'Annulla il conto vuoto: il tavolo torna libero.'}
           </p>
           <div className="flex gap-2">
             <button className={`${btn} flex-1 !py-2`} onClick={() => setConfirmDelete(false)}>No</button>

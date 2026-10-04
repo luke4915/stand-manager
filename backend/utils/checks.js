@@ -40,7 +40,7 @@ export async function getCheckDetail(db, id) {
   const summary = await getCheckSummary(db, id);
   if (!summary) throw new HttpError(404, 'Conto non trovato');
   const { rows } = await db.query(
-    `SELECT id, display_code, status, created_at, total, is_takeaway FROM orders WHERE check_id = $1 ORDER BY id`, [id]);
+    `SELECT id, display_code, status, created_at, total, is_takeaway, order_type FROM orders WHERE check_id = $1 ORDER BY id`, [id]);
   const linePayments = await loadLinePayments(db, id);
   // `line_id` (id in order_items) serve a pagare o scontare una voce; le righe di un ordine sono già in ordine di posizione.
   const { rows: lineIds } = await db.query(

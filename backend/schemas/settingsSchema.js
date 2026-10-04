@@ -18,11 +18,12 @@ export const RECEIPT_SETTINGS_KEYS = [
   'receipt_side_image',   // immagine ai lati del numero ordine (numeretto e copie di ritiro), stesso formato
 ];
 
-export const SETTINGS_KEYS = ['welcome_message', ...RECEIPT_SETTINGS_KEYS];
+// cover_charge: coperto per persona, in euro (ristoranti): si fissa su ogni conto all'apertura.
+export const SETTINGS_KEYS = ['welcome_message', 'cover_charge', ...RECEIPT_SETTINGS_KEYS];
 export const PUBLIC_SETTINGS_KEYS = ['welcome_message'];
 
 // Chiavi che l'admin del tenant può modificare: quelle dello scontrino sono solo del master.
-export const TENANT_WRITABLE_SETTINGS_KEYS = ['welcome_message'];
+export const TENANT_WRITABLE_SETTINGS_KEYS = ['welcome_message', 'cover_charge'];
 
 export const settingParamsSchema = z.object({ key: z.enum(TENANT_WRITABLE_SETTINGS_KEYS) });
 
