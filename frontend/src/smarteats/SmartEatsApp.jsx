@@ -33,6 +33,11 @@ const NavItem = ({ view, compact }) => {
   );
 };
 
+// Pagina a tutta larghezza (la Sala invece gestisce da sé le sue due colonne)
+const Page = ({ children }) => (
+  <div className="flex-1 overflow-y-auto no-scrollbar bg-[var(--bg-card)] rounded-xl border border-[var(--border)] p-4 sm:p-6 min-w-0">{children}</div>
+);
+
 // Carta (prodotti): per ora lo stesso editor della cassa; la carta di un ristorante avrà portate e categorie sue.
 const CartaPage = () => {
   const { showToast } = useToast();
@@ -109,14 +114,14 @@ const SmartEatsApp = () => {
           </div>
         </header>
 
-        <div className="flex-1 overflow-y-auto no-scrollbar m-3 sm:m-4 bg-[var(--bg-card)] rounded-xl border border-[var(--border)] p-4 sm:p-6 min-w-0">
-          <Suspense fallback={<p className="text-[var(--text-muted)]">Caricamento…</p>}>
+        <div className="flex-1 min-h-0 flex gap-4 p-3 sm:p-4">
+          <Suspense fallback={<Page><p className="text-[var(--text-muted)]">Caricamento…</p></Page>}>
             <Routes>
               <Route path="/sala" element={guard('sala', <SalaPage user={user} service={service} event={event} />)} />
-              <Route path="/cucina" element={guard('cucina', <OrdersKitchen />)} />
-              <Route path="/carta" element={guard('carta', <CartaPage />)} />
-              <Route path="/statistiche" element={guard('statistiche', <Statistics />)} />
-              <Route path="/impostazioni" element={guard('impostazioni', <SettingsPage user={user} />)} />
+              <Route path="/cucina" element={guard('cucina', <Page><OrdersKitchen /></Page>)} />
+              <Route path="/carta" element={guard('carta', <Page><CartaPage /></Page>)} />
+              <Route path="/statistiche" element={guard('statistiche', <Page><Statistics /></Page>)} />
+              <Route path="/impostazioni" element={guard('impostazioni', <Page><SettingsPage user={user} /></Page>)} />
               <Route path="*" element={<Navigate to={`/${home}`} replace />} />
             </Routes>
           </Suspense>

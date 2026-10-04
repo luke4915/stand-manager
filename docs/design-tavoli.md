@@ -98,7 +98,7 @@ Eventi WebSocket: `check_updated`, `table_updated`. Il KDS pubblico riceve il no
 
 ## 6. Interfaccia
 
-Il ristorante ha una **app propria** (`frontend/src/smarteats/`, scelta da `AppRouter.jsx` dal tipo del locale), non una variante della cassa delle sagre. La vista **Sala** (`smarteats/SalaPage.jsx`, con i componenti in `smarteats/sala/`: `CheckPanel`, `OrderBuilder`, `PaymentDialog`, `AdjustDialog`, `OpenTableDialog`; i calcoli di anteprima in `checkMath.js`) è operativa dal passo 2-6. Quanto segue descrive l'idea originale:
+Il ristorante ha una **app propria** (`frontend/src/smarteats/`, scelta da `AppRouter.jsx` dal tipo del locale), non una variante della cassa delle sagre. La vista **Sala** (`smarteats/SalaPage.jsx`, con i componenti in `smarteats/sala/`) è operativa dal passo 2-6. Disposizione come la cassa: area di lavoro a sinistra (tavoli, oppure la carta durante una comanda) e **un solo pannello a destra** (`SidePanel`) che cambia vista senza finestre sopra le finestre: apri tavolo, conto (`CheckView`, azioni secondarie nel menu «⋯»), incasso (`PayView`), sconto (`AdjustView`), comanda (`DraftOrder`). Sotto i 1280 px il pannello è a tutto schermo. I calcoli di anteprima stanno in `checkMath.js`. Quanto segue descrive l'idea originale:
 elenco o mappa dei tavoli per sala con stato; aprire un tavolo (coperti); il carrello esistente funziona in "modalità
 tavolo" (invia la comanda al conto invece di pagarla); pannello del conto con righe, totale, richiesta del conto e pagamento.
 Mobile e desktop come il resto dell'app.
