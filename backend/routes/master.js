@@ -3,6 +3,7 @@ import bcrypt from 'bcrypt';
 import jwt from 'jsonwebtoken';
 import { masterPool, inTransaction } from '../db.js';
 import { withTenantClient } from '../middleware/tenantScope.js';
+import { invalidateTenantSlug } from '../middleware/resolveTenantFromHost.js';
 import { authenticateMaster } from '../middleware/authenticateMaster.js';
 import logger from '../logger.js';
 import { SIGN_OPTIONS } from '../utils/jwtConfig.js';
@@ -152,6 +153,7 @@ router.patch('/tenants/:id/active', authenticateMaster, validate({ params: idPar
       [req.body.active, req.params.id]
     );
     if (!rows.length) return res.status(404).json({ error: 'Tenant non trovato' });
+    invalidateTenantSlug(rows[0].slug);
     res.json(rows[0]);
   } catch (err) {
     logger.error({ err }, 'Errore attivazione/disattivazione tenant');
@@ -301,6 +303,7 @@ router.delete('/tenants/:id', authenticateMaster, validate({ params: idParamsSch
       }
       await db.query('DELETE FROM tenants WHERE id = $1', [id]);
     }), masterPool);
+    invalidateTenantSlug(check[0].slug);
     res.json({ ok: true });
   } catch (err) {
     logger.error({ err }, 'Errore eliminazione tenant');
