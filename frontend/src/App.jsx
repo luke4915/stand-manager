@@ -20,6 +20,7 @@ import UserProfile from './components/shared/UserProfile';
 import Login from './pages/LoginPage';
 import { getDiscountedTotal } from './utils/pricing';
 import CashCountModal from './components/shared/CashCountModal';
+import EndSessionModal from './components/shared/EndSessionModal';
 import { enqueueOrder } from './offline/syncQueue';
 import { nextOrderNumber } from './offline/device';
 import { useDevicePairing } from './offline/useDevicePairing';
@@ -87,6 +88,8 @@ const App = () => {
   const [inputSessionName, setInputSessionName] = useState('');
   const [orderMode, setOrderMode] = useState('simple');
   const [expectedCash, setExpectedCash] = useState(0);
+  const [openOrdersInfo, setOpenOrdersInfo] = useState({ count: 0, total: 0 });
+  const [openOrdersAction, setOpenOrdersAction] = useState(undefined); // 'complete' | 'leave'
 
   const audioCtxRef = useRef(null);
   const audioBuffers = useRef({});
@@ -332,8 +335,11 @@ const App = () => {
     if (shouldActivate) { setInputSessionName(''); setShowStartSessionModal(true); }
     else {
       fetchWithAuth('/sessions/expected-cash')
-        .then(data => setExpectedCash(data.expected || 0))
-        .catch(() => setExpectedCash(0));
+        .then(data => {
+          setExpectedCash(data.expected || 0);
+          setOpenOrdersInfo({ count: data.openOrders || 0, total: data.openOrdersTotal || 0 });
+        })
+        .catch(() => { setExpectedCash(0); setOpenOrdersInfo({ count: 0, total: 0 }); });
       setShowEndSessionModal(true);
     }
   };
@@ -350,7 +356,7 @@ const App = () => {
 
   const handleEndSessionConfirm = async (declaredCash) => {
     try {
-      await fetchWithAuth('/sessions/end', { method: 'POST', body: { declaredCash } });
+      await fetchWithAuth('/sessions/end', { method: 'POST', body: { declaredCash, openOrders: openOrdersAction } });
       applySession(null); setShowEndSessionModal(false);
       showToast('Sessione terminata.', 'info');
     } catch (err) { showToast(err.message || 'Impossibile chiudere la sessione', 'error'); }
@@ -544,32 +550,18 @@ const App = () => {
       )}
 
       {showEndSessionModal && (
-        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex justify-center items-end sm:items-center z-[2000] px-4 pb-4 sm:pb-0">
-          <div className="bg-[var(--bg-card)] p-6 sm:p-8 rounded-3xl shadow-2xl w-full max-w-md text-center border border-[var(--border)] space-y-5">
-            <div className="w-14 h-14 bg-amber-500/10 border border-amber-500/20 rounded-full flex items-center justify-center mx-auto text-amber-500">
-              <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={2.5} stroke="currentColor" className="w-7 h-7">
-                <path strokeLinecap="round" strokeLinejoin="round" d="M12 9v3.75m9-.75a9 9 0 1 1-18 0 9 9 0 0 1 18 0Zm-9 3.75h.008v.008H12v-.008Z" />
-              </svg>
-            </div>
-            <div>
-              <h2 className="text-xl font-black text-[var(--text-main)]">Terminare Sessione?</h2>
-              <p className="text-sm text-gray-400 mt-2">
-                Stai per chiudere <span className="font-bold text-[var(--text-main)]">"{sessionName}"</span>.
-              </p>
-            </div>
-            <div className="flex gap-4">
-              <button onClick={() => setShowEndSessionModal(false)}
-                className="flex-1 py-3 border border-[var(--border)] text-[var(--text-main)] rounded-2xl font-bold hover:bg-gray-500/10 transition-all">ANNULLA</button>
-              <button onClick={() => { setShowEndSessionModal(false); setShowCashCountModal(true); }}
-                className="flex-1 py-3 bg-amber-500 text-white rounded-2xl font-bold hover:bg-amber-600 transition-all">CONFERMA</button>
-            </div>
-          </div>
-        </div>
+        <EndSessionModal
+          sessionName={sessionName}
+          openOrders={openOrdersInfo.count}
+          openOrdersTotal={openOrdersInfo.total}
+          onCancel={() => setShowEndSessionModal(false)}
+          onConfirm={(choice) => { setOpenOrdersAction(choice); setShowEndSessionModal(false); setShowCashCountModal(true); }}
+        />
       )}
 
       {showCashCountModal && (
         <CashCountModal
-          expectedCash={expectedCash}
+          expectedCash={expectedCash + (openOrdersAction === 'complete' ? openOrdersInfo.total : 0)}
           onClose={() => setShowCashCountModal(false)}
           onConfirm={(declaredCash) => { setShowCashCountModal(false); handleEndSessionConfirm(declaredCash); }}
         />

@@ -102,4 +102,34 @@ describe('rinforzi di sicurezza', () => {
     assert.equal((await api.get('/assets/logo_5calzoni.png')).status, 404);
     assert.equal((await api.get('/assets/order_confirm_sound.mp3')).status, 200);
   });
+
+  it('chiusura serata con ordini aperti: serve una scelta; completati entrano nei conti, lasciati restano fuori', async () => {
+    const pending = async () => (await admin.post('/orders', { items: [{ id: t.productId, name: 'x', quantity: 2 }], status: 'pending' })).body.orderId;
+    const statusOf = async (id) => (await adminDb.query('SELECT status FROM orders WHERE id = $1', [id])).rows[0].status;
+    await adminDb.query(`UPDATE orders SET status = 'completed' WHERE tenant_id = $1 AND status <> 'canceled'`, [t.id]);
+
+    // 1) senza scelta: 409 e la sessione resta aperta; il totale atteso li esclude e li segnala
+    const open1 = await pending();
+    const info = (await admin.get('/sessions/expected-cash')).body;
+    assert.equal(info.openOrders, 1);
+    assert.equal(info.openOrdersTotal, 10);
+    const refused = await admin.post('/sessions/end', {});
+    assert.equal(refused.status, 409);
+    assert.equal(refused.body.code, 'OPEN_ORDERS');
+
+    // 2) lasciati fuori: la sessione si chiude, l'ordine resta com'è e non conta nel totale atteso
+    const left = await admin.post('/sessions/end', { openOrders: 'leave' });
+    assert.equal(left.status, 200);
+    assert.equal(await statusOf(open1), 'pending');
+    const totalCompleted = Number((await adminDb.query(`SELECT COALESCE(SUM(total),0) AS s FROM orders WHERE session_id = $1 AND status = 'completed'`, [left.body.id])).rows[0].s);
+    assert.equal(Number(left.body.expected_cash), totalCompleted);
+
+    // 3) completati: entrano nel totale atteso
+    await admin.post('/sessions/start', { name: 'Serata due' });
+    const open2 = await pending();
+    const done = await admin.post('/sessions/end', { openOrders: 'complete' });
+    assert.equal(done.status, 200);
+    assert.equal(await statusOf(open2), 'completed');
+    assert.equal(Number(done.body.expected_cash), 10);
+  });
 });

@@ -35,7 +35,6 @@ frontend/           React 19 + Vite 7 + Tailwind v4 + react-router-dom 7 + PWA (
   src/print/        stampa dal dispositivo: builder ePOS, template, driver, coda, configurazione locale
   src/utils/apiClient.js  client unico per le API: apiFetch, fetchWithAuth, ApiError, NetworkError
   src/utils/pricing.js  specchio 1:1 di backend/utils/pricing.js
-branding/           loghi di altri marchi, tenuti fuori dal build del frontend
 ```
 
 Ogni parte ha il suo `package.json` (`backend/`, `frontend/`): nella radice non ci sono dipendenze.

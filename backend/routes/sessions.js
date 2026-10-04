@@ -6,7 +6,8 @@ import logger from '../logger.js';
 import { logAudit } from '../utils/auditLogger.js';
 import { startSessionSchema, endSessionSchema } from '../schemas/sessionSchema.js';
 import { validate } from '../middleware/validate.js';
-import { computeExpectedCash } from '../utils/session.js';
+import { HttpError, sendHttpError } from '../utils/httpError.js';
+import { computeExpectedCash, countOpenOrders } from '../utils/session.js';
 
 const router = express.Router();
 
@@ -32,11 +33,14 @@ export default function (broadcast) {
     }
   });
 
-  // GET /expected-cash — totale atteso (solo contanti) della sessione aperta
+  // GET /expected-cash — totale atteso (solo contanti) della sessione aperta, con gli ordini ancora aperti
+  // (non contano nel totale: alla chiusura l'admin decide se completarli)
   router.get('/expected-cash', authenticate, tenantScope, async (req, res) => {
     try {
       const { rows } = await req.db.query('SELECT id FROM sessions WHERE end_time IS NULL');
-      res.json({ expected: rows.length ? await computeExpectedCash(req.db, rows[0].id) : 0 });
+      if (!rows.length) return res.json({ expected: 0, openOrders: 0, openOrdersTotal: 0 });
+      const open = await countOpenOrders(req.db, rows[0].id);
+      res.json({ expected: await computeExpectedCash(req.db, rows[0].id), openOrders: open.count, openOrdersTotal: open.total });
     } catch (err) {
       logger.error({ err }, 'Errore GET /api/sessions/expected-cash');
       res.status(500).json({ error: 'Errore calcolo del totale atteso' });
@@ -80,11 +84,26 @@ export default function (broadcast) {
   // totale atteso, o trovano la sessione chiusa e vengono rifiutati.
   router.post('/end', authenticate, authorizeAdmin, validate({ body: endSessionSchema }), tenantScope, async (req, res) => {
     const declared = req.body.declaredCash ?? null;
+    const { openOrders } = req.body;
 
     try {
       const result = await inTransaction(req.db, async (db) => {
         const { rows: active } = await db.query('SELECT id FROM sessions WHERE end_time IS NULL FOR UPDATE');
         if (!active.length) return null;
+
+        // Gli ordini ancora aperti non entrano nei conti: o l'admin li completa, o restano fuori.
+        const open = await countOpenOrders(db, active[0].id);
+        if (open.count > 0 && !openOrders)
+          throw new HttpError(409, `Ci sono ${open.count} ordini non completati: scegli se completarli o lasciarli fuori`, 'OPEN_ORDERS');
+        let completedOrders = 0;
+        if (open.count > 0 && openOrders === 'complete') {
+          const { rowCount } = await db.query(
+            `UPDATE orders SET status = 'completed', completed_at = COALESCE(completed_at, now())
+             WHERE session_id = $1 AND status IN ('pending', 'preparing')`,
+            [active[0].id]
+          );
+          completedOrders = rowCount;
+        }
 
         const expectedCash = await computeExpectedCash(db, active[0].id);
         const { rows } = await db.query(
@@ -92,15 +111,17 @@ export default function (broadcast) {
            WHERE id = $3 RETURNING *`,
           [expectedCash, declared, active[0].id]
         );
-        return { session: rows[0], expectedCash };
+        return { session: rows[0], expectedCash, completedOrders, leftOpen: openOrders === 'leave' ? open.count : 0 };
       });
       if (!result) return res.json(null);
 
-      const { session, expectedCash } = result;
+      const { session, expectedCash, completedOrders, leftOpen } = result;
       await logAudit(req.db, req.user.id, 'END_SESSION', {
         sessionId: session.id,
         sessionName: session.name,
         expectedCash,
+        ...(completedOrders && { completedOrders }),
+        ...(leftOpen && { ordersLeftOpen: leftOpen }),
         declaredCash: declared,
         difference: declared !== null ? +(declared - expectedCash).toFixed(2) : null
       });
@@ -108,6 +129,7 @@ export default function (broadcast) {
       if (broadcast) broadcast(req.user.tenantId, { type: 'session_ended', session });
       res.json(session);
     } catch (err) {
+      if (sendHttpError(res, err)) return;
       logger.error({ err }, 'Errore POST /api/sessions/end');
       res.status(500).json({ error: 'Errore durante la chiusura della sessione' });
     }
