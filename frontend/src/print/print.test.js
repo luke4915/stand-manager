@@ -7,6 +7,7 @@ import { buildCopyPreviews } from './copyPreviews.js';
 import { renderReceipt, renderReceiptParts } from './preview.js';
 import { buildPrintJobs, parseAddress } from './print.js';
 import { eposDriver, PrintError } from './drivers/epos.js';
+import { pickReceiptPrinter, buildReceiptJob } from './receiptJob.js';
 
 const NO_IMAGES = { logo: () => null, numberBanner: () => null };
 const ctx = { branding: { ...DEFAULT_BRANDING, name: 'ASSOCIAZIONE PROVA', taxCode: 'C.F. 123' }, images: NO_IMAGES, showLogo: true };
@@ -221,4 +222,21 @@ test('ricevuta di un pagamento per voce: solo la quota pagata e il residuo del c
   for (const part of ['RICEVUTA DI PAGAMENTO', '1 coperto', 'PAGATO Contanti', 'Residuo del conto: € 9.50'])
     assert.ok(xml.includes(part), `manca: ${part}`);
   assert.ok(!xml.includes('BIRRA'));
+});
+
+test('la ricevuta va alla stampante della copia Cliente, altrimenti alla prima attiva; senza stampanti nulla', async () => {
+  const settings = [
+    { copy_type: 'Cucina', printer_address: '10.0.0.2', enabled: true },
+    { copy_type: 'Cliente', printer_address: '10.0.0.1:9443', enabled: true },
+  ];
+  assert.equal(pickReceiptPrinter(settings).printer_address, '10.0.0.1:9443');
+  assert.equal(pickReceiptPrinter([settings[0]]).printer_address, '10.0.0.2');
+  assert.equal(pickReceiptPrinter([{ ...settings[1], enabled: false }, { copy_type: 'Bar', printer_address: '', enabled: true }]), null);
+
+  const receipt = { scope: 'check', total: 5, paid: 0, due: 5, check: { id: 1, number: 2, table_name: 'T1', covers: 1 },
+    lines: [{ name: 'Panino', quantity: 1, amount: 5 }], payments: [] };
+  const job = await buildReceiptJob({ settings, branding: DEFAULT_BRANDING }, receipt, NO_IMAGES);
+  assert.deepEqual([job.host, job.port], ['10.0.0.1', 9443]);
+  assert.ok(job.builder.buildXml().includes('PANINO'));
+  assert.equal(await buildReceiptJob({ settings: [], branding: DEFAULT_BRANDING }, receipt, NO_IMAGES), null);
 });

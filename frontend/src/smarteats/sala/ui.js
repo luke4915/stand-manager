@@ -1,0 +1,7 @@
+// Classi condivise dai componenti della Sala (stesso aspetto di pulsanti, campi ed etichette).
+export const label = 'text-[10px] font-black uppercase tracking-widest text-[var(--text-muted)]';
+export const btn = 'flex items-center justify-center gap-2 px-4 py-3 rounded-2xl border border-[var(--border)] bg-[var(--bg-card)] text-[var(--text-main)] font-black text-xs uppercase tracking-widest hover:bg-[var(--bg-card-2)] active:scale-95 transition-all disabled:opacity-40 disabled:pointer-events-none';
+export const btnPrimary = 'flex items-center justify-center gap-2 px-4 py-3 rounded-2xl bg-[var(--accent)] hover:bg-[var(--accent-hover)] text-white font-black text-xs uppercase tracking-widest shadow-md shadow-[var(--accent-shadow)] active:scale-95 transition-all disabled:opacity-40 disabled:pointer-events-none';
+export const btnDanger = 'flex items-center justify-center gap-2 px-4 py-3 rounded-2xl border border-red-500/40 bg-red-500/10 text-red-500 font-black text-xs uppercase tracking-widest hover:bg-red-500/20 active:scale-95 transition-all disabled:opacity-40 disabled:pointer-events-none';
+export const input = 'w-full p-3 rounded-xl bg-[var(--bg-input)] border border-[var(--border)] text-[var(--text-main)] text-sm outline-none focus:ring-2 focus:ring-[var(--accent)] placeholder:text-[var(--text-muted)]';
+export const card = 'rounded-2xl border border-[var(--border)] bg-[var(--bg-card)] p-4';

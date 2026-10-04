@@ -112,7 +112,7 @@ const SmartEatsApp = () => {
         <div className="flex-1 overflow-y-auto no-scrollbar m-3 sm:m-4 bg-[var(--bg-card)] rounded-xl border border-[var(--border)] p-4 sm:p-6 min-w-0">
           <Suspense fallback={<p className="text-[var(--text-muted)]">Caricamento…</p>}>
             <Routes>
-              <Route path="/sala" element={guard('sala', <SalaPage service={service} event={event} />)} />
+              <Route path="/sala" element={guard('sala', <SalaPage user={user} service={service} event={event} />)} />
               <Route path="/cucina" element={guard('cucina', <OrdersKitchen />)} />
               <Route path="/carta" element={guard('carta', <CartaPage />)} />
               <Route path="/statistiche" element={guard('statistiche', <Statistics />)} />

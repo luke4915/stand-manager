@@ -29,7 +29,8 @@ frontend/           React 19 + Vite 7 + Tailwind v4 + react-router-dom 7 + PWA (
   src/App.jsx       shell autenticata, routing, WebSocket, carrello, sessioni
   src/pages/        pagine pubbliche/di livello alto (Login, Menu, KDS, Master)
   src/components/   per dominio: cart/, kitchen/, products/, setup/, shared/, layout/
-  src/smarteats/    app dei ristoranti (SmartEatsApp, SalaPage, views.js): shell e dashboard proprie, scelte da AppRouter.jsx dal tipo del locale
+  src/smarteats/    app dei ristoranti (SmartEatsApp, SalaPage, views.js): shell e dashboard proprie, scelte da AppRouter.jsx dal tipo del locale;
+                    sala/ = conto, comande, incasso (anteprime in checkMath.js, lo stesso calcolo del server); floor/ = pianta della sala
   src/context/      AuthProvider + useAuth (login, refresh), ToastProvider + useToast
   src/config/api.js API_URL / WS_URL derivati dal sottodominio corrente
   src/offline/      db Dexie, coda ordini offline, hook useOfflineSync, catalogo offline, ultimi valori noti, dispositivo e numerazione (device.js)
