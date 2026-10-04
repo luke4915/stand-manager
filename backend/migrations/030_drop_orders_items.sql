@@ -1,0 +1,11 @@
+-- ============================================
+-- Fine della migrazione delle righe d'ordine: via il JSONB
+-- ============================================
+-- Le righe d'ordine stanno solo in order_items (migrazioni 027-029). Questa migrazione elimina `orders.items`.
+-- Ordine di rilascio in produzione: prima la 029 e il codice nuovo (che non usa più la colonna); poi, quando il codice
+-- vecchio non gira più da nessuna parte, questa. Prima di applicarla: backup (scripts/backup.sh) e, se si vuole,
+-- un'ultima prova che ogni ordine abbia le sue righe:
+--   SELECT count(*) FROM orders o WHERE items IS NOT NULL AND jsonb_array_length(items) > 0
+--     AND NOT EXISTS (SELECT 1 FROM order_items i WHERE i.order_id = o.id);   -- deve dare 0
+-- Non si torna indietro con la sola migrazione: serve il backup.
+ALTER TABLE orders DROP COLUMN IF EXISTS items;

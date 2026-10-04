@@ -52,13 +52,11 @@ test('tipo o destinazione sconosciuti: normalizzati e segnalati, mai scartati in
   assert.deepEqual(anomalies, ['tipo_non_valido', 'destinazione_non_valida']);
 });
 
-test('più righe: posizioni nell\'ordine, anomalie raccolte; items non array o stringa JSON', () => {
+test('più righe: posizioni nell\'ordine, anomalie raccolte; items non array', () => {
   const { rows, anomalies } = toOrderItemRows([{ id: 1, name: 'A', price: 1, quantity: 1 }, { id: 2, name: 'B', price: 1, quantity: 0 }, { id: 3, name: 'C', price: 2, quantity: 2 }]);
   assert.deepEqual(rows.map(r => [r.position, r.name]), [[0, 'A'], [2, 'C']], 'la posizione è quella originale');
   assert.deepEqual(anomalies, ['quantita_non_valida']);
 
-  assert.equal(toOrderItemRows(JSON.stringify([{ id: 1, name: 'A', price: 1, quantity: 1 }])).rows.length, 1);
-  assert.deepEqual(toOrderItemRows('non json').anomalies, ['items_non_leggibili']);
   assert.deepEqual(toOrderItemRows({ a: 1 }).anomalies, ['items_non_array']);
   assert.deepEqual(toOrderItemRows([]), { rows: [], anomalies: [] });
 });

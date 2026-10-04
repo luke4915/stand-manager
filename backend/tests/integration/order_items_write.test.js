@@ -39,9 +39,10 @@ describe('order_items: scrittura', () => {
     assert.equal(rows[1].category, 'Bar');
     assert.equal(rows[1].print_destination, 'bar');
     assert.ok(rows.every(r => r.tenant_id === t.id));
-    const { rows: [order] } = await adminDb.query('SELECT items, total FROM orders WHERE id = $1', [res.body.orderId]);
-    assert.equal(order.items, null, 'il JSONB non si scrive più');
+    const { rows: [order] } = await adminDb.query('SELECT total FROM orders WHERE id = $1', [res.body.orderId]);
     assert.equal(Number(order.total), 10);
+    const { rows: columns } = await adminDb.query(`SELECT 1 FROM information_schema.columns WHERE table_name = 'orders' AND column_name = 'items'`);
+    assert.equal(columns.length, 0, 'il JSONB orders.items non esiste più');
   });
 
   it('stesso client_order_id: un solo ordine e nessuna riga in più', async () => {

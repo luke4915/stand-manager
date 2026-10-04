@@ -33,17 +33,19 @@ Priorità: **P0** fondamenta (senza non si procede) · **P1** MVP ristorante · 
 
 ## Fase 1: ordini a righe (P0, tocca il nucleo)
 
-Va fatta da sola, senza funzioni nuove. Si procede in "espandi e poi restringi": la tabella nuova si affianca al JSONB
-`orders.items`, che resta la fonte di verità finché ogni passo non è verificato. Dopo ogni passo l'app funziona come prima.
+Fatta in "espandi e poi restringi": la tabella nuova si è affiancata al JSONB, ogni passo è stato verificato sui dati reali, e
+alla fine il JSONB è sparito. Oggi le righe stanno **solo** in `order_items`.
 
 | Id | Requisito | Stato |
 |---|---|---|
-| 1-1 | Tabella `order_items` (migrazione 027, additiva): una riga per prodotto ordinato, tenant-scoped con RLS, che rispecchia le righe dell'ordine (prodotto, nome, quantità, prezzi, tipo, sconto, nota, categoria, destinazione di stampa). Niente stato per riga e niente portata: arrivano nella Fase 3. | `[x]` |
-| 1-2 | Script di riempimento dei vecchi ordini dal JSONB (`backend/scripts/order-items.js backfill`): ripetibile, per tenant, in prova di default (`--apply` per scrivere), segnala le anomalie invece di nasconderle. | `[x]` |
-| 1-3 | Script di verifica (`order-items.js verify`): stesso numero di righe per ordine, stesse quantità per prodotto, stessi importi di riga; elenco delle differenze. | `[x]` |
-| 1-4 | Doppia scrittura: ogni ordine nuovo scrive JSONB e righe nella stessa transazione (`writeOrderItems`, in un SAVEPOINT: un errore sulla copia non blocca la vendita e si ripara con `backfill`). Le letture non cambiano. | `[x]` |
-| 1-5 | Letture una alla volta dalle righe (elenco ordini, KDS, storno e stock, esportazione CSV, statistiche), ognuna con un test che confronta il risultato con quello del JSONB sugli stessi dati. | `[x]` |
-| 1-6 | Il JSONB resta come copia dell'ordine così com'è stato emesso (scontrino, ristampa). Si valuta se toglierlo solo dopo la Fase 3. | `[ ]` |
+| 1-1 | Tabella `order_items` (migrazioni 027-028): una riga per prodotto ordinato, tenant-scoped con RLS. Niente stato per riga e niente portata: arrivano nella Fase 3. | `[x]` |
+| 1-2 | Riempimento dei vecchi ordini dal JSONB, ripetibile, con anomalie segnalate. | `[x]` |
+| 1-3 | Verifica riga per riga contro il JSONB: 0 differenze su 1364 ordini reali. | `[x]` |
+| 1-4 | Doppia scrittura durante la migrazione. | `[x]` |
+| 1-5 | Letture dalle righe (elenco, ristampa, KDS, storno, CSV, statistiche), ciascuna confrontata col vecchio risultato (statistiche: 283 gruppi, stesso incasso e stessi pezzi). | `[x]` |
+| 1-6 | Via il JSONB: gli ordini non lo scrivono più (029), la colonna è eliminata (030), tolti gli strumenti di migrazione. Le righe sono parte dell'ordine: se non si scrivono, l'ordine non nasce. | `[x]` |
+
+**Ordine di rilascio in produzione:** migrazione 029 e codice nuovo; solo dopo, quando il codice vecchio non gira più, la 030 (con backup).
 
 ## Fase 2: sala, tavoli e conti (P1)
 

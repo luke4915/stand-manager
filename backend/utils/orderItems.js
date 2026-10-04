@@ -1,7 +1,6 @@
-// Dalla riga di un ordine nel JSONB (`orders.items[i]`) alla riga di `order_items`.
-// Funzione pura, usata dal riempimento dei vecchi ordini (scripts/order-items.js) e dalla doppia scrittura nelle route.
-// Non inventa dati: dove la riga non è come ce la si aspetta, la normalizza nel modo più prudente e lo segnala in
-// `anomalies`; se la riga non si può rappresentare (quantità non valida) ritorna `row: null`.
+// Dalla riga di un ordine, già verificata dal server (`items[i]` di routes/orders.js), alla riga di `order_items`.
+// Funzione pura. Non inventa dati: dove la riga non è come ce la si aspetta la normalizza nel modo più prudente e lo
+// segnala in `anomalies`; se non si può rappresentare (quantità non valida) ritorna `row: null` e chi scrive annulla l'ordine.
 
 const LINE_TYPES = ['sale', 'gift', 'discount'];
 const PRINT_DESTINATIONS = ['bar', 'kitchen', 'both'];
@@ -59,17 +58,13 @@ export function toOrderItemRow(item, position) {
   };
 }
 
-// Tutte le righe di un ordine. `items` può essere un array, una stringa JSON (ordini molto vecchi) o altro.
+// Tutte le righe di un ordine.
 export function toOrderItemRows(items) {
-  let list = items;
-  if (typeof list === 'string') {
-    try { list = JSON.parse(list); } catch { return { rows: [], anomalies: ['items_non_leggibili'] }; }
-  }
-  if (!Array.isArray(list)) return { rows: [], anomalies: ['items_non_array'] };
+  if (!Array.isArray(items)) return { rows: [], anomalies: ['items_non_array'] };
 
   const rows = [];
   const anomalies = [];
-  list.forEach((item, position) => {
+  items.forEach((item, position) => {
     const result = toOrderItemRow(item, position);
     anomalies.push(...result.anomalies);
     if (result.row) rows.push(result.row);

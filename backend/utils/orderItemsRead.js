@@ -1,5 +1,5 @@
-// Righe d'ordine lette da `order_items`, nella stessa forma in cui le vedevano app e cassa quando stavano nel JSONB
-// (`orders.items`): così l'API non cambia. Le usano le route che mostrano o stampano un ordine.
+// Righe d'ordine lette da `order_items`, nella forma che l'API ha sempre avuto (`items` di un ordine) così app e cassa
+// non cambiano. Le usano le route che mostrano, stampano o stornano un ordine.
 
 const toNumber = (v) => (v === null || v === undefined ? null : Number(v));
 

@@ -1,10 +1,11 @@
-// Righe d'ordine in tabella (affiancata al JSONB): isolamento RLS, vincoli, riempimento dei vecchi ordini e verifica.
+// Righe d'ordine in tabella: isolamento RLS, vincoli ed eliminazione del tenant.
 import { describe, it, before, after } from 'node:test';
 import assert from 'node:assert/strict';
 import jwt from 'jsonwebtoken';
 import { startServer, createTenant, deleteTenants, closePools, apiClient, adminDb } from './helpers.js';
 import { withTenantClient } from '../../middleware/tenantScope.js';
-import { scanTenant, verifyTenant } from '../../utils/orderItemsBackfill.js';
+import { toOrderItemRows } from '../../utils/orderItems.js';
+import { insertOrderItemRows } from '../../utils/orderItemsWrite.js';
 
 process.env.MASTER_JWT_SECRET ||= 'segreto-master-di-prova-lungo-almeno-32-caratteri';
 const masterCookie = { cookie: `master_token=${jwt.sign({ master: true }, process.env.MASTER_JWT_SECRET)}` };
@@ -20,22 +21,16 @@ const LEGACY = [
 describe('order_items', () => {
   let server, t1, t2, t3;
 
-  const insertLegacy = async (tenant) => {
+  // Ordini di prova; con `withRows` anche le loro righe (altrimenti i test aggiungono le proprie).
+  const insertLegacy = async (tenant, { withRows = false } = {}) => {
     const ids = [];
     for (const items of LEGACY) {
       const { rows: [o] } = await adminDb.query(
-        `INSERT INTO orders (items, total, status, tenant_id) VALUES ($1, 10, 'completed', $2) RETURNING id`, [JSON.stringify(items), tenant.id]);
+        `INSERT INTO orders (total, status, tenant_id) VALUES (10, 'completed', $1) RETURNING id`, [tenant.id]);
+      if (withRows) await insertOrderItemRows(adminDb, tenant.id, toOrderItemRows(items).rows.map(r => ({ ...r, order_id: o.id })));
       ids.push(o.id);
     }
     return ids;
-  };
-  // Come lo script con un utente privilegiato: connessione che scavalca la RLS, solo app.tenant_id impostato.
-  const asScript = async (tenant, fn) => {
-    const client = await adminDb.connect();
-    try {
-      await client.query('SELECT set_config($1, $2, false)', ['app.tenant_id', String(tenant.id)]);
-      return await fn(client);
-    } finally { client.release(); }
   };
   const countRows = async (tenant) => (await adminDb.query('SELECT count(*)::int AS n FROM order_items WHERE tenant_id = $1', [tenant.id])).rows[0].n;
 
@@ -84,72 +79,8 @@ describe('order_items', () => {
     await adminDb.query('DELETE FROM orders WHERE tenant_id = $1', [t1.id]);
   });
 
-  it('riempimento: la prova non scrive; poi scrive solo il tenant indicato, anche con un utente che scavalca la RLS', async () => {
-    await insertLegacy(t1);
-    await insertLegacy(t2); // dati di un altro tenant nello stesso database
-
-    const dry = await asScript(t1, (db) => scanTenant(db, t1.id, { apply: false }));
-    assert.equal(dry.orders, 4, 'solo gli ordini di t1, non quelli di t2');
-    assert.equal(dry.rows, 5);
-    assert.equal(dry.skippedRows, 1);
-    assert.equal(dry.anomalies.id_non_valido.count, 1);
-    assert.equal(dry.anomalies.quantita_non_valida.count, 1);
-    assert.equal(await countRows(t1), 0, 'la prova non scrive');
-
-    const applied = await asScript(t1, (db) => scanTenant(db, t1.id, { apply: true }));
-    assert.equal(applied.rows, 5);
-    assert.equal(await countRows(t1), 5);
-    assert.equal(await countRows(t2), 0, 'le righe di t2 non sono state toccate né attribuite a t1');
-    const wrong = await adminDb.query(`SELECT count(*)::int AS n FROM order_items i JOIN orders o ON o.id = i.order_id WHERE i.tenant_id <> o.tenant_id`);
-    assert.equal(wrong.rows[0].n, 0);
-  });
-
-  it('riempimento ripetibile: la seconda volta non aggiunge nulla', async () => {
-    const again = await asScript(t1, (db) => scanTenant(db, t1.id, { apply: true }));
-    assert.equal(again.ordersToFill, 0);
-    assert.equal(again.rows, 0);
-    assert.equal(await countRows(t1), 5);
-  });
-
-  it('verifica: tutto coincide (la riga con quantità 0 è attesa); un tenant non ancora riempito segnala le righe mancanti', async () => {
-    const ok = await asScript(t1, verifyTenant);
-    assert.equal(ok.errors, 0, JSON.stringify(ok));
-    assert.equal(ok.orders, 4);
-    assert.equal(ok.rows, 5);
-    assert.equal(ok.counts.attesa_quantita_non_valida, 1);
-
-    const notYet = await asScript(t2, verifyTenant);
-    assert.equal(notYet.counts.manca_riga, 5);
-    assert.equal(notYet.errors, 5);
-  });
-
-  it('verifica: scopre una riga cambiata, una cancellata e una aggiunta a mano', async () => {
-    await adminDb.query(`UPDATE order_items SET quantity = 9 WHERE tenant_id = $1 AND name = 'Panino'`, [t1.id]);
-    await adminDb.query(`DELETE FROM order_items WHERE tenant_id = $1 AND name = 'Birra'`, [t1.id]);
-    const { rows: [any] } = await adminDb.query('SELECT order_id FROM order_items WHERE tenant_id = $1 LIMIT 1', [t1.id]);
-    await adminDb.query(`INSERT INTO order_items (tenant_id, order_id, position, name, quantity, unit_price, line_total) VALUES ($1, $2, 50, 'Intruso', 1, 1, 1)`, [t1.id, any.order_id]);
-
-    const r = await asScript(t1, verifyTenant);
-    assert.equal(r.counts.valori_diversi, 1);
-    assert.equal(r.counts.manca_riga, 1);
-    assert.equal(r.counts.riga_in_piu, 1);
-    assert.equal(r.errors, 3);
-
-    // anche una differenza sottile in un altro campo (qui il prezzo unitario arrotondato a 4 decimali)
-    await adminDb.query(`UPDATE order_items SET unit_price = 1.6667 WHERE tenant_id = $1 AND name = 'Combo'`, [t1.id]);
-    assert.equal((await asScript(t1, verifyTenant)).counts.valori_diversi, 2);
-    await adminDb.query(`UPDATE order_items SET note = 'cambiata' WHERE tenant_id = $1 AND name = 'Prodotto vecchio'`, [t1.id]);
-    assert.equal((await asScript(t1, verifyTenant)).counts.valori_diversi, 3);
-
-    // si ripara ripetendo da zero: cancello le righe del tenant e riempio
-    await adminDb.query('DELETE FROM order_items WHERE tenant_id = $1', [t1.id]);
-    await asScript(t1, (db) => scanTenant(db, t1.id, { apply: true }));
-    assert.equal((await asScript(t1, verifyTenant)).errors, 0);
-  });
-
   it('eliminare un tenant cancella anche le sue righe d\'ordine', async () => {
-    await insertLegacy(t3);
-    await asScript(t3, (db) => scanTenant(db, t3.id, { apply: true }));
+    await insertLegacy(t3, { withRows: true });
     assert.ok(await countRows(t3) > 0);
     const master = apiClient(server.port, t3.host);
     const res = await master.request('DELETE', `/master/tenants/${t3.id}`, { confirmSlug: t3.slug }, masterCookie);
