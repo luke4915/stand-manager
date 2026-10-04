@@ -35,5 +35,5 @@ export function useOfflineSync() {
     };
   }, [sync, refreshCounts]);
 
-  return { online, pending, failed, syncNow: sync };
+  return { online, pending, failed, syncNow: sync, refreshCounts };
 }

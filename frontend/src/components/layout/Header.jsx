@@ -1,10 +1,12 @@
-import React from "react";
+import React, { useState } from "react";
 import { LogOut, Settings, Menu, CloudOff, RefreshCw, AlertTriangle, Printer } from "lucide-react";
 import { useOfflineSync } from "../../offline/useOfflineSync";
 import { usePrintQueue } from "../../print/usePrintQueue";
+import FailedOrdersModal from "../shared/FailedOrdersModal";
 
 const Header = ({ toggleSidebar, currentUser, onLogoutClick, onProfileClick, sessionName, wsConnected }) => {
-  const { online, pending, failed, syncNow } = useOfflineSync();
+  const { online, pending, failed, syncNow, refreshCounts } = useOfflineSync();
+  const [showFailed, setShowFailed] = useState(false);
   const { pending: printPending, retryNow: retryPrint } = usePrintQueue();
 
   return (
@@ -61,13 +63,14 @@ const Header = ({ toggleSidebar, currentUser, onLogoutClick, onProfileClick, ses
             </button>
           )}
           {failed > 0 && (
-            <span
-              title={`${failed} ordini offline rifiutati dal server: verificarli in cassa`}
-              className="flex items-center gap-1.5 px-2.5 py-1 bg-red-500/10 border border-red-500/30 text-red-500 rounded-full"
+            <button
+              onClick={() => setShowFailed(true)}
+              title={`${failed} ordini offline rifiutati dal server: tocca per vederli`}
+              className="flex items-center gap-1.5 px-2.5 py-1 bg-red-500/10 border border-red-500/30 text-red-500 rounded-full cursor-pointer hover:bg-red-500/20 active:scale-95 transition-all"
             >
               <AlertTriangle size={13} />
               <span className="text-[10px] font-black">{failed}</span>
-            </span>
+            </button>
           )}
           <div className="flex items-center gap-1.5 px-2 py-1 bg-[var(--bg-card-2)] rounded-full">
             <div className="w-6 h-6 rounded-full bg-[var(--accent)] flex items-center justify-center text-[10px] text-white font-bold shrink-0">
@@ -95,6 +98,7 @@ const Header = ({ toggleSidebar, currentUser, onLogoutClick, onProfileClick, ses
           </button>
         </div>
       )}
+      {showFailed && <FailedOrdersModal onClose={() => setShowFailed(false)} onChanged={() => { refreshCounts(); syncNow(); }} />}
     </header>
   );
 };
