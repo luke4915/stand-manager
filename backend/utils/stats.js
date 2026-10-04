@@ -27,7 +27,7 @@ export function buildStats({ totals, canceled, byHour, products }) {
   const hourRow = (h) => byHour.find((r) => r.hour === h);
 
   const topProdotti = products
-    .map((p) => ({ productId: p.product_id, prodotto: p.name, count: Number(p.quantity), revenue: round2(p.revenue) }));
+    .map((p) => ({ productId: Number(p.product_id), prodotto: p.name, count: Number(p.quantity), revenue: round2(p.revenue) }));
   const prodottoPiuVenduto = [...topProdotti].sort((a, b) => b.count - a.count)[0]?.prodotto || '';
 
   const categoryIncome = {};

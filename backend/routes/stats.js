@@ -15,7 +15,7 @@ const authorizeStats = authorizeRoles(['admin', 'responsabile'], 'Le statistiche
 const COMPLETED_ITEMS = `
   FROM orders o
   CROSS JOIN LATERAL jsonb_array_elements(CASE WHEN jsonb_typeof(o.items) = 'array' THEN o.items ELSE '[]'::jsonb END) i
-  LEFT JOIN products p ON p.id = (i->>'id')::int
+  LEFT JOIN products p ON p.id = (i->>'id')::bigint
   WHERE o.status = 'completed'`;
 const LINE_REVENUE = `COALESCE((i->>'line_total')::numeric, (i->>'price')::numeric * (i->>'quantity')::numeric, 0)`;
 
@@ -46,7 +46,7 @@ router.get('/', authenticate, authorizeStats, validate({ query: statsQuerySchema
       // Per id di prodotto, non per nome: un prodotto rinominato resta uno solo.
       // Il mancato incasso degli omaggi usa il prezzo di listino salvato nell'ordine (original_price).
       req.db.query(
-        `SELECT (i->>'id')::int AS product_id,
+        `SELECT (i->>'id')::bigint AS product_id,
                 COALESCE(p.name, MAX(i->>'name')) AS name,
                 COALESCE(MAX(i->>'category'), MAX(p.category), 'Altro') AS category,
                 SUM((i->>'quantity')::int) AS quantity,
@@ -54,7 +54,7 @@ router.get('/', authenticate, authorizeStats, validate({ query: statsQuerySchema
                 SUM(CASE WHEN ${LINE_REVENUE} = 0
                          THEN COALESCE((i->>'original_price')::numeric, p.price, 0) * (i->>'quantity')::numeric ELSE 0 END) AS missed
          ${COMPLETED_ITEMS} ${inSessions}
-         GROUP BY (i->>'id')::int, p.name`, [sessionFilter]),
+         GROUP BY (i->>'id')::bigint, p.name`, [sessionFilter]),
       req.db.query(
         `SELECT s.id, s.name, s.start_time, COUNT(o.id)::int AS n, COALESCE(SUM(o.total), 0) AS total
          FROM sessions s LEFT JOIN orders o ON o.session_id = s.id AND o.status = 'completed'
@@ -75,15 +75,15 @@ router.get('/shared-products', authenticate, authorizeStats, validate({ query: s
   const { a, b } = req.validQuery;
   try {
     const { rows } = await req.db.query(
-      `SELECT (i->>'id')::int AS id, COALESCE(p.name, MAX(i->>'name')) AS name
+      `SELECT (i->>'id')::bigint AS id, COALESCE(p.name, MAX(i->>'name')) AS name
        ${COMPLETED_ITEMS}
          AND ($1::int IS NULL OR $2::int IS NULL OR o.session_id IN ($1, $2))
-       GROUP BY (i->>'id')::int, p.name
+       GROUP BY (i->>'id')::bigint, p.name
        HAVING $1::int IS NULL OR $2::int IS NULL
           OR (COUNT(DISTINCT o.session_id) FILTER (WHERE o.session_id = $1) > 0
           AND COUNT(DISTINCT o.session_id) FILTER (WHERE o.session_id = $2) > 0)
        ORDER BY 2`, [a ?? null, b ?? null]);
-    res.json(rows);
+    res.json(rows.map((r) => ({ id: Number(r.id), name: r.name }))); // bigint arriva come stringa
   } catch (err) {
     logger.error({ err }, 'Errore GET /api/stats/shared-products');
     res.status(500).json({ error: 'Errore nel caricamento dei prodotti' });
@@ -96,7 +96,7 @@ router.get('/head-to-head', authenticate, authorizeStats, validate({ query: head
   try {
     const { rows } = await req.db.query(
       `SELECT o.session_id, SUM((i->>'quantity')::int) AS quantity, SUM(${LINE_REVENUE}) AS revenue
-       ${COMPLETED_ITEMS} AND o.session_id IN ($1, $2) AND (i->>'id')::int = $3
+       ${COMPLETED_ITEMS} AND o.session_id IN ($1, $2) AND (i->>'id')::bigint = $3
        GROUP BY o.session_id`, [a, b, product]);
     const of = (id) => {
       const row = rows.find((r) => r.session_id === id);

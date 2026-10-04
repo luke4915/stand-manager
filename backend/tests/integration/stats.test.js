@@ -39,6 +39,8 @@ describe('statistiche e paginazione', () => {
     await insertOrder({ session: s1, status: 'pending', items: [line(P, 'Panino', 9, 45)], total: 45, at: '2026-10-02T19:10:00Z' });
     // sabato: il prodotto è stato rinominato nell'ordine (stesso id)
     await insertOrder({ session: s2, items: [line(P, 'Panino vecchio nome', 3, 15)], total: 15, at: '2026-10-03T18:00:00Z' });
+    // ordini vecchi: righe fuori catalogo con un id enorme (un timestamp), che non entra in un integer
+    await insertOrder({ session: s2, items: [line(1764492954740, 'Riga libera', 1, 2, { category: 'Altro' })], total: 2, at: '2026-10-03T19:00:00Z' });
   });
 
   after(async () => {
@@ -74,21 +76,22 @@ describe('statistiche e paginazione', () => {
 
   it('prodotti per id (un prodotto rinominato resta uno) e categorie, su tutte le serate', async () => {
     const s = (await admin.get('/stats')).body;
-    assert.equal(s.numeroTotaleOrdini, 4);
+    assert.equal(s.numeroTotaleOrdini, 5);
+    assert.ok(s.topProdotti.some(p => p.productId === 1764492954740));
     const panino = s.topProdotti.find(p => p.productId === t.productId);
     assert.equal(panino.count, 6);
     assert.equal(panino.revenue, 25);
     assert.equal(s.topProdotti.filter(p => p.productId === t.productId).length, 1);
-    assert.deepEqual(s.incassoPerCategoria, [{ categoria: 'Cibo', totale: 25 }, { categoria: 'Bevande', totale: 12 }]);
+    assert.deepEqual(s.incassoPerCategoria, [{ categoria: 'Cibo', totale: 25 }, { categoria: 'Bevande', totale: 12 }, { categoria: 'Altro', totale: 2 }]);
     assert.equal(s.confrontoSerate.length, 2);
-    assert.deepEqual(s.confrontoSerate.find(x => x.id === s2), { id: s2, name: 'Sabato', totale: 15, numero: 1, medio: 15 });
+    assert.deepEqual(s.confrontoSerate.find(x => x.id === s2), { id: s2, name: 'Sabato', totale: 17, numero: 2, medio: 8.5 });
   });
 
   it('confronto tra due serate', async () => {
     const shared = (await admin.get(`/stats/shared-products?a=${s1}&b=${s2}`)).body;
     assert.deepEqual(shared.map(p => p.id), [t.productId]); // la birra è venduta solo venerdì
     const all = (await admin.get('/stats/shared-products')).body;
-    assert.equal(all.length, 2);
+    assert.equal(all.length, 3);
     const h2h = (await admin.get(`/stats/head-to-head?a=${s1}&b=${s2}&product=${t.productId}`)).body;
     assert.deepEqual(h2h, [{ metric: 'Quantità venduta', A: 3, B: 3 }, { metric: 'Incasso (€)', A: 10, B: 15 }]);
   });
@@ -111,6 +114,6 @@ describe('statistiche e paginazione', () => {
     assert.equal((await admin.get('/orders?limit=100000')).status, 400);
     assert.equal((await admin.get('/orders?status=boh')).status, 400);
     const all = (await admin.get('/orders?limit=500')).body;
-    assert.equal(all.length, 6);
+    assert.equal(all.length, 7);
   });
 });
