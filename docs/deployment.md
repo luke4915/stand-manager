@@ -2,12 +2,60 @@
 
 Guida per portare Stand Manager in produzione e tenerlo in vita. Le regole di sviluppo stanno in `CLAUDE.md`.
 
+## Percorso consigliato: Railway
+
+App e database sulla stessa piattaforma, HTTPS e certificato wildcard gestiti da Railway, rilascio automatico a ogni push. Il `Dockerfile` costruisce frontend e backend in un'unica immagine; `railway.json` dice a Railway di usarlo, di preparare il database prima di ogni rilascio (`npm run db:prepare`) e di aspettare `/api/health/ready` prima di passare il traffico alla versione nuova.
+
+La stampa non dipende dall'hosting: è la cassa che parla con la stampante in LAN (vedi `docs/stampa.md`).
+
+**1. Dominio.** Serve un dominio di secondo livello (es. `miodominio.it`): i tenant sono `nome.miodominio.it` e il master panel sta su `miodominio.it/master`. Un DNS che supporti il CNAME sulla radice (Cloudflare lo fa) semplifica il passo 5.
+
+**2. Progetto Railway.** Nuovo progetto → *Deploy from GitHub repo* → `stand-manager`, branch `feat/multi-tenancy`. Nello stesso progetto aggiungi un database PostgreSQL (*New → Database → PostgreSQL*). Regione europea per entrambi.
+
+**3. Variabili del servizio app** (scheda *Variables*; `${{Postgres.…}}` sono riferimenti alle variabili del database, che Railway risolve da sé):
+
+```
+NODE_ENV=production
+TLS_TERMINATED_BY_PROXY=true
+APP_DOMAIN=miodominio.it
+LOG_LEVEL=info
+
+PG_HOST=${{Postgres.PGHOST}}
+PG_PORT=${{Postgres.PGPORT}}
+PG_DATABASE=${{Postgres.PGDATABASE}}
+PG_USER=standmanager_app
+PG_PASSWORD=<openssl rand -hex 24>
+PG_MASTER_USER=standmanager_master
+PG_MASTER_PASSWORD=<openssl rand -hex 24, diversa>
+MIGRATION_DATABASE_URL=${{Postgres.DATABASE_URL}}
+
+JWT_SECRET=<openssl rand -hex 48>
+MASTER_JWT_SECRET=<openssl rand -hex 48, diversa>
+MASTER_PASSWORD_HASH=<hash bcrypt, vedi backend/.env.example>
+```
+
+`PORT` lo imposta Railway. `HTTPS_KEY_PATH` e `HTTPS_CERT_PATH` non servono. Le password di `PG_PASSWORD` e `PG_MASTER_PASSWORD` le scegli tu: al primo rilascio `db:prepare` crea i due ruoli con queste password.
+
+**4. Primo rilascio.** Al primo deploy `npm run db:prepare` trova il database vuoto: crea i ruoli `standmanager_app` e `standmanager_master`, carica `schema.sql` e registra le migrazioni come già applicate. Dai rilasci successivi salta questa parte e applica solo le migrazioni nuove. Se fallisce, il rilascio si ferma e resta online la versione precedente.
+
+**5. Domini.** Nel servizio app, *Settings → Networking → Custom Domain*: aggiungi `*.miodominio.it` e `miodominio.it`, poi crea nel DNS i record che Railway mostra (per il wildcard due CNAME, uno per `_acme-challenge`, e un TXT). Con Cloudflare il record `_acme-challenge` non va messo dietro il proxy (nuvola grigia).
+
+**6. Prova.** `https://miodominio.it/api/health/ready` risponde 200; da `https://miodominio.it/master` crei il primo tenant e lo apri su `https://<slug>.miodominio.it`.
+
+**Backup.** Il database ha i backup di Railway (scheda *Backups* del servizio PostgreSQL, da attivare con una pianificazione giornaliera se il piano lo prevede). In più, prima di un rilascio con migrazioni, un dump dal tuo computer:
+
+```bash
+BACKUP_DATABASE_URL=<DATABASE_PUBLIC_URL del servizio Postgres> backend/scripts/backup.sh ./backups 14
+```
+
+**Limiti noti su Railway:** il master panel è raggiungibile da chiunque conosca l'indirizzo (non c'è un reverse proxy per filtrarlo per IP: lo proteggono password e limite ai tentativi di login); i log restano nella scheda *Logs* del servizio.
+
 ## Prima di aprire ai clienti
 
 - [ ] `NODE_ENV=production`. Con segreti deboli l'app non parte.
 - [ ] `JWT_SECRET` e `MASTER_JWT_SECRET`: stringhe diverse, casuali, almeno 32 caratteri (`openssl rand -hex 48`).
 - [ ] `MASTER_PASSWORD_HASH`: hash bcrypt di una password lunga e unica per il master panel.
-- [ ] `APP_DOMAIN` = dominio reale. DNS wildcard `*.dominio` e certificato wildcard (`HTTPS_KEY_PATH`, `HTTPS_CERT_PATH`) o TLS terminato da un reverse proxy.
+- [ ] `APP_DOMAIN` = dominio reale. DNS wildcard `*.dominio` e certificato wildcard (`HTTPS_KEY_PATH`, `HTTPS_CERT_PATH`) o TLS terminato da un reverse proxy o dalla piattaforma (`TLS_TERMINATED_BY_PROXY=true`).
 - [ ] Il database accetta connessioni solo dall'app (rete privata o firewall). Tre utenti, con password diverse: applicativo (`PG_USER`, soggetto a RLS; sui tenant solo lettura, su `audit_logs` solo lettura e inserimento), master (`PG_MASTER_USER`, usato solo dalle route `/master`: crea, modifica ed elimina tenant) e migrazioni (`MIGRATION_DATABASE_URL`, mai usato dall'app).
 - [ ] Il file `.env` non è nel repository e ha permessi `600`.
 - [ ] Backup notturno pianificato **e un ripristino provato** (vedi sotto).

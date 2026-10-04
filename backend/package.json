@@ -10,6 +10,8 @@
     "dev": "nodemon server.js",
     "migrate": "node migrations/run.js",
     "db:baseline": "node migrations/run.js --baseline",
+    "db:init": "node scripts/init-db.js",
+    "db:prepare": "node scripts/init-db.js && node migrations/run.js",
     "test": "node --test \"tests/*.test.js\"",
     "test:integration": "node --test --test-concurrency=1 \"tests/integration/*.test.js\""
   },
