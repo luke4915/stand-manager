@@ -8,3 +8,20 @@ const TRANSACTION_LINE = /^[ \t]*(BEGIN|COMMIT)[ \t]*;[ \t]*(--[^\n]*)?$/gim;
 export function stripTransactionControl(sql) {
   return sql.replace(TRANSACTION_LINE, '');
 }
+
+// schema.sql è un pg_dump fatto in locale: nomina come proprietario il ruolo di chi l'ha generato
+// (che sul server di produzione non esiste), usa i comandi \restrict di psql e SET transaction_timeout
+// (solo PostgreSQL 17+). Per caricarlo con un client normale (scripts/init-db.js) si tolgono queste
+// righe: le tabelle restano dell'utente delle migrazioni, e i privilegi di default diventano i suoi.
+const PSQL_META_LINE = /^\\(un)?restrict\b[^\n]*$/gm;
+const OWNER_LINE = /^ALTER [A-Z ]+ .+ OWNER TO [^;\n]+;[ \t]*$/gm;
+const TRANSACTION_TIMEOUT_LINE = /^SET transaction_timeout = [^;\n]+;[ \t]*$/gm;
+const DEFAULT_PRIVILEGES_FOR_ROLE = /^(ALTER DEFAULT PRIVILEGES) FOR ROLE \S+ /gm;
+
+export function prepareSchemaSql(sql) {
+  return sql
+    .replace(PSQL_META_LINE, '')
+    .replace(OWNER_LINE, '')
+    .replace(TRANSACTION_TIMEOUT_LINE, '')
+    .replace(DEFAULT_PRIVILEGES_FOR_ROLE, '$1 ');
+}
