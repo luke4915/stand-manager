@@ -2,6 +2,7 @@ import express from 'express';
 import { authenticate, authorizeAdmin } from '../middleware/authenticate.js';
 import { validate } from '../middleware/validate.js';
 import { tenantScope } from '../middleware/tenantScope.js';
+import { inTransaction } from '../db.js';
 import logger from '../logger.js';
 import { logAudit } from '../utils/auditLogger.js';
 import { idParamsSchema } from '../schemas/common.js';
@@ -9,36 +10,31 @@ import { createDeviceSchema, updateDeviceSchema } from '../schemas/deviceSchema.
 
 const router = express.Router();
 
-const MAX_ALLOCATION_ATTEMPTS = 3;
-
 // POST /api/devices — abbina un dispositivo: assegna la prima lettera libera del tenant.
 // Va chiamato una volta sola per dispositivo (il client conserva id e lettera).
 router.post('/', authenticate, validate({ body: createDeviceSchema }), tenantScope, async (req, res) => {
   const { name } = req.body;
   try {
-    // Due abbinamenti contemporanei possono scegliere la stessa lettera: il vincolo
-    // UNIQUE ne fa fallire uno, che riprova e prende la successiva.
-    for (let attempt = 0; attempt < MAX_ALLOCATION_ATTEMPTS; attempt++) {
-      try {
-        const { rows } = await req.db.query(
-          `INSERT INTO devices (letter, name)
-           SELECT chr(l), COALESCE($1, 'Cassa ' || chr(l))
-           FROM generate_series(65, 90) AS l
-           WHERE chr(l) NOT IN (SELECT letter FROM devices)
-           ORDER BY l LIMIT 1
-           RETURNING id, letter, name`,
-          [name ?? null]
-        );
-        if (!rows.length) {
-          return res.status(409).json({ error: 'Numero massimo di dispositivi raggiunto (26)', code: 'DEVICE_LIMIT' });
-        }
-        await logAudit(req.db, req.user.id, 'CREATE_DEVICE', { deviceId: rows[0].id, letter: rows[0].letter });
-        return res.status(201).json(rows[0]);
-      } catch (err) {
-        if (err.code !== '23505') throw err;
-      }
+    // Abbinamenti contemporanei dello stesso tenant si mettono in fila con un lock di transazione:
+    // ognuno vede le lettere già prese dagli altri e sceglie la successiva, senza conflitti da ritentare.
+    const device = await inTransaction(req.db, async (db) => {
+      await db.query(`SELECT pg_advisory_xact_lock(hashtextextended('devices:' || current_setting('app.tenant_id'), 0))`);
+      const { rows } = await db.query(
+        `INSERT INTO devices (letter, name)
+         SELECT chr(l), COALESCE($1, 'Cassa ' || chr(l))
+         FROM generate_series(65, 90) AS l
+         WHERE chr(l) NOT IN (SELECT letter FROM devices)
+         ORDER BY l LIMIT 1
+         RETURNING id, letter, name`,
+        [name ?? null]
+      );
+      return rows[0] ?? null;
+    });
+    if (!device) {
+      return res.status(409).json({ error: 'Numero massimo di dispositivi raggiunto (26)', code: 'DEVICE_LIMIT' });
     }
-    res.status(409).json({ error: 'Impossibile assegnare una lettera, riprova', code: 'DEVICE_ALLOCATION_CONFLICT' });
+    await logAudit(req.db, req.user.id, 'CREATE_DEVICE', { deviceId: device.id, letter: device.letter });
+    res.status(201).json(device);
   } catch (err) {
     logger.error({ err }, 'Errore POST /api/devices');
     res.status(500).json({ error: 'Errore abbinamento dispositivo' });

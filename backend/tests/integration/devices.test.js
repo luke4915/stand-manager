@@ -27,10 +27,10 @@ describe('dispositivi e numerazione per cassa', () => {
   });
 
   it('assegna le lettere in ordine, anche con abbinamenti contemporanei', async () => {
-    const results = await Promise.all(Array.from({ length: 4 }, () => api1.post('/devices')));
+    const results = await Promise.all(Array.from({ length: 12 }, () => api1.post('/devices')));
     assert.ok(results.every(r => r.status === 201));
-    assert.deepEqual(results.map(r => r.body.letter).sort(), ['A', 'B', 'C', 'D']);
-    assert.match(results[0].body.name, /^Cassa [A-D]$/);
+    assert.deepEqual(results.map(r => r.body.letter).sort(), 'ABCDEFGHIJKL'.split(''));
+    assert.match(results[0].body.name, /^Cassa [A-L]$/);
   });
 
   it('ogni tenant ha le sue lettere e non vede i dispositivi altrui', async () => {
