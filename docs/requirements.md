@@ -33,14 +33,17 @@ Priorità: **P0** fondamenta (senza non si procede) · **P1** MVP ristorante · 
 
 ## Fase 1: ordini a righe (P0, tocca il nucleo)
 
-Va fatta da sola, senza funzioni nuove, perché cambia dove stanno i dati degli ordini.
+Va fatta da sola, senza funzioni nuove. Si procede in "espandi e poi restringi": la tabella nuova si affianca al JSONB
+`orders.items`, che resta la fonte di verità finché ogni passo non è verificato. Dopo ogni passo l'app funziona come prima.
 
 | Id | Requisito | Stato |
 |---|---|---|
-| 1-1 | Tabella `order_items` (una riga per prodotto ordinato) con stato per riga, tenant-scoped con RLS. | `[ ]` |
-| 1-2 | Migrazione dei vecchi ordini da `orders.items` (JSONB) alle righe, con script che confronta totali e righe prima e dopo. | `[ ]` |
-| 1-3 | Creazione ordine, storno, stock, stampa, offline e statistiche funzionano come prima sulle righe. | `[ ]` |
-| 1-4 | Test mirati su prezzi, stock, idempotenza offline e statistiche a parità di risultato. | `[ ]` |
+| 1-1 | Tabella `order_items` (migrazione 027, additiva): una riga per prodotto ordinato, tenant-scoped con RLS, che rispecchia le righe dell'ordine (prodotto, nome, quantità, prezzi, tipo, sconto, nota, categoria, destinazione di stampa). Niente stato per riga e niente portata: arrivano nella Fase 3. | `[ ]` |
+| 1-2 | Script di riempimento dei vecchi ordini dal JSONB (ripetibile, per tenant) che segnala le anomalie invece di nasconderle. | `[ ]` |
+| 1-3 | Script di verifica prima/dopo: stesso numero di righe per ordine, stesse quantità per prodotto, stessi importi di riga; elenco delle differenze. | `[ ]` |
+| 1-4 | Doppia scrittura: ogni ordine nuovo scrive JSONB e righe nella stessa transazione. Le letture non cambiano. | `[ ]` |
+| 1-5 | Letture una alla volta dalle righe (elenco ordini, KDS, storno e stock, esportazione CSV, statistiche), ognuna con un test che confronta il risultato con quello del JSONB sugli stessi dati. | `[ ]` |
+| 1-6 | Il JSONB resta come copia dell'ordine così com'è stato emesso (scontrino, ristampa). Si valuta se toglierlo solo dopo la Fase 3. | `[ ]` |
 
 ## Fase 2: sala, tavoli e conti (P1)
 
