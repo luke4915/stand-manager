@@ -268,6 +268,42 @@ export async function renderBar(printer, order, ctx) {
   renderFooter(printer, ctx, { pickupId: encodeOrderId(order.id, new Date(order.created_at || Date.now())) });
 }
 
+const euro = (n) => `€ ${Number(n).toFixed(2)}`;
+const METHOD_LABELS = { cash: 'Contanti', card: 'Carta', other: 'Altro' };
+
+// Ricevuta NON fiscale di un conto di un tavolo (dati di GET /checks/:id/receipt): tutto il conto, oppure la quota
+// di un solo pagamento. Non è una copia degli ordini: la stampa dal pannello del conto la invia alla stampante cliente.
+export async function renderCheckReceipt(printer, receipt, ctx) {
+  const { check, lines, payments, scope } = receipt;
+  await renderHeader(printer, ctx, { title: scope === 'payment' ? 'RICEVUTA DI PAGAMENTO' : 'CONTO' });
+  const where = [check.table_name && `Tavolo ${check.table_name}`, check.covers > 0 && `${check.covers} ${check.covers === 1 ? 'coperto' : 'coperti'}`, `Conto n. ${check.number}`]
+    .filter(Boolean).join(' - ');
+  printer.align('CT').text(where);
+  printer.align('CT').text(DIVIDER_THIN);
+
+  renderItems(printer, ctx, lines.map(l => ({ name: l.name, quantity: l.quantity, line_total: l.amount })), 'customer');
+
+  if (scope === 'payment') {
+    const [payment] = payments;
+    printer.align('CT').style('B').text(`PAGATO ${METHOD_LABELS[payment.method] ?? payment.method}`).style('NORMAL');
+    printer.align('CT').style('B').size(2, 2).text(euro(payment.amount)).size(1, 1).style('NORMAL');
+    if (receipt.due > 0) printer.align('CT').text(`Residuo del conto: ${euro(receipt.due)}`);
+  } else {
+    printer.align('CT').style('B').text('TOTALE').style('NORMAL');
+    printer.align('CT').style('B').size(2, 2).text(euro(receipt.total)).size(1, 1).style('NORMAL');
+    if (payments.length) {
+      printer.align('CT').text(DIVIDER_THIN);
+      payments.forEach(p => printer.align('LT').text(rowLR(METHOD_LABELS[p.method] ?? p.method, euro(p.amount))));
+      printer.align('LT').style('B').text(rowLR('Residuo', euro(receipt.due))).style('NORMAL');
+    }
+  }
+  printer.align('CT').text(DIVIDER_THIN);
+  printer.align('CT').text('DOCUMENTO NON FISCALE');
+  printer.align('CT').text('Powered by StandManager');
+  printer.feed(2);
+  printer.cut();
+}
+
 // Nome della copia (copy_types.name) → template
 export const TEMPLATES = {
   Numeretto: renderNumberSlip,

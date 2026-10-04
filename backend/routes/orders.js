@@ -19,6 +19,7 @@ import { loadItems, withItems } from '../utils/orderItemsRead.js';
 import { writeOrderItems } from '../utils/orderItemsWrite.js';
 import { requireModule, getTenantModules } from '../utils/tenantModules.js';
 import { withCheckInfo } from '../utils/orderCheck.js';
+import { lockCheck, assertOrderCancelable } from '../utils/payments.js';
 import { getCheckSummary } from '../utils/checks.js';
 
 const router = express.Router();
@@ -278,6 +279,12 @@ export default function (broadcast) {
 
     try {
       const { previousStatus, updated, stockUpdates } = await inTransaction(req.db, async (db) => {
+        // Per stornare una comanda di un conto si blocca prima il conto, poi la comanda: lo stesso ordine di pagamenti
+        // e annullo del conto, così non si incastrano a vicenda.
+        if (status === 'canceled') {
+          const { rows: pre } = await db.query('SELECT check_id FROM orders WHERE id = $1', [id]);
+          if (pre[0]?.check_id) await lockCheck(db, pre[0].check_id, { mustBeOpen: false });
+        }
         const { rows: current } = await db.query(
           `SELECT o.status, o.completed_at, o.created_at, o.check_id, c.status AS check_status
            FROM orders o LEFT JOIN checks c ON c.id = o.check_id WHERE o.id = $1 FOR UPDATE OF o`,
@@ -295,8 +302,11 @@ export default function (broadcast) {
         }
 
         // Una comanda di un conto già pagato o annullato fa parte dell'incasso: non si storna.
-        if (status === 'canceled' && order.check_id && order.check_status !== 'open')
-          throw new HttpError(409, 'Il conto è chiuso: la comanda non si può stornare', 'CHECK_CLOSED');
+        if (status === 'canceled' && order.check_id) {
+          if (order.check_status !== 'open') throw new HttpError(409, 'Il conto è chiuso: la comanda non si può stornare', 'CHECK_CLOSED');
+          // Se il conto ha già incassato qualcosa, la comanda non può sparire da sotto i pagamenti.
+          await assertOrderCancelable(db, order.check_id, id);
+        }
 
         const { rows } = await db.query(
           `UPDATE orders SET status = $1,

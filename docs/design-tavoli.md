@@ -36,7 +36,7 @@ checks       id, tenant_id, session_id, table_id → dining_tables (nullo per ba
              covers, status ('open' | 'paid' | 'void'), opened_by, opened_at, bill_requested_at, closed_at,
              cover_charge (coperto applicato, fissato all'apertura), discount_* (sconto sul conto, solo ruoli sconto)
              indice unico: un solo conto aperto per tavolo
-payments     (migrazione del passo 2-5) id, tenant_id, check_id, method ('cash' | 'card' | 'other'), amount, paid_by, paid_at
+payments     (migrazione 035) id, tenant_id, check_id, method ('cash' | 'card' | 'other'), amount, paid_by, paid_at
 
 orders       + check_id (nullo = ordine pagato subito, come oggi)
 ```
@@ -45,7 +45,7 @@ orders       + check_id (nullo = ordine pagato subito, come oggi)
   coperti × coperto, meno lo sconto sul conto. Il conto si chiude quando i pagamenti coprono il totale.
 - **Stato del tavolo** non si memorizza: libero se non ha un conto aperto, occupato se ce l'ha, "conto richiesto" se
   `bill_requested_at` è valorizzato.
-- **Pagamento per voce** (Passo 2-8): tabella `payment_items` (pagamento, riga d'ordine, quantità). Non serve prima.
+- **Pagamento per voce** (migrazione 036): `payment_items` (pagamento, riga d'ordine, quantità, quota in euro). L'importo lo calcola il server in centesimi: proporzionale alla quantità e l'ultima quota di una riga prende il resto. Una comanda con voci già pagate, o che scenderebbe sotto il già pagato, non si storna; le voci pagate non si scontano.
 - Le righe degli ordini restano in `order_items` (Fase 1): lo stato per riga e la portata arrivano nella Fase 3.
 
 ## 4. Punto critico: cosa conta come incasso
@@ -80,8 +80,12 @@ GET   /checks?status=open                          conti aperti (mappa della sal
 POST  /checks            { table_id, covers }      apre il conto (409 se il tavolo ne ha già uno)
 GET   /checks/:id                                  conto con comande, righe, totale, pagamenti
 POST  /checks/:id/bill-request                     chiede il conto
-POST  /checks/:id/payments { method, amount }      registra un pagamento; chiude il conto se copre il totale
-POST  /checks/:id/void                             annulla un conto aperto per errore (solo ruoli sconto, e solo senza comande attive)
+POST  /checks/:id/payments { method, amount | items:[{order_item_id,quantity}], tendered? }
+                                                   registra un pagamento a importo o per voce; chiude il conto a residuo zero
+POST  /checks/:id/close                            chiude un conto con residuo zero (es. dopo un omaggio)
+POST  /checks/:id/adjust { order_item_ids, type, … } abbuono: omaggio/sconto sulle voci non pagate (ruoli sconto)
+GET   /checks/:id/receipt[?payment_id=]            dati della ricevuta non fiscale (conto o singolo pagamento)
+POST  /checks/:id/void { cancel_orders? }          annulla il conto (ruoli sconto, senza comande attive); con cancel_orders elimina anche le comande (solo admin); mai con pagamenti già incassati
 POST  /checks/:id/move   { table_id }              sposta il conto su un altro tavolo libero
 POST  /checks/:id/merge  { into }                  unisce due conti
 POST  /orders            + check_id                comanda su un conto aperto

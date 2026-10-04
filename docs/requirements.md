@@ -59,12 +59,12 @@ Disegno completo e decisioni in `docs/design-tavoli.md`. Un passo alla volta; i 
 | 2-2 | Conto per tavolo (`checks` e `orders.check_id`, migrazione 032): apertura con coperti, un solo conto aperto per tavolo, numeri in fila nella sessione, totali ricalcolati dal server, richiesta del conto, annullo, evento `check_updated`. I pagamenti (`payments`) arrivano col 2-5. | `[x]` |
 | 2-3 | L'incasso conosce i conti: statistiche, contanti attesi, chiusura serata e CSV; le sagre restano identiche (stessi numeri su 1338 ordini reali). Migrazione 035: tabella `payments` (l'API dei pagamenti è il 2-5). Un conto aperto blocca la chiusura del servizio. | `[x]` |
 | 2-4 | Comanda su un conto aperto (`POST /orders` con `check_id`, solo online); il KDS (staff e pubblico) e le copie stampate di cucina e bar mostrano tavolo e coperti. Lo storno vale finché il conto è aperto. L'interfaccia per inviarle arriva col 2-6. | `[x]` |
-| 2-5 | Pagamenti (contanti, carta, altro), anche in più parti alla romana; chiusura del conto; ricevuta non fiscale. Conto non pagato: solo un abbuono (omaggio o sconto sul conto) oppure l'eliminazione del conto con le sue comande (admin, con audit): niente altro modo di chiuderlo. | `[ ]` |
+| 2-5 | Pagamenti (contanti, carta, altro) a importo o **per voce** (conti separati, anche a pezzi di quantità), resto sui contanti, chiusura automatica a residuo zero, `POST /checks/:id/close`, abbuono (omaggio o sconto sulle voci, `POST /checks/:id/adjust`), eliminazione del conto con le sue comande (admin), dati e modello di stampa della ricevuta non fiscale. Migrazione 036 (`payment_items`). Il pulsante di stampa e la schermata arrivano col 2-6. | `[x]` |
 | 2-6 | Vista Sala: tavoli per sala con stato, apertura tavolo, carrello in modalità tavolo, pannello del conto, aggiornamento in tempo reale. | `[ ]` |
 | 2-6a | Editor della pianta: l'admin del locale disegna ogni sala, piazza i tavoli dove vuole e ne sceglie forma e dimensione (trascinamento, ridimensionamento, tocco su tablet); la Sala mostra la stessa pianta con lo stato dal vivo. Migrazione 034 (posizione e misure di tavoli e sale). Niente rotazione: la forma si ottiene da larghezza e altezza. | `[x]` |
 | 2-7 | Spostare un conto su un altro tavolo e unire due tavoli. | `[ ]` |
-| 2-8 | Pagamento per voce (chi paga cosa). | `[ ]` |
-| 2-9 | Coperto e sconto sul conto. | `[ ]` |
+| 2-8 | Pagamento per voce (chi paga cosa): fatto insieme al 2-5. Il raggruppamento per portata arriverà con la Fase 3. | `[x]` |
+| 2-9 | Coperto sul conto (lo sconto sulle voci c'è già dal 2-5). | `[ ]` |
 | 2-10 | Servizi (pranzo e cena) al posto delle "serate". | `[ ]` |
 
 ## Fase 3: portate e cucina (P1)

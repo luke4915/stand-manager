@@ -7,9 +7,14 @@ import logger from '../logger.js';
 import { logAudit } from '../utils/auditLogger.js';
 import { HttpError, sendHttpError } from '../utils/httpError.js';
 import { requireModule } from '../utils/tenantModules.js';
-import { getCheckDetail, getCheckSummary, listChecks } from '../utils/checks.js';
+import { getCheckDetail, getCheckSummary, listChecks, getCheckReceipt } from '../utils/checks.js';
+import { recordPayment, lockCheck, checkBalance, closeAsPaid, toCents } from '../utils/payments.js';
+import { computeLineTotal, sanitizeAdjustment } from '../utils/pricing.js';
+import { sumQuantitiesByProduct, applyStockChange } from '../utils/stock.js';
+import { loadItems } from '../utils/orderItemsRead.js';
+import { withCheckInfo } from '../utils/orderCheck.js';
 import { idParamsSchema } from '../schemas/common.js';
-import { openCheckSchema, listChecksQuerySchema, billRequestSchema } from '../schemas/checkSchema.js';
+import { openCheckSchema, listChecksQuerySchema, billRequestSchema, paymentSchema, adjustSchema, voidCheckSchema, receiptQuerySchema } from '../schemas/checkSchema.js';
 
 // Conti dei tavoli (modulo `tables`). Eventi WebSocket: `check_updated` (solo personale, mai al KDS pubblico).
 const router = express.Router();
@@ -94,20 +99,155 @@ export default function (broadcast) {
     }
   });
 
-  // POST /api/checks/:id/void — annulla un conto aperto per errore. Solo ruoli sconto, e solo senza comande attive:
-  // con delle comande si annullano prima quelle (lo stock torna).
-  router.post('/:id/void', authenticate, requireModule('tables'), authorizeDiscount, validate({ params: idParamsSchema }), tenantScope, async (req, res) => {
+  // POST /api/checks/:id/payments — registra un pagamento: a importo (`amount`, alla romana o acconto) oppure per voce
+  // (`items`, conti separati). Chiude il conto quando il residuo arriva a zero. L'importo delle voci lo calcola il server.
+  router.post('/:id/payments', ...guard, validate({ params: idParamsSchema, body: paymentSchema }), tenantScope, async (req, res) => {
+    const { method, amount, items, tendered } = req.body;
     try {
-      await inTransaction(req.db, async (db) => {
-        const { rows } = await db.query('SELECT status FROM checks WHERE id = $1 FOR UPDATE', [req.params.id]);
-        if (!rows.length) throw new HttpError(404, 'Conto non trovato');
-        if (rows[0].status !== 'open') throw new HttpError(409, 'Il conto non è più aperto', 'CHECK_CLOSED');
-        const { rows: active } = await db.query(`SELECT 1 FROM orders WHERE check_id = $1 AND status <> 'canceled' LIMIT 1`, [req.params.id]);
-        if (active.length) throw new HttpError(409, 'Il conto ha comande attive: annullale prima', 'CHECK_HAS_ORDERS');
-        await db.query(`UPDATE checks SET status = 'void', closed_at = now(), bill_requested_at = NULL WHERE id = $1`, [req.params.id]);
+      const result = await inTransaction(req.db, async (db) => {
+        const paid = await recordPayment(db, { checkId: req.params.id, method, amount, items, userId: req.user.id });
+        if (tendered !== undefined && toCents(tendered) < toCents(paid.payment.amount))
+          throw new HttpError(400, 'I contanti consegnati non bastano', 'TENDERED_TOO_LOW');
+        return paid;
       });
       const check = await getCheckSummary(req.db, req.params.id);
-      await logAudit(req.db, req.user.id, 'VOID_CHECK', { checkId: check.id });
+      await logAudit(req.db, req.user.id, 'PAYMENT', {
+        checkId: check.id, paymentId: result.payment.id, method, amount: result.payment.amount, items: items?.length ?? 0, closed: result.closed,
+      });
+      notify(req.user.tenantId, check);
+      res.status(201).json({
+        payment: result.payment, check,
+        ...(tendered !== undefined && { change: +(tendered - result.payment.amount).toFixed(2) }),
+      });
+    } catch (err) {
+      if (sendHttpError(res, err)) return;
+      logger.error({ err }, 'Errore POST /api/checks/:id/payments');
+      res.status(500).json({ error: 'Errore registrazione pagamento' });
+    }
+  });
+
+  // POST /api/checks/:id/close — chiude come pagato un conto con residuo zero senza altri pagamenti
+  // (per esempio dopo un omaggio su tutte le voci).
+  router.post('/:id/close', ...guard, validate({ params: idParamsSchema }), tenantScope, async (req, res) => {
+    try {
+      await inTransaction(req.db, async (db) => {
+        await lockCheck(db, req.params.id);
+        if ((await checkBalance(db, req.params.id)).due > 0)
+          throw new HttpError(409, 'Il conto ha ancora un residuo da pagare', 'CHECK_NOT_SETTLED');
+        await closeAsPaid(db, req.params.id);
+      });
+      const check = await getCheckSummary(req.db, req.params.id);
+      await logAudit(req.db, req.user.id, 'CLOSE_CHECK', { checkId: check.id });
+      notify(req.user.tenantId, check);
+      res.json(check);
+    } catch (err) {
+      if (sendHttpError(res, err)) return;
+      logger.error({ err }, 'Errore POST /api/checks/:id/close');
+      res.status(500).json({ error: 'Errore chiusura conto' });
+    }
+  });
+
+  // POST /api/checks/:id/adjust — abbuono: omaggio o sconto su delle voci del conto (solo ruoli sconto).
+  // Le voci già pagate non si toccano. Le statistiche restano giuste: sono le righe a cambiare.
+  router.post('/:id/adjust', authenticate, requireModule('tables'), authorizeDiscount, validate({ params: idParamsSchema, body: adjustSchema }), tenantScope, async (req, res) => {
+    const { order_item_ids: ids, type, discountMode, discountValue } = req.body;
+    try {
+      const orderIds = await inTransaction(req.db, async (db) => {
+        await lockCheck(db, req.params.id);
+        const { rows: lines } = await db.query(
+          `SELECT oi.id, oi.order_id, oi.quantity, oi.original_price
+           FROM order_items oi JOIN orders o ON o.id = oi.order_id AND o.check_id = $1 AND o.status <> 'canceled'
+           WHERE oi.id = ANY($2::int[]) FOR UPDATE OF oi`, [req.params.id, ids]);
+        if (lines.length !== ids.length) throw new HttpError(404, 'Una delle righe non fa parte del conto', 'ITEM_NOT_FOUND');
+        const { rows: paid } = await db.query('SELECT 1 FROM payment_items WHERE order_item_id = ANY($1::int[]) LIMIT 1', [ids]);
+        if (paid.length) throw new HttpError(409, 'Una delle righe è già stata pagata (in parte o per intero)', 'ITEM_PAID');
+        if (lines.some(l => l.original_price === null)) throw new HttpError(409, 'Una riga non ha il prezzo di listino', 'NO_LIST_PRICE');
+
+        const adjustment = sanitizeAdjustment({ type, discountMode, discountValue }, true);
+        for (const l of lines) {
+          const lineTotal = computeLineTotal(Number(l.original_price), l.quantity, adjustment);
+          await db.query(
+            `UPDATE order_items SET line_total = $1, unit_price = $2, line_type = $3, discount_mode = $4, discount_value = $5 WHERE id = $6`,
+            [lineTotal, lineTotal / l.quantity, adjustment.type, adjustment.discountMode, adjustment.discountValue, l.id]);
+        }
+        const affected = [...new Set(lines.map(l => l.order_id))];
+        await db.query(
+          `UPDATE orders o SET total = t.total, order_type = t.order_type
+           FROM (SELECT order_id, SUM(line_total) AS total,
+                        CASE WHEN bool_and(line_type = 'gift') THEN 'gift' WHEN bool_or(line_type <> 'sale') THEN 'discount' ELSE 'sale' END AS order_type
+                 FROM order_items WHERE order_id = ANY($1::int[]) GROUP BY order_id) t
+           WHERE o.id = t.order_id`, [affected]);
+
+        const balance = await checkBalance(db, req.params.id);
+        if (balance.paid > balance.total)
+          throw new HttpError(409, 'Il conto è già stato pagato oltre il nuovo totale', 'ORDER_PAID');
+        return affected;
+      });
+      const check = await getCheckSummary(req.db, req.params.id);
+      await logAudit(req.db, req.user.id, 'ADJUST_CHECK', { checkId: check.id, type, discountMode, discountValue, items: ids.length, total: check.total });
+      if (broadcast) {
+        const { rows } = await req.db.query('SELECT * FROM orders WHERE id = ANY($1::int[])', [orderIds]);
+        const byOrder = await loadItems(req.db, orderIds);
+        for (const o of await withCheckInfo(req.db, rows))
+          broadcast(req.user.tenantId, { type: 'order_updated', order: { ...o, items: byOrder.get(o.id) ?? [] } });
+      }
+      notify(req.user.tenantId, check);
+      res.json(check);
+    } catch (err) {
+      if (sendHttpError(res, err)) return;
+      logger.error({ err }, 'Errore POST /api/checks/:id/adjust');
+      res.status(500).json({ error: 'Errore applicazione sconto' });
+    }
+  });
+
+  // GET /api/checks/:id/receipt[?payment_id=] — dati della ricevuta NON fiscale: di tutto il conto, o di un solo
+  // pagamento (la quota di chi ha pagato per voce). La stampa è del client (print/templates.js).
+  router.get('/:id/receipt', ...guard, validate({ params: idParamsSchema, query: receiptQuerySchema }), tenantScope, async (req, res) => {
+    try {
+      res.json(await getCheckReceipt(req.db, req.params.id, req.validQuery.payment_id ?? null));
+    } catch (err) {
+      if (sendHttpError(res, err)) return;
+      logger.error({ err }, 'Errore GET /api/checks/:id/receipt');
+      res.status(500).json({ error: 'Errore ricevuta' });
+    }
+  });
+
+  // POST /api/checks/:id/void — annulla un conto aperto (solo ruoli sconto). Con comande attive serve
+  // `cancel_orders` (solo admin): le comande vengono annullate e lo stock torna. Con pagamenti già incassati non si
+  // annulla: i soldi sono stati presi.
+  router.post('/:id/void', authenticate, requireModule('tables'), authorizeDiscount, validate({ params: idParamsSchema, body: voidCheckSchema }), tenantScope, async (req, res) => {
+    const { cancel_orders: cancelOrders } = req.body;
+    if (cancelOrders && req.user.role !== 'admin')
+      return res.status(403).json({ error: 'Solo un amministratore può eliminare un conto con le sue comande' });
+    try {
+      const { canceledIds, stockUpdates } = await inTransaction(req.db, async (db) => {
+        await lockCheck(db, req.params.id);
+        const { rows: payments } = await db.query('SELECT 1 FROM payments WHERE check_id = $1 LIMIT 1', [req.params.id]);
+        if (payments.length) throw new HttpError(409, 'Il conto ha già dei pagamenti: non si può annullare', 'CHECK_HAS_PAYMENTS');
+
+        let canceledIds = [], stockUpdates = [];
+        const { rows: active } = await db.query(`SELECT id FROM orders WHERE check_id = $1 AND status <> 'canceled' FOR UPDATE`, [req.params.id]);
+        if (active.length && !cancelOrders) throw new HttpError(409, 'Il conto ha comande attive: annullale prima', 'CHECK_HAS_ORDERS');
+        if (active.length) {
+          canceledIds = active.map(o => o.id);
+          await db.query(`UPDATE orders SET status = 'canceled' WHERE id = ANY($1::int[])`, [canceledIds]);
+          const items = [...(await loadItems(db, canceledIds)).values()].flat().filter(i => i.id !== null);
+          stockUpdates = await applyStockChange(db, sumQuantitiesByProduct(items), +1);
+        }
+        await db.query(`UPDATE checks SET status = 'void', closed_at = now(), bill_requested_at = NULL WHERE id = $1`, [req.params.id]);
+        return { canceledIds, stockUpdates };
+      });
+      const check = await getCheckSummary(req.db, req.params.id);
+      await logAudit(req.db, req.user.id, 'VOID_CHECK', { checkId: check.id, ...(canceledIds.length && { canceledOrders: canceledIds.length }) });
+      if (broadcast) {
+        stockUpdates.forEach(product => broadcast(req.user.tenantId, { type: 'product_stock_updated', product }));
+        if (canceledIds.length) {
+          const { rows } = await req.db.query('SELECT * FROM orders WHERE id = ANY($1::int[])', [canceledIds]);
+          const byOrder = await loadItems(req.db, canceledIds);
+          for (const o of await withCheckInfo(req.db, rows))
+            broadcast(req.user.tenantId, { type: 'order_updated', order: { ...o, items: byOrder.get(o.id) ?? [] } });
+        }
+      }
       notify(req.user.tenantId, check);
       res.json(check);
     } catch (err) {

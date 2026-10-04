@@ -385,6 +385,48 @@ ALTER SEQUENCE public.orders_id_seq OWNED BY public.orders.id;
 
 
 --
+-- Name: payment_items; Type: TABLE; Schema: public; Owner: colettas
+--
+
+CREATE TABLE public.payment_items (
+    id integer NOT NULL,
+    tenant_id integer DEFAULT (NULLIF(current_setting('app.tenant_id'::text, true), ''::text))::integer NOT NULL,
+    payment_id integer NOT NULL,
+    order_item_id integer NOT NULL,
+    quantity integer NOT NULL,
+    amount numeric(12,2) NOT NULL,
+    CONSTRAINT payment_items_amount_check CHECK ((amount >= (0)::numeric)),
+    CONSTRAINT payment_items_quantity_check CHECK ((quantity > 0))
+);
+
+ALTER TABLE ONLY public.payment_items FORCE ROW LEVEL SECURITY;
+
+
+ALTER TABLE public.payment_items OWNER TO colettas;
+
+--
+-- Name: payment_items_id_seq; Type: SEQUENCE; Schema: public; Owner: colettas
+--
+
+CREATE SEQUENCE public.payment_items_id_seq
+    AS integer
+    START WITH 1
+    INCREMENT BY 1
+    NO MINVALUE
+    NO MAXVALUE
+    CACHE 1;
+
+
+ALTER SEQUENCE public.payment_items_id_seq OWNER TO colettas;
+
+--
+-- Name: payment_items_id_seq; Type: SEQUENCE OWNED BY; Schema: public; Owner: colettas
+--
+
+ALTER SEQUENCE public.payment_items_id_seq OWNED BY public.payment_items.id;
+
+
+--
 -- Name: payments; Type: TABLE; Schema: public; Owner: colettas
 --
 
@@ -755,6 +797,13 @@ ALTER TABLE ONLY public.orders ALTER COLUMN id SET DEFAULT nextval('public.order
 
 
 --
+-- Name: payment_items id; Type: DEFAULT; Schema: public; Owner: colettas
+--
+
+ALTER TABLE ONLY public.payment_items ALTER COLUMN id SET DEFAULT nextval('public.payment_items_id_seq'::regclass);
+
+
+--
 -- Name: payments id; Type: DEFAULT; Schema: public; Owner: colettas
 --
 
@@ -881,6 +930,14 @@ ALTER TABLE ONLY public.order_items
 
 ALTER TABLE ONLY public.orders
     ADD CONSTRAINT orders_pkey PRIMARY KEY (id);
+
+
+--
+-- Name: payment_items payment_items_pkey; Type: CONSTRAINT; Schema: public; Owner: colettas
+--
+
+ALTER TABLE ONLY public.payment_items
+    ADD CONSTRAINT payment_items_pkey PRIMARY KEY (id);
 
 
 --
@@ -1048,6 +1105,20 @@ CREATE INDEX idx_orders_tenant_session_status ON public.orders USING btree (tena
 
 
 --
+-- Name: idx_payment_items_order_item; Type: INDEX; Schema: public; Owner: colettas
+--
+
+CREATE INDEX idx_payment_items_order_item ON public.payment_items USING btree (order_item_id);
+
+
+--
+-- Name: idx_payment_items_tenant; Type: INDEX; Schema: public; Owner: colettas
+--
+
+CREATE INDEX idx_payment_items_tenant ON public.payment_items USING btree (tenant_id);
+
+
+--
 -- Name: idx_payments_check; Type: INDEX; Schema: public; Owner: colettas
 --
 
@@ -1136,6 +1207,13 @@ CREATE UNIQUE INDEX uniq_orders_client_order_id ON public.orders USING btree (te
 --
 
 CREATE UNIQUE INDEX uniq_orders_device_seq ON public.orders USING btree (tenant_id, session_id, device_id, device_seq) WHERE (device_id IS NOT NULL);
+
+
+--
+-- Name: uniq_payment_items_payment_item; Type: INDEX; Schema: public; Owner: colettas
+--
+
+CREATE UNIQUE INDEX uniq_payment_items_payment_item ON public.payment_items USING btree (payment_id, order_item_id);
 
 
 --
@@ -1288,6 +1366,30 @@ ALTER TABLE ONLY public.orders
 
 
 --
+-- Name: payment_items payment_items_order_item_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: colettas
+--
+
+ALTER TABLE ONLY public.payment_items
+    ADD CONSTRAINT payment_items_order_item_id_fkey FOREIGN KEY (order_item_id) REFERENCES public.order_items(id);
+
+
+--
+-- Name: payment_items payment_items_payment_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: colettas
+--
+
+ALTER TABLE ONLY public.payment_items
+    ADD CONSTRAINT payment_items_payment_id_fkey FOREIGN KEY (payment_id) REFERENCES public.payments(id);
+
+
+--
+-- Name: payment_items payment_items_tenant_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: colettas
+--
+
+ALTER TABLE ONLY public.payment_items
+    ADD CONSTRAINT payment_items_tenant_id_fkey FOREIGN KEY (tenant_id) REFERENCES public.tenants(id);
+
+
+--
 -- Name: payments payments_check_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: colettas
 --
 
@@ -1417,6 +1519,12 @@ ALTER TABLE public.order_items ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.orders ENABLE ROW LEVEL SECURITY;
 
 --
+-- Name: payment_items; Type: ROW SECURITY; Schema: public; Owner: colettas
+--
+
+ALTER TABLE public.payment_items ENABLE ROW LEVEL SECURITY;
+
+--
 -- Name: payments; Type: ROW SECURITY; Schema: public; Owner: colettas
 --
 
@@ -1499,6 +1607,13 @@ CREATE POLICY tenant_isolation ON public.order_items USING ((tenant_id = (NULLIF
 --
 
 CREATE POLICY tenant_isolation ON public.orders USING ((tenant_id = (NULLIF(current_setting('app.tenant_id'::text, true), ''::text))::integer));
+
+
+--
+-- Name: payment_items tenant_isolation; Type: POLICY; Schema: public; Owner: colettas
+--
+
+CREATE POLICY tenant_isolation ON public.payment_items USING ((tenant_id = (NULLIF(current_setting('app.tenant_id'::text, true), ''::text))::integer));
 
 
 --
@@ -1690,6 +1805,22 @@ GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE public.orders TO standmanager_master;
 
 GRANT ALL ON SEQUENCE public.orders_id_seq TO standmanager_app;
 GRANT SELECT,USAGE ON SEQUENCE public.orders_id_seq TO standmanager_master;
+
+
+--
+-- Name: TABLE payment_items; Type: ACL; Schema: public; Owner: colettas
+--
+
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE public.payment_items TO standmanager_app;
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE public.payment_items TO standmanager_master;
+
+
+--
+-- Name: SEQUENCE payment_items_id_seq; Type: ACL; Schema: public; Owner: colettas
+--
+
+GRANT ALL ON SEQUENCE public.payment_items_id_seq TO standmanager_app;
+GRANT SELECT,USAGE ON SEQUENCE public.payment_items_id_seq TO standmanager_master;
 
 
 --

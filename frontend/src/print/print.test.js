@@ -1,7 +1,7 @@
 import { test, afterEach } from 'node:test';
 import assert from 'node:assert/strict';
 import { EposBuilder } from './eposBuilder.js';
-import { TEMPLATES, DEFAULT_BRANDING, wrapText, encodeOrderId, filterItems, tableLabel } from './templates.js';
+import { TEMPLATES, DEFAULT_BRANDING, wrapText, encodeOrderId, filterItems, tableLabel, renderCheckReceipt } from './templates.js';
 import { brandingFromSettings, imagesFromSettings } from './branding.js';
 import { buildCopyPreviews } from './copyPreviews.js';
 import { renderReceipt, renderReceiptParts } from './preview.js';
@@ -192,4 +192,33 @@ test('etichetta del tavolo: singolare, senza coperti, nessun tavolo', () => {
   assert.equal(tableLabel({ table_name: 'Terrazza 2', covers: 1 }), 'TAVOLO TERRAZZA 2 · 1 COPERTO');
   assert.equal(tableLabel({ table_name: 'T1', covers: 0 }), 'TAVOLO T1');
   assert.equal(tableLabel({ table_name: null, covers: null }), null);
+});
+
+test('ricevuta del conto: righe, totale, pagamenti e residuo; non fiscale', async () => {
+  const receipt = {
+    scope: 'check', total: 14.5, paid: 8, due: 6.5,
+    check: { number: 3, table_name: 'T5', covers: 2 },
+    lines: [{ name: 'Panino', quantity: 2, amount: 10 }, { name: 'Birra', quantity: 1, amount: 4.5 }],
+    payments: [{ method: 'cash', amount: 5 }, { method: 'card', amount: 3 }],
+  };
+  const b = new EposBuilder();
+  await renderCheckReceipt(b, receipt, ctx);
+  const xml = b.buildXml();
+  for (const part of ['CONTO', 'Tavolo T5 - 2 coperti - Conto n. 3', 'PANINO', '€ 14.50', 'Contanti', 'Carta', '€ 6.50', 'DOCUMENTO NON FISCALE'])
+    assert.ok(xml.includes(part), `manca: ${part}`);
+});
+
+test('ricevuta di un pagamento per voce: solo la quota pagata e il residuo del conto', async () => {
+  const receipt = {
+    scope: 'payment', total: 14.5, paid: 5, due: 9.5,
+    check: { number: 1, table_name: 'T1', covers: 1 },
+    lines: [{ name: 'Panino', quantity: 1, amount: 5 }],
+    payments: [{ method: 'cash', amount: 5 }],
+  };
+  const b = new EposBuilder();
+  await renderCheckReceipt(b, receipt, ctx);
+  const xml = b.buildXml();
+  for (const part of ['RICEVUTA DI PAGAMENTO', '1 coperto', 'PAGATO Contanti', 'Residuo del conto: € 9.50'])
+    assert.ok(xml.includes(part), `manca: ${part}`);
+  assert.ok(!xml.includes('BIRRA'));
 });
