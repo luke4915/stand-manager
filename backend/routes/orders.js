@@ -7,6 +7,7 @@ import { computeLineTotal, sanitizeAdjustment } from '../utils/pricing.js';
 import logger from '../logger.js';
 import { logAudit } from '../utils/auditLogger.js';
 import { createOrderSchema, updateOrderStatusSchema, reprintAuditSchema } from '../schemas/orderSchema.js';
+import { listOrdersQuerySchema } from '../schemas/statsSchema.js';
 import { idParamsSchema } from '../schemas/common.js';
 import { validate } from '../middleware/validate.js';
 import { toPublicOrder } from '../utils/publicOrder.js';
@@ -70,16 +71,20 @@ const duplicateResponse = (order) => ({ success: true, orderId: order.id, displa
 
 export default function (broadcast) {
 
-  // GET /orders
-  router.get('/', authenticate, tenantScope, async (req, res) => {
+  // GET /orders — mai l'intero storico: o gli ordini della sessione aperta (`session=active`, `status=` per filtrare),
+  // o una pagina alla volta (`limit`, e `before` = id dell'ultimo ricevuto per la pagina successiva).
+  // Le statistiche non passano di qui: le calcola il database (routes/stats.js).
+  router.get('/', authenticate, validate({ query: listOrdersQuerySchema }), tenantScope, async (req, res) => {
     try {
-      let query = 'SELECT * FROM orders ORDER BY created_at DESC';
-      if (req.query.session === 'active') {
-        query = `SELECT o.* FROM orders o
-                 JOIN sessions s ON s.id = o.session_id AND s.end_time IS NULL
-                 ORDER BY o.created_at DESC`;
-      }
-      const { rows } = await req.db.query(query);
+      const { session, status, limit, before } = req.validQuery;
+      const { rows } = await req.db.query(
+        `SELECT o.* FROM orders o
+         ${session === 'active' ? 'JOIN sessions s ON s.id = o.session_id AND s.end_time IS NULL' : ''}
+         WHERE ($1::text[] IS NULL OR o.status = ANY($1))
+           AND ($2::int IS NULL OR o.id < $2)
+         ORDER BY o.id DESC LIMIT $3`,
+        [status ?? null, before ?? null, session === 'active' ? 2000 : limit]
+      );
 
       // 🚀 FIX CRITICO: Recuperiamo la mappatura attuale dei prodotti dal DB per associare le categorie
       const { rows: dbProducts } = await req.db.query('SELECT id, category FROM products');

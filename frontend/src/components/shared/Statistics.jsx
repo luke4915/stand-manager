@@ -205,7 +205,7 @@ const Statistics = () => {
                 <select value={h2hProduct} onChange={e => setH2hProduct(e.target.value)}
                   className="px-3 py-2 rounded-xl border border-[var(--border)] bg-[var(--bg-card-2)] text-xs font-bold text-[var(--text-main)]">
                   <option value="">Seleziona prodotto…</option>
-                  {availableProducts.map(p => <option key={p} value={p}>{p}</option>)}
+                  {availableProducts.map(p => <option key={p.id} value={String(p.id)}>{p.name}</option>)}
                 </select>
               </div>
 

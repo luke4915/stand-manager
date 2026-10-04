@@ -11,6 +11,7 @@ import productRoutes from './routes/products.js';
 import orderRoutes from './routes/orders.js';
 import deviceRoutes from './routes/devices.js';
 import sessionRoutes from './routes/sessions.js';
+import statsRoutes from './routes/stats.js';
 import exportRoutes from './routes/exports.js';
 import printSettingsRoutes from './routes/printSettings.js';
 import settingsRoutes from './routes/settings.js';
@@ -71,6 +72,7 @@ export function createApp({ broadcast, rateLimit = true }) {
   app.use('/api/devices', deviceRoutes);
   app.use('/api/sessions', sessionRoutes(broadcast));
   app.use('/api/exports', exportRoutes);
+  app.use('/api/stats', statsRoutes);
   app.use('/api/settings', settingsRoutes);
   app.use('/api/master', masterRoutes);
 

@@ -2,7 +2,7 @@
 -- PostgreSQL database dump
 --
 
-\restrict EKVcw0XqXsnheRRtfMNTHImpRwDH9KuXCTtAgYGIhBx5rFCeGU4fhJaAQrqLQ8q
+\restrict fuW3DM1rI3NEV7vTJNdKaETps4eURh90zKf5B0v4WRv1Y0S7GBnvBl7RV5IZnvR
 
 -- Dumped from database version 17.10 (Homebrew)
 -- Dumped by pg_dump version 17.10 (Homebrew)
@@ -680,17 +680,17 @@ CREATE INDEX idx_devices_tenant ON public.devices USING btree (tenant_id);
 
 
 --
--- Name: idx_orders_session; Type: INDEX; Schema: public; Owner: colettas
+-- Name: idx_orders_tenant_created_at; Type: INDEX; Schema: public; Owner: colettas
 --
 
-CREATE INDEX idx_orders_session ON public.orders USING btree (session_id);
+CREATE INDEX idx_orders_tenant_created_at ON public.orders USING btree (tenant_id, created_at DESC);
 
 
 --
--- Name: idx_orders_tenant; Type: INDEX; Schema: public; Owner: colettas
+-- Name: idx_orders_tenant_session_status; Type: INDEX; Schema: public; Owner: colettas
 --
 
-CREATE INDEX idx_orders_tenant ON public.orders USING btree (tenant_id);
+CREATE INDEX idx_orders_tenant_session_status ON public.orders USING btree (tenant_id, session_id, status);
 
 
 --
@@ -1149,5 +1149,5 @@ ALTER DEFAULT PRIVILEGES FOR ROLE colettas IN SCHEMA public GRANT SELECT,INSERT,
 -- PostgreSQL database dump complete
 --
 
-\unrestrict EKVcw0XqXsnheRRtfMNTHImpRwDH9KuXCTtAgYGIhBx5rFCeGU4fhJaAQrqLQ8q
+\unrestrict fuW3DM1rI3NEV7vTJNdKaETps4eURh90zKf5B0v4WRv1Y0S7GBnvBl7RV5IZnvR
 
