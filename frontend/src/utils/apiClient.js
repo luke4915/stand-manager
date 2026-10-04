@@ -62,7 +62,8 @@ export async function apiFetch(path, { body, raw = false, headers, ...init } = {
 // client non dipende da React e lo usano allo stesso modo componenti e coda offline.
 //   refresh()          rinnova il cookie; false = sessione persa (AuthProvider fa già il logout)
 //   onAccessDenied()   licenza scaduta o tenant disattivato: si esce dall'app
-let authHandlers = { refresh: async () => false, onAccessDenied: () => {} };
+//   onPasswordChangeRequired()  un admin ha reimpostato la password mentre si era collegati: va cambiata
+let authHandlers = { refresh: async () => false, onAccessDenied: () => {}, onPasswordChangeRequired: () => {} };
 
 export function setAuthHandlers(handlers) {
   authHandlers = handlers;
@@ -83,6 +84,7 @@ export async function fetchWithAuth(path, options) {
   } catch (err) {
     if (!(err instanceof ApiError)) throw err;
     if (ACCESS_DENIED_CODES.includes(err.code)) authHandlers.onAccessDenied(err);
+    if (err.code === 'PASSWORD_CHANGE_REQUIRED') authHandlers.onPasswordChangeRequired?.();
     if (err.status !== 401 || !(await refreshOnce())) throw err;
     return apiFetch(path, options);
   }

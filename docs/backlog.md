@@ -4,7 +4,6 @@ Elenco verificato sul codice. Quando ne risolvi una, toglila da qui nello stesso
 
 
 **Stampa**
-- L'anteprima dei template nel master mostra le immagini come segnaposto con le dimensioni, non l'immagine reale composta.
 - La ristampa offline copre solo gli ordini battuti da questa cassa nella sessione aperta (non quelli di altre casse).
 - Gli indirizzi stampante si salvano ancora come `printer_address` con `printer_type` `'network'`; il valore `'usb'` della colonna non si usa più.
 - `config.js`, `printOrder.js` e `usePrintQueue.js` (che dipendono da `apiClient` e React) non hanno test automatici; coda, archivio locale e driver sì (`offline.test.js`).
@@ -12,10 +11,9 @@ Elenco verificato sul codice. Quando ne risolvi una, toglila da qui nello stesso
 
 **Codice legacy**
 - `theme` nel JWT e in `/auth/me` vale sempre `'dark'`: `users` non ha una colonna `theme` e il tema è solo stato del client.
-- Manca nell'interfaccia la reimpostazione della password di un utente (esiste solo l'endpoint `POST /auth/admin/users/:id/reset-password`).
 
 **Frontend e offline**
-- Gli ordini offline rifiutati per sempre (`failed`) sono visibili solo come contatore in testata: manca una schermata per vederli e archiviarli. Gli ordini rimasti in coda da prima dell'aggiornamento non hanno `client_order_id` né `session_id`, quindi vanno nella sessione aperta al momento della sincronizzazione.
+- Gli ordini rimasti in coda da prima dell'aggiornamento non hanno `client_order_id` né `session_id`, quindi vanno nella sessione aperta al momento della sincronizzazione.
 
 **Evoluzione (priorità 2)**
 - `orders.items` è un array JSONB dentro l'ordine. Per la ristorazione avanzata (tavoli, stato per singola riga nel KDS, conti divisi) servirà una tabella `order_items`.

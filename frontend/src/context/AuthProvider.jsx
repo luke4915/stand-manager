@@ -41,7 +41,12 @@ export const AuthProvider = ({ children }) => {
 
   // Il client API usa queste azioni per rinnovare la sessione e per uscire.
   useEffect(() => {
-    setAuthHandlers({ refresh: executeRefresh, onAccessDenied: clearSession });
+    setAuthHandlers({
+      refresh: executeRefresh,
+      onAccessDenied: clearSession,
+      // Password reimpostata da un admin mentre si lavorava: si passa alla schermata di cambio password.
+      onPasswordChangeRequired: () => setUser(u => (u && !u.needsPassword ? { ...u, needsPassword: true } : u)),
+    });
   }, [executeRefresh, clearSession]);
 
   useEffect(() => {

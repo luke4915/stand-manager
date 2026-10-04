@@ -1,5 +1,6 @@
 import { z } from 'zod';
 import { passwordSchema } from './authSchema.js';
+import { idSchema } from './common.js';
 import { RECEIPT_SETTINGS_KEYS } from './settingsSchema.js';
 
 export const masterLoginSchema = z.object({
@@ -53,3 +54,6 @@ if (RECEIPT_SETTINGS_KEYS.some(k => !(k in RECEIPT_FIELD_SCHEMAS)) || Object.key
 }
 
 export const receiptCustomizationSchema = z.object(RECEIPT_FIELD_SCHEMAS);
+
+// Utenti di un tenant: /master/tenants/:id/users/:userId
+export const tenantUserParamsSchema = z.object({ id: idSchema, userId: idSchema });

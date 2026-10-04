@@ -21,6 +21,12 @@ export const resetPasswordSchema = z.object({
     password: passwordSchema,
 });
 
+// Almeno un campo da cambiare.
+export const updateUserSchema = z.object({
+    role: z.enum(ROLES).optional(),
+    username: username.optional(),
+}).refine(v => v.role !== undefined || v.username !== undefined, { message: 'Niente da modificare' });
+
 export const changeUsernameSchema = z.object({
     newUsername: username,
 });

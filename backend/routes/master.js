@@ -9,7 +9,11 @@ import { SIGN_OPTIONS } from '../utils/jwtConfig.js';
 import { hashPassword } from '../utils/password.js';
 import { validate } from '../middleware/validate.js';
 import { idParamsSchema } from '../schemas/common.js';
-import { masterLoginSchema, createTenantSchema, extendLicenseSchema, tenantActiveSchema, deleteTenantSchema, receiptCustomizationSchema } from '../schemas/masterSchema.js';
+import { masterLoginSchema, createTenantSchema, extendLicenseSchema, tenantActiveSchema, deleteTenantSchema, receiptCustomizationSchema, tenantUserParamsSchema } from '../schemas/masterSchema.js';
+import { createUserSchema, resetPasswordSchema, updateUserSchema } from '../schemas/authSchema.js';
+import { logAudit } from '../utils/auditLogger.js';
+import { sendHttpError } from '../utils/httpError.js';
+import { createUser, listUsers, updateUser, deleteUser, resetUserPassword } from '../utils/tenantUsers.js';
 import { RECEIPT_SETTINGS_KEYS } from '../schemas/settingsSchema.js';
 
 const router = express.Router();
@@ -168,6 +172,85 @@ router.put('/tenants/:id/receipt', authenticateMaster, validate({ params: idPara
   } catch (err) {
     logger.error({ err }, 'Errore PUT /api/master/tenants/:id/receipt');
     res.status(500).json({ error: 'Errore salvataggio personalizzazione' });
+  }
+});
+
+// UTENTI DI UN TENANT — il master li vede e li gestisce con la connessione scoped al tenant (come la personalizzazione scontrini).
+// Le azioni si registrano nell'audit del tenant senza utente (user_id nullo = master).
+router.get('/tenants/:id/users', authenticateMaster, validate({ params: idParamsSchema }), async (req, res) => {
+  const { id } = req.params;
+  try {
+    if (!await tenantExists(id)) return res.status(404).json({ error: 'Tenant non trovato' });
+    res.json(await withTenantClient(id, listUsers, masterPool));
+  } catch (err) {
+    logger.error({ err }, 'Errore GET /api/master/tenants/:id/users');
+    res.status(500).json({ error: 'Errore caricamento utenti' });
+  }
+});
+
+router.post('/tenants/:id/users', authenticateMaster, validate({ params: idParamsSchema, body: createUserSchema }), async (req, res) => {
+  const { id } = req.params;
+  try {
+    if (!await tenantExists(id)) return res.status(404).json({ error: 'Tenant non trovato' });
+    const user = await withTenantClient(id, async (db) => {
+      const created = await createUser(db, id, req.body);
+      await logAudit(db, null, 'MASTER_CREATE_USER', { userId: created.id, role: created.role });
+      return created;
+    }, masterPool);
+    res.status(201).json(user);
+  } catch (err) {
+    if (sendHttpError(res, err)) return;
+    logger.error({ err }, 'Errore POST /api/master/tenants/:id/users');
+    res.status(500).json({ error: 'Errore creazione utente' });
+  }
+});
+
+router.patch('/tenants/:id/users/:userId', authenticateMaster, validate({ params: tenantUserParamsSchema, body: updateUserSchema }), async (req, res) => {
+  const { id, userId } = req.params;
+  try {
+    if (!await tenantExists(id)) return res.status(404).json({ error: 'Tenant non trovato' });
+    const user = await withTenantClient(id, async (db) => {
+      const { previous, ...updated } = await updateUser(db, id, userId, req.body);
+      await logAudit(db, null, 'MASTER_UPDATE_USER', { userId, previous, role: updated.role, username: updated.username });
+      return updated;
+    }, masterPool);
+    res.json(user);
+  } catch (err) {
+    if (sendHttpError(res, err)) return;
+    logger.error({ err }, 'Errore PATCH /api/master/tenants/:id/users/:userId');
+    res.status(500).json({ error: 'Errore modifica utente' });
+  }
+});
+
+router.delete('/tenants/:id/users/:userId', authenticateMaster, validate({ params: tenantUserParamsSchema }), async (req, res) => {
+  const { id, userId } = req.params;
+  try {
+    if (!await tenantExists(id)) return res.status(404).json({ error: 'Tenant non trovato' });
+    await withTenantClient(id, async (db) => {
+      const user = await deleteUser(db, id, userId);
+      await logAudit(db, null, 'MASTER_DELETE_USER', { userId, username: user.username, role: user.role });
+    }, masterPool);
+    res.json({ ok: true });
+  } catch (err) {
+    if (sendHttpError(res, err)) return;
+    logger.error({ err }, 'Errore DELETE /api/master/tenants/:id/users/:userId');
+    res.status(500).json({ error: 'Errore eliminazione utente' });
+  }
+});
+
+router.post('/tenants/:id/users/:userId/reset-password', authenticateMaster, validate({ params: tenantUserParamsSchema, body: resetPasswordSchema }), async (req, res) => {
+  const { id, userId } = req.params;
+  try {
+    if (!await tenantExists(id)) return res.status(404).json({ error: 'Tenant non trovato' });
+    await withTenantClient(id, async (db) => {
+      await resetUserPassword(db, id, userId, req.body.password);
+      await logAudit(db, null, 'MASTER_RESET_PASSWORD', { userId });
+    }, masterPool);
+    res.json({ ok: true });
+  } catch (err) {
+    if (sendHttpError(res, err)) return;
+    logger.error({ err }, 'Errore POST /api/master/tenants/:id/users/:userId/reset-password');
+    res.status(500).json({ error: 'Errore reimpostazione password' });
   }
 });
 

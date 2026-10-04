@@ -1,12 +1,13 @@
 import React from 'react';
+import { VIEW_ROLES } from './viewRoles';
 import { LayoutDashboard, UtensilsCrossed, BarChart3, Settings, Database, ChevronLeft, ChevronRight, Power } from 'lucide-react';
 
 const menuItems = [
-  { id: 'dashboard', icon: <LayoutDashboard size={22} />, label: 'Cassa', roles: ['admin', 'responsabile', 'cassa'] },
-  { id: 'kitchen', icon: <UtensilsCrossed size={22} />, label: 'Cucina', roles: ['admin', 'cucina'] },
-  { id: 'statistics', icon: <BarChart3 size={22} />, label: 'Stats', roles: ['admin', 'responsabile'] },
-  { id: 'config', icon: <Database size={22} />, label: 'Menu', roles: ['admin'] },
-  { id: 'setup', icon: <Settings size={22} />, label: 'Sistema', roles: ['admin', 'responsabile', 'cassa'] },
+  { id: 'dashboard', icon: <LayoutDashboard size={22} />, label: 'Cassa', roles: VIEW_ROLES.dashboard },
+  { id: 'kitchen', icon: <UtensilsCrossed size={22} />, label: 'Cucina', roles: VIEW_ROLES.kitchen },
+  { id: 'statistics', icon: <BarChart3 size={22} />, label: 'Stats', roles: VIEW_ROLES.statistics },
+  { id: 'config', icon: <Database size={22} />, label: 'Menu', roles: VIEW_ROLES.config },
+  { id: 'setup', icon: <Settings size={22} />, label: 'Sistema', roles: VIEW_ROLES.setup },
 ];
 
 const Sidebar = ({ view, setView, isOpen, toggleSidebar, currentUser, sessionActive, setSessionActive }) => (

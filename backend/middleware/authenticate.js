@@ -19,8 +19,8 @@ async function verifyRequest(req, res, next, { allowPasswordChange }) {
   }
 
   try {
-    const { id, username, role, tenantId, tenantName, mustChangePassword } = jwt.verify(token, process.env.JWT_SECRET, VERIFY_OPTIONS);
-    req.user = { id, username, role, tenantId, tenantName, mustChangePassword: !!mustChangePassword };
+    const { id, username, role, tenantId, tenantName, loginAt } = jwt.verify(token, process.env.JWT_SECRET, VERIFY_OPTIONS);
+    req.user = { id, username, role, tenantId, tenantName, loginAt, mustChangePassword: false };
   } catch (err) {
     if (err.name === 'TokenExpiredError')
       return res.status(401).json({ error: 'Token scaduto', code: 'TOKEN_EXPIRED' });
@@ -32,6 +32,9 @@ async function verifyRequest(req, res, next, { allowPasswordChange }) {
     const current = await getUserStatus(req.user.tenantId, req.user.id);
     if (!current) return res.status(401).json({ error: 'Utente non più abilitato', code: 'USER_REVOKED' });
     req.user.role = current.role;
+    // L'obbligo di cambiare la password vale quando lo dice il database, non il token: un reset si applica subito
+    // anche a chi è già collegato, e un cambio fatto altrove lo toglie.
+    req.user.mustChangePassword = !!current.must_change_password;
   } catch (err) {
     logger.error({ err }, 'Errore verifica utente');
     return res.status(500).json({ error: 'Errore interno' });

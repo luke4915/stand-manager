@@ -14,6 +14,8 @@ import AppearanceSettings from './components/setup/AppearanceSettings';
 import OrderSettings from './components/setup/OrderSettings';
 import PrintProfiles from './components/setup/PrintProfiles';
 import MenuSettings from './components/setup/MenuSettings';
+import { canView, defaultView } from './components/layout/viewRoles';
+import UsersSettings from './components/setup/UsersSettings';
 import ReverseOrder from './components/shared/ReverseOrder';
 import ChangePassword from './components/shared/ChangePassword';
 import UserProfile from './components/shared/UserProfile';
@@ -94,10 +96,17 @@ const App = () => {
   const audioCtxRef = useRef(null);
   const audioBuffers = useRef({});
 
+  // Pagina iniziale dall'URL, ma solo se il ruolo la può vedere (es. un utente cassa che rientra su /statistics).
+  // Una volta per ruolo: non deve rigirare a ogni navigazione.
+  const checkedRole = useRef(null);
   useEffect(() => {
+    if (!user?.role || checkedRole.current === user.role) return;
+    checkedRole.current = user.role;
     const path = window.location.pathname.replace('/', '') || 'dashboard';
-    setView(path);
-  }, []);
+    if (canView(user.role, path)) return setView(path);
+    setView(defaultView(user.role));
+    navigate(`/${defaultView(user.role)}`, { replace: true });
+  }, [user?.role, navigate]);
 
   useEffect(() => {
     if (user?.role === 'cucina') { setView('kitchen'); navigate('/kitchen'); }
@@ -448,16 +457,17 @@ const App = () => {
             ) : (
               <Suspense fallback={<PageLoading />}>
                 <Routes>
-                  <Route path="/dashboard" element={<ProductList setProducts={setProducts} products={products} addToCart={addToCart} cart={cart} />} />
-                  <Route path="/kitchen" element={<OrdersKitchen />} />
-                  <Route path="/statistics" element={<Statistics />} />
-                  <Route path="/config" element={<ProductConfig products={products} setProducts={setProducts} />} />
-                  <Route path="/setup" element={
+                  <Route path="/dashboard" element={canView(user.role, 'dashboard') ? <ProductList setProducts={setProducts} products={products} addToCart={addToCart} cart={cart} /> : <Navigate to={`/${defaultView(user.role)}`} replace />} />
+                  <Route path="/kitchen" element={canView(user.role, 'kitchen') ? <OrdersKitchen /> : <Navigate to={`/${defaultView(user.role)}`} replace />} />
+                  <Route path="/statistics" element={canView(user.role, 'statistics') ? <Statistics /> : <Navigate to={`/${defaultView(user.role)}`} replace />} />
+                  <Route path="/config" element={canView(user.role, 'config') ? <ProductConfig products={products} setProducts={setProducts} /> : <Navigate to={`/${defaultView(user.role)}`} replace />} />
+                  <Route path="/setup" element={!canView(user.role, 'setup') ? <Navigate to={`/${defaultView(user.role)}`} replace /> :
                     <div className="space-y-6">
                       <AppearanceSettings theme={theme} setTheme={setTheme} isSoundEnabled={isSoundEnabled} setIsSoundEnabled={setIsSoundEnabled} />
                       <MenuSettings />
                       <OrderSettings orderMode={orderMode} setOrderMode={setOrderMode} />
                       <PrintProfiles />
+                      {user.role === 'admin' && <UsersSettings />}
                     </div>
                   } />
                   <Route path="/" element={<Navigate to="/dashboard" replace />} />
@@ -567,7 +577,7 @@ const App = () => {
         />
       )}
 
-      {showProfilePopup && <UserProfile user={user} onClose={() => setShowProfilePopup(false)} />}
+      {showProfilePopup && <UserProfile onClose={() => setShowProfilePopup(false)} />}
       {showReversePopup && <ReverseOrder onClose={() => setShowReversePopup(false)} />}
     </div>
   );

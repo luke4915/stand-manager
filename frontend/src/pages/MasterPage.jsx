@@ -2,6 +2,8 @@ import { useState, useEffect, useCallback } from 'react';
 import { ShieldCheck, LogOut, Building2, Users, Clock, Power, Trash2, Plus, Printer } from 'lucide-react';
 import { apiFetch, ApiError } from '../utils/apiClient';
 import TenantReceiptEditor from '../components/master/TenantReceiptEditor';
+import TenantUsers from '../components/master/TenantUsers';
+import TempPasswordField from '../components/shared/TempPasswordField';
 
 const StatCard = ({ label, value }) => (
   <div className="bg-[var(--bg-card)] rounded-xl p-4 border border-[var(--border)]">
@@ -63,6 +65,7 @@ const MasterPage = () => {
   const [tenants, setTenants] = useState([]);
   const [deleteTarget, setDeleteTarget] = useState(null);
   const [receiptTarget, setReceiptTarget] = useState(null);
+  const [usersTarget, setUsersTarget] = useState(null);
 
   const [form, setForm] = useState({ slug: '', name: '', plan: 'trial', expiresInDays: 7, adminUsername: '', adminPassword: '' });
   const [creating, setCreating] = useState(false);
@@ -192,7 +195,7 @@ const MasterPage = () => {
             <input placeholder="Piano" value={form.plan} onChange={e => setForm(f => ({ ...f, plan: e.target.value }))} className={inputClass} />
             <input type="number" placeholder="Giorni licenza" value={form.expiresInDays} onChange={e => setForm(f => ({ ...f, expiresInDays: Number(e.target.value) }))} className={inputClass} />
             <input placeholder="Username admin" value={form.adminUsername} onChange={e => setForm(f => ({ ...f, adminUsername: e.target.value }))} className={inputClass} />
-            <input type="text" autoComplete="off" placeholder="Password temporanea (min 6)" value={form.adminPassword} onChange={e => setForm(f => ({ ...f, adminPassword: e.target.value }))} className={inputClass} />
+            <TempPasswordField className={`${inputClass} w-full`} value={form.adminPassword} onChange={adminPassword => setForm(f => ({ ...f, adminPassword }))} />
           </div>
           {error && <p className="text-red-500 text-xs font-black uppercase tracking-widest mb-3">{error}</p>}
           <button
@@ -233,6 +236,9 @@ const MasterPage = () => {
                   <button onClick={() => handleToggleActive(t.id, !t.active)} className={iconBtnClass}>
                     <Power size={12} /> {t.active ? 'Disattiva' : 'Riattiva'}
                   </button>
+                  <button onClick={() => setUsersTarget(t)} className={iconBtnClass}>
+                    <Users size={12} /> Utenti
+                  </button>
                   <button onClick={() => setReceiptTarget(t)} className={iconBtnClass}>
                     <Printer size={12} /> Scontrini
                   </button>
@@ -248,6 +254,8 @@ const MasterPage = () => {
           })}
         </div>
       </div>
+
+      {usersTarget && <TenantUsers tenant={usersTarget} onClose={() => setUsersTarget(null)} onChanged={loadTenants} />}
 
       {receiptTarget && <TenantReceiptEditor tenant={receiptTarget} onClose={() => setReceiptTarget(null)} />}
 

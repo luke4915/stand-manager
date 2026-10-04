@@ -6,50 +6,18 @@ import { authenticate, authenticateAllowingPasswordChange, authorizeAdmin } from
 import { tenantScope, withTenantClient, checkTenantAccess } from '../middleware/tenantScope.js';
 import { resolveTenantFromHost } from '../middleware/resolveTenantFromHost.js';
 import logger from '../logger.js';
-import { VERIFY_OPTIONS, SIGN_OPTIONS } from '../utils/jwtConfig.js';
+import { VERIFY_OPTIONS } from '../utils/jwtConfig.js';
+import { REFRESH_GRACE_MS, MAX_SESSION_MS, signToken, setCookie, clearCookie } from '../utils/sessionToken.js';
 import { validate } from '../middleware/validate.js';
-import { loginSchema, createUserSchema, changePasswordSchema, resetPasswordSchema } from '../schemas/authSchema.js';
+import { loginSchema, createUserSchema, changePasswordSchema, resetPasswordSchema, updateUserSchema } from '../schemas/authSchema.js';
 import { idParamsSchema } from '../schemas/common.js';
 import { logAudit } from '../utils/auditLogger.js';
 import { hashPassword } from '../utils/password.js';
+import { sendHttpError } from '../utils/httpError.js';
+import { invalidateUserStatus } from '../utils/userStatus.js';
+import { createUser, listUsers, updateUser, deleteUser, resetUserPassword } from '../utils/tenantUsers.js';
 
 const router = express.Router();
-
-// Limiti del rinnovo sessione:
-// - un token si può rinnovare solo se è scaduto da meno di REFRESH_GRACE_MS;
-// - la sessione dura al massimo MAX_SESSION_MS dal login, poi serve un nuovo login.
-const REFRESH_GRACE_MS = 24 * 60 * 60 * 1000;
-const MAX_SESSION_MS = 7 * 24 * 60 * 60 * 1000;
-
-// `loginAt` (secondi, come iat/exp) è l'istante del login: il refresh lo conserva,
-// così la durata massima della sessione non si allunga a ogni rinnovo.
-// Il token dura TOKEN_TTL_S, ma mai oltre la fine della sessione massima.
-const TOKEN_TTL_S = 8 * 60 * 60;
-const signToken = (user, loginAt = Math.floor(Date.now() / 1000)) => {
-  const sessionEndS = loginAt + MAX_SESSION_MS / 1000;
-  const expiresIn = Math.max(1, Math.min(TOKEN_TTL_S, sessionEndS - Math.floor(Date.now() / 1000)));
-  return jwt.sign(
-    { id: user.id, username: user.username, role: user.role, theme: user.theme || 'dark', tenantId: user.tenant_id, tenantName: user.tenant_name, mustChangePassword: !!user.must_change_password, loginAt },
-    process.env.JWT_SECRET,
-    { ...SIGN_OPTIONS, expiresIn }
-  );
-};
-
-const setCookie = (res, token) => res.cookie('token', token, {
-  httpOnly: true,
-  secure: true,
-  sameSite: 'lax', // app e API stanno sullo stesso sito
-  path: '/',
-  maxAge: TOKEN_TTL_S * 1000,
-});
-
-const clearCookie = (res) => res.cookie('token', '', {
-  httpOnly: true,
-  secure: true,
-  sameSite: 'lax', // app e API stanno sullo stesso sito
-  path: '/',
-  expires: new Date(0),
-});
 
 // LOGIN
 router.post('/login', validate({ body: loginSchema }), resolveTenantFromHost, async (req, res) => {
@@ -157,11 +125,11 @@ router.post('/change-password', authenticateAllowingPasswordChange, validate({ b
       return res.status(400).json({ error: 'La nuova password deve essere diversa da quella attuale' });
 
     await req.db.query('UPDATE users SET password_hash=$1, must_change_password=false WHERE id=$2', [await hashPassword(newPassword), req.user.id]);
+    invalidateUserStatus(req.user.tenantId, req.user.id);
     await logAudit(req.db, req.user.id, 'CHANGE_PASSWORD', {});
 
     // Il token portava il blocco del primo accesso: se ne emette uno nuovo senza, mantenendo l'inizio sessione.
-    const { loginAt } = jwt.decode(req.cookies?.token ?? '') || {};
-    setCookie(res, signToken({ ...req.user, tenant_id: req.user.tenantId, tenant_name: req.user.tenantName }, loginAt));
+    setCookie(res, signToken({ ...req.user, tenant_id: req.user.tenantId, tenant_name: req.user.tenantName }, req.user.loginAt));
 
     res.json({ message: 'Password aggiornata con successo' });
   } catch (err) {
@@ -172,19 +140,58 @@ router.post('/change-password', authenticateAllowingPasswordChange, validate({ b
 
 // CREATE USER (admin only)
 router.post('/admin/createUser', authenticate, authorizeAdmin, validate({ body: createUserSchema }), tenantScope, async (req, res) => {
-  const { username, role, password } = req.body;
   try {
-    const { rows } = await req.db.query(
-      'INSERT INTO users (username, role, tenant_id, password_hash, must_change_password) VALUES ($1, $2, $3, $4, true) RETURNING id, username, role',
-      [username, role, req.user.tenantId, await hashPassword(password)]
-    );
-    await logAudit(req.db, req.user.id, 'CREATE_USER', { userId: rows[0].id, role });
-
-    res.status(201).json({ message: 'Utente creato con successo', user: rows[0] });
+    const user = await createUser(req.db, req.user.tenantId, req.body);
+    await logAudit(req.db, req.user.id, 'CREATE_USER', { userId: user.id, role: user.role });
+    res.status(201).json({ message: 'Utente creato con successo', user });
   } catch (err) {
-    if (err.code === '23505') // username già usato in questo tenant
-      return res.status(409).json({ error: 'Username già esistente' });
+    if (sendHttpError(res, err)) return;
     logger.error({ err }, 'Errore createUser');
+    res.status(500).json({ error: 'Errore server' });
+  }
+});
+
+// ELENCO UTENTI del proprio tenant (admin only)
+router.get('/admin/users', authenticate, authorizeAdmin, tenantScope, async (req, res) => {
+  try {
+    res.json(await listUsers(req.db));
+  } catch (err) {
+    logger.error({ err }, 'Errore elenco utenti');
+    res.status(500).json({ error: 'Errore caricamento utenti' });
+  }
+});
+
+// MODIFICA RUOLO/USERNAME (admin only). Non si cambia il ruolo di se stessi: si resterebbe senza accesso al pannello.
+router.patch('/admin/users/:id', authenticate, authorizeAdmin, validate({ params: idParamsSchema, body: updateUserSchema }), tenantScope, async (req, res) => {
+  const { id } = req.params;
+  if (id === req.user.id && req.body.role && req.body.role !== req.user.role)
+    return res.status(409).json({ error: 'Non puoi cambiare il tuo ruolo', code: 'SELF_ROLE_CHANGE' });
+  try {
+    const { previous, ...user } = await updateUser(req.db, req.user.tenantId, id, req.body);
+    await logAudit(req.db, req.user.id, 'UPDATE_USER', { userId: id, previous, role: user.role, username: user.username });
+    // Chi rinomina se stesso riceve un token col nome nuovo (come da /profile/username).
+    if (id === req.user.id)
+      setCookie(res, signToken({ ...req.user, username: user.username, tenant_id: req.user.tenantId, tenant_name: req.user.tenantName }, req.user.loginAt));
+    res.json(user);
+  } catch (err) {
+    if (sendHttpError(res, err)) return;
+    logger.error({ err }, 'Errore modifica utente');
+    res.status(500).json({ error: 'Errore server' });
+  }
+});
+
+// ELIMINA UTENTE (admin only). Non si elimina se stessi.
+router.delete('/admin/users/:id', authenticate, authorizeAdmin, validate({ params: idParamsSchema }), tenantScope, async (req, res) => {
+  const { id } = req.params;
+  if (id === req.user.id)
+    return res.status(409).json({ error: 'Non puoi eliminare il tuo utente', code: 'SELF_DELETE' });
+  try {
+    const user = await deleteUser(req.db, req.user.tenantId, id);
+    await logAudit(req.db, req.user.id, 'DELETE_USER', { userId: id, username: user.username, role: user.role });
+    res.json({ ok: true });
+  } catch (err) {
+    if (sendHttpError(res, err)) return;
+    logger.error({ err }, 'Errore eliminazione utente');
     res.status(500).json({ error: 'Errore server' });
   }
 });
@@ -193,14 +200,11 @@ router.post('/admin/createUser', authenticate, authorizeAdmin, validate({ body: 
 // Serve anche a sbloccare gli account rimasti senza password.
 router.post('/admin/users/:id/reset-password', authenticate, authorizeAdmin, validate({ params: idParamsSchema, body: resetPasswordSchema }), tenantScope, async (req, res) => {
   try {
-    const { rows } = await req.db.query(
-      'UPDATE users SET password_hash=$1, must_change_password=true WHERE id=$2 RETURNING id, username',
-      [await hashPassword(req.body.password), req.params.id]
-    );
-    if (!rows.length) return res.status(404).json({ error: 'Utente non trovato' });
-    await logAudit(req.db, req.user.id, 'RESET_PASSWORD', { userId: rows[0].id });
+    const user = await resetUserPassword(req.db, req.user.tenantId, req.params.id, req.body.password);
+    await logAudit(req.db, req.user.id, 'RESET_PASSWORD', { userId: user.id });
     res.json({ message: 'Password reimpostata: andrà cambiata al primo accesso' });
   } catch (err) {
+    if (sendHttpError(res, err)) return;
     logger.error({ err }, 'Errore reset password');
     res.status(500).json({ error: 'Errore server' });
   }
