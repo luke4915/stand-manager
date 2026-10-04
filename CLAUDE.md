@@ -71,8 +71,8 @@ L'isolamento tra tenant si basa sulla Row-Level Security di PostgreSQL con la va
 
 ## 4. Sicurezza e logica di business
 
-- **Il server ricalcola sempre i prezzi.** Dal client sono affidabili solo `id` e `quantity` di ogni riga. Usa `computeEffectivePrice` e `sanitizeAdjustment` in `utils/pricing.js`. Sconti e omaggi solo per `DISCOUNT_ROLES`.
-- Se cambi la logica di prezzo, aggiorna **entrambi** i file `pricing.js` (backend e frontend) nello stesso commit.
+- **Il server ricalcola sempre i prezzi.** Dal client sono affidabili solo `id` e `quantity` di ogni riga. Usa `computeLineTotal` e `sanitizeAdjustment` in `utils/pricing.js`: il totale di riga è in centesimi interi, lo sconto in euro è sull'intera riga, e l'ordine salva `line_total` (riferimento) accanto a `price` (unitario, solo per mostrare). Sconti e omaggi solo per `DISCOUNT_ROLES`.
+- Se cambi la logica di prezzo, aggiorna **entrambi** i file `pricing.js` (backend e frontend) nello stesso commit: `tests/pricing.test.js` verifica che diano gli stessi importi.
 - **Ogni input si valida con zod** (schemi in `backend/schemas/`) tramite il middleware `validate({ body, params })`, messo prima di `tenantScope`. In caso di errore risponde 400 con `campo: motivo` in italiano; altrimenti `req.body` contiene solo i campi dello schema, già convertiti, e `req.params` i valori convertiti. Niente validazioni scritte a mano negli handler.
 - Le operazioni con più scritture (ordine + stock, storno + ripristino stock) vanno in transazione con `inTransaction(req.db, async (db) => { … })` da `db.js`. Per uscire con un errore di business (404, 409) lancia `new HttpError(status, messaggio, CODICE)` e nel `catch` della route usa `sendHttpError(res, err)`.
 - Ordini e sessioni: ogni ordine appartiene a una sessione (`orders.session_id`) e senza sessione aperta non si creano ordini (`409 NO_ACTIVE_SESSION`). Esiste al massimo una sessione aperta per tenant. Il `display_code` è lettera del dispositivo + numero (A1, A2, … B1) e lo compone il client: il server lo ricostruisce da `device_id` e `device_seq` (mai dal testo del client) e l'indice unico `uniq_orders_device_seq` impedisce i duplicati. Solo gli ordini senza dispositivo (accodati prima della 018) usano ancora `sessions.order_counter`. Report e cassa filtrano per `session_id`, mai per orario.
@@ -81,7 +81,8 @@ L'isolamento tra tenant si basa sulla Row-Level Security di PostgreSQL con la va
 - Le azioni sensibili (creazione ordine, storno, ristampa, modifiche admin) si registrano con `logAudit(req.db, req.user.id, 'AZIONE', dettagli)`: usa la connessione del tenant, quindi i log sono isolati dalla RLS. Chiamala fuori da transazioni aperte.
 - Sessione: il token JWT dura 8 ore. `/auth/refresh` lo rinnova solo se è scaduto da meno di 24 ore e se il login (`loginAt` nel token) risale a meno di 7 giorni; oltre serve un nuovo login (`SESSION_EXPIRED`). Il refresh verifica anche tenant attivo e licenza.
 - Impostazioni per tenant (`settings`): le chiavi ammesse sono in `schemas/settingsSchema.js`. Solo quelle in `PUBLIC_SETTINGS_KEYS` escono dall'endpoint pubblico `GET /settings`. L'admin del tenant scrive solo quelle in `TENANT_WRITABLE_SETTINGS_KEYS`; le `receipt_*` (scontrini) le scrive solo il master.
-- Ruoli esistenti (`ROLES` in `authenticate.js`): `admin`, `responsabile`, `cassa`, `cucina`. Gruppi con permessi specifici: `DISCOUNT_ROLES` (sconti e omaggi), `STOCK_ROLES` (stock dalla cassa). Le autorizzazioni si controllano lato server, non solo nascondendo la UI.
+- Ruoli esistenti (`ROLES` in `authenticate.js`): `admin`, `responsabile`, `cassa`, `cucina`. Gruppi: `CASH_ROLES` (admin, responsabile, cassa: creano, stornano e ristampano ordini, gestiscono lo stock), `DISCOUNT_ROLES` (sconti e omaggi). La cucina vede gli ordini e ne fa avanzare lo stato, nient'altro. Le autorizzazioni si controllano lato server (`authorizeCash`, `authorizeAdmin`, …), non solo nascondendo la UI.
+- Password: nessun utente esiste senza password. Master e admin ne impostano una **temporanea** alla creazione (`must_change_password`): finché non è cambiata il server risponde 403 `PASSWORD_CHANGE_REQUIRED` a tutto tranne `/auth/me`, `/auth/change-password` e logout. `POST /auth/admin/users/:id/reset-password` la reimposta. Il login non distingue utente inesistente, senza password o password errata.
 - Mai segreti nel codice o nei commit. Nuove variabili d'ambiente vanno aggiunte a `.env.example` con un valore fittizio.
 - Il rate limiting è in `middleware/rateLimiter.js`. Le API e gli ordini contano per utente se c'è una sessione valida, altrimenti per IP: le casse dietro lo stesso IP non si dividono il limite. Gli endpoint nuovi e "costosi" (export, stampa) meritano un limiter dedicato.
 - Origini ammesse (`utils/origins.js`): `APP_DOMAIN` e i suoi sottodomini; localhost e IP LAN solo fuori dalla produzione. Un'origine non ammessa riceve 403 prima di qualsiasi elaborazione.
@@ -111,9 +112,10 @@ L'isolamento tra tenant si basa sulla Row-Level Security di PostgreSQL con la va
 
 ## 6. Database e migrazioni
 
-- Ogni modifica di schema è una nuova migrazione `backend/migrations/NNN_descrizione.sql`, numerata dopo l'ultima esistente (oggi 020; il numero 012 è saltato, non riusarlo).
+- Ogni modifica di schema è una nuova migrazione `backend/migrations/NNN_descrizione.sql`, numerata dopo l'ultima esistente (oggi 022; il numero 012 è saltato, non riusarlo).
 - **Non modificare mai una migrazione già applicata.** Per correggerla, scrivine una nuova.
 - Le migrazioni devono essere idempotenti dove possibile (`IF NOT EXISTS`, `DROP POLICY IF EXISTS`). `run.js` le esegue in transazione.
+- L'utente applicativo ha solo SELECT/INSERT/UPDATE/DELETE (niente TRUNCATE, TRIGGER, REFERENCES; `audit_logs` non si aggiorna): nelle migrazioni non concedergli altro.
 - `MIGRATION_DATABASE_URL` serve a eseguire le DDL con un utente privilegiato. L'app gira con l'utente applicativo, soggetto a RLS.
 - `backend/schema.sql` è il dump di riferimento dello schema e contiene tutte le migrazioni. Rigeneralo (`pg_dump --schema-only`) dopo nuove migrazioni. Un database nuovo si crea da `schema.sql` più `npm run db:baseline`.
 
@@ -144,17 +146,13 @@ L'isolamento tra tenant si basa sulla Row-Level Security di PostgreSQL con la va
 
 ## 9. Stampa
 
-La stampa è **del client**, non del server: la cassa che batte l'ordine stampa direttamente sulla stampante in LAN, quindi funziona anche senza internet. Il backend non stampa più (e non ha più `sharp`).
+La stampa è **del client**: la cassa che batte l'ordine stampa direttamente sulla stampante in LAN, quindi funziona anche senza internet. Il backend non stampa. Dettagli, file e flussi in `docs/stampa.md`.
 
-- Codice in `frontend/src/print/`: `eposBuilder.js` (XML ePOS-Print), `templates.js` (le 6 copie), `print.js` (raggruppa le copie per stampante: una sola richiesta per stampante), `drivers/epos.js` (POST HTTPS a `/cgi-bin/epos/service.cgi`, porta 443 di default), `raster.js` (immagini con canvas), `queue.js` (coda Dexie), `config.js` (configurazione in locale), `printOrder.js` (entrata per ordine e ristampa).
-- **Driver:** i template parlano solo con il builder (text, align, style, size, feed, cut, qrcode, image). Per un'altra marca (es. Star WebPRNT) si aggiunge un driver `{ id, createBuilder(), send(builder, target) }` in `print.js`, senza toccare template e coda. Dal browser non si può mandare ESC/POS raw su TCP: servono i protocolli HTTP dei produttori.
-- **Quando si stampa:** online dopo che il server ha accettato l'ordine (così uno stock esaurito non produce scontrini), offline subito, insieme all'ordine in coda. Un ordine sincronizzato in ritardo non si ristampa mai.
-- **Coda:** un lavoro per stampante e ordine (`printJobs`, chiave unica), con l'XML già pronto; resta finché la stampante non lo accetta, si riprova ogni 15 s e in testata c'è il contatore. L'operatore è avvisato una volta sola per lavoro.
-- **Configurazione offline:** copie→stampanti (`print_settings`) e personalizzazione dello scontrino (chiavi `receipt_*` in `settings`, private: `GET /settings/all`) si scaricano e si tengono in Dexie (`meta.printConfig`, con testi e immagini); si aggiornano all'avvio, al ritorno online e dopo ogni modifica.
-- **Certificato:** la stampante ha un certificato autofirmato che il browser non può ignorare: ogni dispositivo lo accetta una volta aprendo `https://IP` (pulsanti "Autorizza" e "Stampa di prova" in `PrinterCheck.jsx`). Sulla stampante va attivato il CORS.
-- **Ristampa:** online `POST /orders/:id/reprint` registra l'audit e restituisce l'ordine. Offline si ristampa dall'archivio locale (`printedOrders`, ultimi 100 ordini, `localOrders.js` e `reprint.js`): la ristampa resta annotata e `POST /orders/reprints` la comunica al server al ritorno della rete (404 `ORDER_NOT_SYNCED` finché l'ordine non è sincronizzato: si riprova). Le copie le rende sempre il client.
-- **Simulatore:** `scripts/mock-epos.js` imita la stampante (HTTPS autofirmato, CORS, risposta `success`) e serve sia ai test (`offline.test.js`, con IndexedDB finto) sia alle prove a mano con l'app: indirizzo `localhost:9443`. Non sostituisce la prova su una stampante vera (certificato e CORS reali).
-- **Personalizzazione scontrini (solo master):** nome, codice fiscale, titoli, testo legale, logo e immagine laterale sono per tenant (`receipt_*`) e si modificano dal pannello `/master` (pulsante "Scontrini", `TenantReceiptEditor.jsx`, route `GET/PUT /master/tenants/:id/receipt`) con anteprima delle copie. Le immagini si riducono in bianco e nero nel browser e si salvano come data URL PNG (max 150 KB), decodificate a mano in `raster.js` perché la CSP non permette `fetch` su `data:`. Non scrivere questi contenuti nei template.
+- Codice in `frontend/src/print/`. I template parlano solo con il builder (`eposBuilder.js`); un'altra marca si aggiunge come driver `{ id, createBuilder(), send(builder, target) }` in `print.js`, senza toccare template e coda.
+- Si stampa dopo che il server ha accettato l'ordine (online) o subito, insieme all'ordine in coda (offline). Un ordine sincronizzato in ritardo non si ristampa mai.
+- La coda (`printJobs` in Dexie) tiene il lavoro finché la stampante non lo accetta. La configurazione si scarica e si conserva in Dexie per stampare offline.
+- La personalizzazione degli scontrini (`receipt_*`) è per tenant e la modifica solo il master (`TenantReceiptEditor.jsx`). Non scrivere testi o loghi nei template. Le immagini sono data URL PNG (max 150 KB) decodificate a mano in `raster.js` perché la CSP non permette `fetch` su `data:`.
+- Il simulatore `scripts/mock-epos.js` (https://localhost:9443) serve ai test e alle prove a mano; non sostituisce una stampante vera (certificato e CORS reali).
 - `backend/debug_epos.js` è uno script di diagnostica, non codice applicativo.
 
 ## 10. Come lavorare (workflow per Claude)
@@ -168,22 +166,6 @@ La stampa è **del client**, non del server: la cassa che batte l'ordine stampa 
 7. Se una richiesta contraddice queste regole (soprattutto §3 e §4), fermati e chiedi.
 8. A fine feature, aggiorna questo file se è nata una convenzione nuova.
 
-## 11. Insidie note (da sistemare, non replicare)
+## 11. Difetti noti e lavoro previsto
 
-Elenco verificato sul codice, ordinato per gravità. Quando ne risolvi una, toglila da qui nello stesso commit.
-
-**Stampa**
-- L'anteprima dei template nel master mostra le immagini come segnaposto con le dimensioni, non l'immagine reale composta.
-- La ristampa offline copre solo gli ordini battuti da questa cassa nella sessione aperta (non quelli di altre casse).
-- Gli indirizzi stampante si salvano ancora come `printer_address` con `printer_type` `'network'`; il valore `'usb'` della colonna non si usa più.
-- `config.js`, `printOrder.js` e `usePrintQueue.js` (che dipendono da `apiClient` e React) non hanno test automatici; coda, archivio locale e driver sì (`offline.test.js`).
-- La scritta "COPIA INTERNA ASSOCIAZIONE" e i nomi delle copie sono fissi nei template.
-
-**Codice legacy**
-- `theme` nel JWT e in `/auth/me` vale sempre `'dark'`: `users` non ha una colonna `theme` e il tema è solo stato del client.
-
-**Frontend e offline**
-- Gli ordini offline rifiutati per sempre (`failed`) sono visibili solo come contatore in testata: manca una schermata per vederli e archiviarli. Gli ordini rimasti in coda da prima dell'aggiornamento non hanno `client_order_id` né `session_id`, quindi vanno nella sessione aperta al momento della sincronizzazione.
-
-**Evoluzione (priorità 2)**
-- `orders.items` è un array JSONB dentro l'ordine. Per la ristorazione avanzata (tavoli, stato per singola riga nel KDS, conti divisi) servirà una tabella `order_items`.
+Stanno in `docs/backlog.md`. Quando ne risolvi uno, toglilo da lì nello stesso commit.
