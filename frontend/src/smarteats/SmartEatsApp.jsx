@@ -18,7 +18,7 @@ import UsersSettings from '../components/setup/UsersSettings';
 import CoverSettings from './CoverSettings';
 import CourseSettings from './CourseSettings';
 
-const OrdersKitchen = lazy(() => import('../components/kitchen/OrdersKitchen'));
+const CucinaPage = lazy(() => import('./cucina/CucinaPage'));
 const Statistics = lazy(() => import('../components/shared/Statistics'));
 
 const ICONS = { sala: LayoutGrid, cucina: UtensilsCrossed, carta: BookOpen, statistiche: BarChart3, impostazioni: Settings };
@@ -121,7 +121,7 @@ const SmartEatsApp = () => {
           <Suspense fallback={<Page><p className="text-[var(--text-muted)]">Caricamento…</p></Page>}>
             <Routes>
               <Route path="/sala" element={guard('sala', <SalaPage user={user} service={service} event={event} />)} />
-              <Route path="/cucina" element={guard('cucina', <Page><OrdersKitchen /></Page>)} />
+              <Route path="/cucina" element={guard('cucina', <Page><CucinaPage event={event} /></Page>)} />
               <Route path="/carta" element={guard('carta', <Page><CartaPage /></Page>)} />
               <Route path="/statistiche" element={guard('statistiche', <Page><Statistics /></Page>)} />
               <Route path="/impostazioni" element={guard('impostazioni', <Page><SettingsPage user={user} /></Page>)} />

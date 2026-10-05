@@ -74,7 +74,7 @@ Disegno completo e decisioni in `docs/design-tavoli.md`. Un passo alla volta; i 
 |---|---|---|
 | 3-1 | Ogni prodotto ha una portata (lista del locale ordinabile, `courses` e `products.course_id`, migrazione 040). Lista gestita in Impostazioni → Portate (`CourseSettings`), portata scelta per prodotto nella Carta. | `[x]` |
 | 3-2 | Il cameriere "manda" una portata: solo allora arriva in cucina e si stampa la comanda. Una comanda per portata, quelle future `scheduled` sul conto; ordine di uscita e «insieme» con lo stesso numero; riordino. Comanda in Sala divisa per portata (`DraftOrder`: prima/dopo/insieme, riordino), «Prossima portata → Manda» sul conto, portata stampata sul tagliando. Mancano il riordino di portate già sul conto da interfaccia e il palmare. | `[~]` |
-| 3-3 | KDS per riga: in preparazione, pronta, servita; il tavolo vede cosa è pronto. | `[ ]` |
+| 3-3 | Monitor cucina dei ristoranti (`smarteats/cucina/`): comande per portata con tavolo, coperti e minuti d'attesa (verde/ambra/rosso), «Inizia» e «Pronta», portate in arrivo in basso. Stato **per comanda** (una comanda = una portata). Per riga (servita, il tavolo vede cosa è pronto) e per postazione (cucina/bar) resta da fare. | `[~]` |
 | 3-4 | Comanda di cucina con tavolo, coperti e portata. | `[ ]` |
 | 3-5 | Ruolo cameriere con permessi propri (prende ordini, non fa sconti né storni). | `[ ]` |
 

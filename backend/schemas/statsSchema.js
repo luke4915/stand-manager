@@ -27,7 +27,7 @@ export const headToHeadQuerySchema = z.object({
 // Elenco ordini: paginazione "keyset" (before = id dell'ultimo ricevuto) e filtro per stato.
 export const listOrdersQuerySchema = z.object({
   session: z.literal('active').optional(),
-  status: z.string().max(100).transform((v) => v.split(',').filter(Boolean)).pipe(z.array(z.enum(['pending', 'preparing', 'completed', 'canceled']))).optional(),
+  status: z.string().max(100).transform((v) => v.split(',').filter(Boolean)).pipe(z.array(z.enum(['scheduled', 'pending', 'preparing', 'completed', 'canceled']))).optional(),
   limit: z.coerce.number().int().min(1).max(500).default(100),
   before: idSchema.optional(),
 });

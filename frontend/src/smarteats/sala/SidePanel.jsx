@@ -50,7 +50,8 @@ const CheckSide = ({ checkId, user, service, event, ordering, cart, setCart, pro
 
 const SidePanel = ({ selection, onBack, onOpened, onBusy, ...rest }) => {
   if (!selection) return <Empty />;
-  if (!selection.checkId) return <OpenTablePanel table={selection.table} onBack={onBack} onOpened={onOpened} onBusy={onBusy} />;
+  // `key`: cambiando tavolo i coperti ripartono dai posti del nuovo tavolo
+  if (!selection.checkId) return <OpenTablePanel key={selection.table.id} table={selection.table} onBack={onBack} onOpened={onOpened} onBusy={onBusy} />;
   // `key`: cambiando conto le viste (incasso, sconto) ripartono da zero
   return <CheckSide key={selection.checkId} checkId={selection.checkId} onBack={onBack} {...rest} />;
 };

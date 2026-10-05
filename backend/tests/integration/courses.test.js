@@ -93,6 +93,9 @@ describe('portate', () => {
     // la cucina vede solo quella mandata
     const kitchenView = (await kitchen.get('/orders?session=active&status=pending,preparing')).body.filter(o => o.check_id === check);
     assert.deepEqual(kitchenView.map(o => o.id), [bySeq[0].id]);
+    // le portate in arrivo si possono leggere (il monitor della cucina le mostra attenuate)
+    const upcoming = (await kitchen.get('/orders?session=active&status=scheduled')).body.filter(o => o.check_id === check);
+    assert.deepEqual(upcoming.map(o => o.course_name).sort(), ['Dolci', 'Primi']);
     // il dettaglio del conto dice cosa è da mandare
     const detail = (await admin.get(`/checks/${check}`)).body;
     assert.deepEqual(detail.orders.map(o => [o.status, o.course_name]), [['pending', 'Antipasti'], ['scheduled', 'Primi'], ['scheduled', 'Dolci']]);
