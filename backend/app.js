@@ -13,6 +13,7 @@ import deviceRoutes from './routes/devices.js';
 import sessionRoutes from './routes/sessions.js';
 import statsRoutes from './routes/stats.js';
 import { roomsRouter, tablesRouter } from './routes/rooms.js';
+import coursesRouter from './routes/courses.js';
 import checkRoutes from './routes/checks.js';
 import healthRoutes from './routes/health.js';
 import { requestLogger } from './middleware/requestLogger.js';
@@ -81,6 +82,7 @@ export function createApp({ broadcast, rateLimit = true, logRequests = true }) {
   app.use('/api/stats', statsRoutes);
   app.use('/api/rooms', roomsRouter);
   app.use('/api/tables', tablesRouter);
+  app.use('/api/courses', coursesRouter);
   app.use('/api/checks', checkRoutes(broadcast));
   app.use('/api/settings', settingsRoutes);
   app.use('/api/master', masterRoutes);

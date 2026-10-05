@@ -76,8 +76,13 @@ export async function recordPayment(db, { checkId, method, amount, items, userId
   return { payment: { ...payment, amount: Number(payment.amount) }, due: toEuro(due), closed: due === 0 };
 }
 
-export const closeAsPaid = (db, checkId) =>
-  db.query(`UPDATE checks SET status = 'paid', closed_at = now(), bill_requested_at = NULL WHERE id = $1`, [checkId]);
+// Un conto con portate ancora da mandare non si chiude: prima si mandano o si stornano (se no una portata pagata
+// non uscirebbe mai). Se arriva da un pagamento, la transazione si annulla e il pagamento non viene registrato.
+export async function closeAsPaid(db, checkId) {
+  const { rows: [{ n }] } = await db.query(`SELECT COUNT(*)::int AS n FROM orders WHERE check_id = $1 AND status = 'scheduled'`, [checkId]);
+  if (n > 0) throw new HttpError(409, 'Ci sono portate ancora da mandare: mandale o stornale prima di chiudere il conto', 'COURSES_PENDING');
+  await db.query(`UPDATE checks SET status = 'paid', closed_at = now(), bill_requested_at = NULL WHERE id = $1`, [checkId]);
+}
 
 // Una comanda non si storna se ne è già stata pagata una parte, o se il totale scenderebbe sotto il già pagato.
 // Il conto deve essere già bloccato (lockCheck).

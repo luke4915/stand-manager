@@ -1,9 +1,9 @@
 import express from 'express';
 import { inTransaction } from '../db.js';
-import { authenticate, authorizeCash, CASH_ROLES, DISCOUNT_ROLES } from '../middleware/authenticate.js';
+import { authenticate, authorizeCash, CASH_ROLES } from '../middleware/authenticate.js';
 import { tenantScope, withTenantClient } from '../middleware/tenantScope.js';
 import { resolveTenantFromHost } from '../middleware/resolveTenantFromHost.js';
-import { computeLineTotal, sanitizeAdjustment } from '../utils/pricing.js';
+import { verifyOrderItems } from '../utils/orderLines.js';
 import logger from '../logger.js';
 import { logAudit } from '../utils/auditLogger.js';
 import { createOrderSchema, updateOrderStatusSchema, reprintAuditSchema } from '../schemas/orderSchema.js';
@@ -123,56 +123,10 @@ export default function (broadcast) {
     if (check_id !== undefined && !(await getTenantModules(req.user.tenantId))?.modules.includes('tables'))
       return res.status(403).json({ error: 'Funzione non attiva per questo locale', code: 'MODULE_DISABLED' });
 
-    const productIds = [...new Set(items.map(i => i.id).filter(Boolean))];
-    const { rows: dbProducts } = await req.db.query(
-      'SELECT id, name, price, category, print_destination FROM products WHERE id = ANY($1)', [productIds]
-    );
-    // Prezzo, nome, categoria e destinazione di stampa vengono dal catalogo, mai dal client
-    const productMap = Object.fromEntries(dbProducts.map(p => [p.id, p]));
-
-    // zod garantisce già che id/quantity siano numeri validi nella FORMA;
-    // qui verifichiamo solo che il prodotto esista davvero a catalogo.
-    for (const item of items) {
-      if (!(item.id in productMap))
-        return res.status(400).json({ error: `Prodotto non valido: ${item.id}` });
-    }
-
-    // Solo admin/responsabile possono inviare righe con omaggio o sconto:
-    // per chiunque altro l'adjustment viene ignorato e forzato a 'sale'.
-    const authorized = DISCOUNT_ROLES.includes(req.user.role);
-    const requestedDiscount = items.some(i => i.type && i.type !== 'sale');
-    if (requestedDiscount && !authorized) {
-      return res.status(403).json({ error: 'Non hai i permessi per applicare sconti o omaggi.' });
-    }
-
-    const verifiedItems = items.map(i => {
-      const product = productMap[i.id];
-      const original_price = parseFloat(product.price);
-      const adjustment = sanitizeAdjustment(i, authorized);
-      const line_total = computeLineTotal(original_price, i.quantity, adjustment);
-      return {
-        id: i.id,
-        name: product.name,
-        quantity: i.quantity,
-        price: line_total / i.quantity, // unitario effettivo; il riferimento è line_total
-        line_total,
-        original_price,
-        type: adjustment.type,
-        discountMode: adjustment.discountMode,
-        discountValue: adjustment.discountValue,
-        note: i.note || '',
-        category: product.category || 'Altro',
-        print_destination: product.print_destination || 'both',
-      };
-    });
-    const verifiedTotal = verifiedItems.reduce((sum, i) => sum + Math.round(i.line_total * 100), 0) / 100;
-
-    const allGift = verifiedItems.every(i => i.type === 'gift');
-    const anyAdjustment = verifiedItems.some(i => i.type !== 'sale');
-    const order_type = allGift ? 'gift' : (anyAdjustment ? 'discount' : 'sale');
     const isLateSync = session_id !== undefined;
 
     try {
+      const { items: verifiedItems, total: verifiedTotal, orderType: order_type } = await verifyOrderItems(req.db, items, req.user.role);
       const { order, orderStatus, sessionOpen, stockUpdates } = await inTransaction(req.db, async (db) => {
         const session = await findOrderSession(db, session_id, device_id === undefined);
         const sessionOpen = !session.end_time;
@@ -292,6 +246,9 @@ export default function (broadcast) {
         );
         if (!current.length) throw new HttpError(404, 'Ordine non trovato');
         const order = current[0];
+        // Una portata da mandare non entra in cucina: si manda dal conto (POST /checks/:id/fire) o si storna.
+        if (order.status === 'scheduled' && status !== 'canceled')
+          throw new HttpError(409, 'La portata non è ancora stata mandata', 'ORDER_SCHEDULED');
         if (status === 'canceled' && order.order_type === 'cover')
           throw new HttpError(409, 'Il coperto si cambia dai coperti del tavolo', 'COVER_ORDER');
 

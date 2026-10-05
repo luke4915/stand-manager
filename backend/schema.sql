@@ -2,7 +2,7 @@
 -- PostgreSQL database dump
 --
 
-\restrict vPhPkRy8aWCPSG5PucwjZpkpiW3KJIFWIIO2TOI7IkUjyh8m4Z8RTkKO9HvtabL
+\restrict z8dURnf7pPgPvjwoNN68ajp6ZV3zmrebCKULiQpq15QbIbGPtlb2aO91QuKZk2Q
 
 -- Dumped from database version 17.10 (Homebrew)
 -- Dumped by pg_dump version 17.10 (Homebrew)
@@ -188,6 +188,46 @@ ALTER SEQUENCE public.copy_types_id_seq OWNED BY public.copy_types.id;
 
 
 --
+-- Name: courses; Type: TABLE; Schema: public; Owner: colettas
+--
+
+CREATE TABLE public.courses (
+    id integer NOT NULL,
+    tenant_id integer DEFAULT (NULLIF(current_setting('app.tenant_id'::text, true), ''::text))::integer NOT NULL,
+    name text NOT NULL,
+    "position" integer DEFAULT 0 NOT NULL,
+    active boolean DEFAULT true NOT NULL,
+    CONSTRAINT courses_name_check CHECK ((length(btrim(name)) > 0))
+);
+
+ALTER TABLE ONLY public.courses FORCE ROW LEVEL SECURITY;
+
+
+ALTER TABLE public.courses OWNER TO colettas;
+
+--
+-- Name: courses_id_seq; Type: SEQUENCE; Schema: public; Owner: colettas
+--
+
+CREATE SEQUENCE public.courses_id_seq
+    AS integer
+    START WITH 1
+    INCREMENT BY 1
+    NO MINVALUE
+    NO MAXVALUE
+    CACHE 1;
+
+
+ALTER SEQUENCE public.courses_id_seq OWNER TO colettas;
+
+--
+-- Name: courses_id_seq; Type: SEQUENCE OWNED BY; Schema: public; Owner: colettas
+--
+
+ALTER SEQUENCE public.courses_id_seq OWNED BY public.courses.id;
+
+
+--
 -- Name: devices; Type: TABLE; Schema: public; Owner: colettas
 --
 
@@ -354,10 +394,15 @@ CREATE TABLE public.orders (
     device_id integer,
     device_seq integer,
     check_id integer,
+    course_seq integer,
+    course_name text,
+    fired_at timestamp with time zone,
+    CONSTRAINT orders_course_seq_check CHECK ((course_seq >= 1)),
     CONSTRAINT orders_device_pair_check CHECK (((device_id IS NULL) = (device_seq IS NULL))),
     CONSTRAINT orders_device_seq_check CHECK ((device_seq > 0)),
     CONSTRAINT orders_order_type_check CHECK (((order_type)::text = ANY ((ARRAY['sale'::character varying, 'gift'::character varying, 'discount'::character varying, 'cover'::character varying])::text[]))),
-    CONSTRAINT orders_status_check CHECK ((status = ANY (ARRAY['pending'::text, 'preparing'::text, 'completed'::text, 'canceled'::text])))
+    CONSTRAINT orders_scheduled_on_check CHECK (((status <> 'scheduled'::text) OR ((check_id IS NOT NULL) AND (course_seq IS NOT NULL)))),
+    CONSTRAINT orders_status_check CHECK ((status = ANY (ARRAY['scheduled'::text, 'pending'::text, 'preparing'::text, 'completed'::text, 'canceled'::text])))
 );
 
 ALTER TABLE ONLY public.orders FORCE ROW LEVEL SECURITY;
@@ -529,6 +574,7 @@ CREATE TABLE public.products (
     stock integer,
     stock_enabled boolean DEFAULT false NOT NULL,
     tenant_id integer DEFAULT (NULLIF(current_setting('app.tenant_id'::text, true), ''::text))::integer NOT NULL,
+    course_id integer,
     CONSTRAINT products_print_destination_check CHECK (((print_destination)::text = ANY ((ARRAY['bar'::character varying, 'kitchen'::character varying, 'both'::character varying])::text[])))
 );
 
@@ -819,6 +865,13 @@ ALTER TABLE ONLY public.copy_types ALTER COLUMN id SET DEFAULT nextval('public.c
 
 
 --
+-- Name: courses id; Type: DEFAULT; Schema: public; Owner: colettas
+--
+
+ALTER TABLE ONLY public.courses ALTER COLUMN id SET DEFAULT nextval('public.courses_id_seq'::regclass);
+
+
+--
 -- Name: devices id; Type: DEFAULT; Schema: public; Owner: colettas
 --
 
@@ -947,6 +1000,14 @@ ALTER TABLE ONLY public.checks
 
 ALTER TABLE ONLY public.copy_types
     ADD CONSTRAINT copy_types_pkey PRIMARY KEY (id);
+
+
+--
+-- Name: courses courses_pkey; Type: CONSTRAINT; Schema: public; Owner: colettas
+--
+
+ALTER TABLE ONLY public.courses
+    ADD CONSTRAINT courses_pkey PRIMARY KEY (id);
 
 
 --
@@ -1121,6 +1182,13 @@ CREATE INDEX idx_copy_types_tenant ON public.copy_types USING btree (tenant_id);
 
 
 --
+-- Name: idx_courses_tenant; Type: INDEX; Schema: public; Owner: colettas
+--
+
+CREATE INDEX idx_courses_tenant ON public.courses USING btree (tenant_id);
+
+
+--
 -- Name: idx_devices_tenant; Type: INDEX; Schema: public; Owner: colettas
 --
 
@@ -1261,6 +1329,13 @@ CREATE UNIQUE INDEX uniq_copy_types_tenant_name ON public.copy_types USING btree
 
 
 --
+-- Name: uniq_courses_tenant_name; Type: INDEX; Schema: public; Owner: colettas
+--
+
+CREATE UNIQUE INDEX uniq_courses_tenant_name ON public.courses USING btree (tenant_id, lower(name));
+
+
+--
 -- Name: uniq_dining_tables_room_name; Type: INDEX; Schema: public; Owner: colettas
 --
 
@@ -1378,6 +1453,14 @@ ALTER TABLE ONLY public.checks
 
 ALTER TABLE ONLY public.copy_types
     ADD CONSTRAINT copy_types_tenant_id_fkey FOREIGN KEY (tenant_id) REFERENCES public.tenants(id);
+
+
+--
+-- Name: courses courses_tenant_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: colettas
+--
+
+ALTER TABLE ONLY public.courses
+    ADD CONSTRAINT courses_tenant_id_fkey FOREIGN KEY (tenant_id) REFERENCES public.tenants(id);
 
 
 --
@@ -1517,6 +1600,14 @@ ALTER TABLE ONLY public.print_settings
 
 
 --
+-- Name: products products_course_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: colettas
+--
+
+ALTER TABLE ONLY public.products
+    ADD CONSTRAINT products_course_id_fkey FOREIGN KEY (course_id) REFERENCES public.courses(id) ON DELETE SET NULL;
+
+
+--
 -- Name: products products_tenant_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: colettas
 --
 
@@ -1589,6 +1680,12 @@ ALTER TABLE public.checks ENABLE ROW LEVEL SECURITY;
 --
 
 ALTER TABLE public.copy_types ENABLE ROW LEVEL SECURITY;
+
+--
+-- Name: courses; Type: ROW SECURITY; Schema: public; Owner: colettas
+--
+
+ALTER TABLE public.courses ENABLE ROW LEVEL SECURITY;
 
 --
 -- Name: devices; Type: ROW SECURITY; Schema: public; Owner: colettas
@@ -1688,6 +1785,13 @@ CREATE POLICY tenant_isolation ON public.checks USING ((tenant_id = (NULLIF(curr
 --
 
 CREATE POLICY tenant_isolation ON public.copy_types USING ((tenant_id = (NULLIF(current_setting('app.tenant_id'::text, true), ''::text))::integer));
+
+
+--
+-- Name: courses tenant_isolation; Type: POLICY; Schema: public; Owner: colettas
+--
+
+CREATE POLICY tenant_isolation ON public.courses USING ((tenant_id = (NULLIF(current_setting('app.tenant_id'::text, true), ''::text))::integer));
 
 
 --
@@ -1857,6 +1961,22 @@ GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE public.copy_types TO standmanager_mas
 
 GRANT ALL ON SEQUENCE public.copy_types_id_seq TO standmanager_app;
 GRANT SELECT,USAGE ON SEQUENCE public.copy_types_id_seq TO standmanager_master;
+
+
+--
+-- Name: TABLE courses; Type: ACL; Schema: public; Owner: colettas
+--
+
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE public.courses TO standmanager_app;
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE public.courses TO standmanager_master;
+
+
+--
+-- Name: SEQUENCE courses_id_seq; Type: ACL; Schema: public; Owner: colettas
+--
+
+GRANT ALL ON SEQUENCE public.courses_id_seq TO standmanager_app;
+GRANT SELECT,USAGE ON SEQUENCE public.courses_id_seq TO standmanager_master;
 
 
 --
@@ -2095,5 +2215,5 @@ ALTER DEFAULT PRIVILEGES FOR ROLE colettas IN SCHEMA public GRANT SELECT,INSERT,
 -- PostgreSQL database dump complete
 --
 
-\unrestrict vPhPkRy8aWCPSG5PucwjZpkpiW3KJIFWIIO2TOI7IkUjyh8m4Z8RTkKO9HvtabL
+\unrestrict z8dURnf7pPgPvjwoNN68ajp6ZV3zmrebCKULiQpq15QbIbGPtlb2aO91QuKZk2Q
 

@@ -11,6 +11,8 @@ export const productSchema = z.object({
   color: z.string().regex(/^#[0-9a-fA-F]{6}$/).nullish().transform(c => c || DEFAULT_COLOR),
   visible: z.boolean().default(true),
   print_destination: z.enum(['bar', 'kitchen', 'both']).default('both'),
+  // Portata (modulo tavoli). Assente = non si cambia; null = nessuna portata.
+  course_id: z.number().int().positive().nullable().optional(),
 });
 
 export const bulkVisibilitySchema = z.object({

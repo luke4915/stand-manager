@@ -16,6 +16,8 @@ import { withCheckInfo } from '../utils/orderCheck.js';
 import { readCoverCharge, syncCoverOrder } from '../utils/cover.js';
 import { idParamsSchema } from '../schemas/common.js';
 import { openCheckSchema, listChecksQuerySchema, billRequestSchema, paymentSchema, adjustSchema, voidCheckSchema, receiptQuerySchema, moveCheckSchema, mergeCheckSchema, coversSchema } from '../schemas/checkSchema.js';
+import { courseOrdersSchema, fireCoursesSchema, resequenceSchema } from '../schemas/courseSchema.js';
+import { createCourseOrders, fireCourses, resequenceCourses, loadOrdersForNotify } from '../utils/courseOrders.js';
 
 // Conti dei tavoli (modulo `tables`). Eventi WebSocket: `check_updated` (solo personale, mai al KDS pubblico).
 const router = express.Router();
@@ -133,6 +135,63 @@ export default function (broadcast) {
       if (sendHttpError(res, err)) return;
       logger.error({ err }, 'Errore POST /api/checks/:id/payments');
       res.status(500).json({ error: 'Errore registrazione pagamento' });
+    }
+  });
+
+  // Le comande appena mandate arrivano a cucina e KDS come una comanda nuova.
+  const notifyFired = async (db, tenantId, orderIds) => {
+    if (!broadcast) return;
+    for (const order of await loadOrdersForNotify(db, orderIds)) broadcast(tenantId, { type: 'order_created', order });
+  };
+
+  // POST /api/checks/:id/courses — il giro del tavolo diviso per portate: una comanda per portata, la prima esce
+  // subito (se `fire_first`), le altre restano «da mandare». Risponde con le comande create, per stampare quelle mandate.
+  router.post('/:id/courses', ...guard, validate({ params: idParamsSchema, body: courseOrdersSchema }), tenantScope, async (req, res) => {
+    const { groups, fire_first: fireFirst } = req.body;
+    try {
+      const result = await inTransaction(req.db, (db) => createCourseOrders(db, {
+        tenantId: req.user.tenantId, userId: req.user.id, role: req.user.role, checkId: req.params.id, groups, fireFirst }));
+      await logAudit(req.db, req.user.id, 'CREATE_COURSE_ORDERS', { checkId: Number(req.params.id), orders: result.orderIds, fired: result.firedIds });
+      if (broadcast) result.stockUpdates.forEach(product => broadcast(req.user.tenantId, { type: 'product_stock_updated', product }));
+      await notifyFired(req.db, req.user.tenantId, result.firedIds);
+      const check = await getCheckSummary(req.db, req.params.id);
+      notify(req.user.tenantId, check);
+      res.status(201).json({ orders: await loadOrdersForNotify(req.db, result.orderIds), fired: result.firedIds, check });
+    } catch (err) {
+      if (sendHttpError(res, err)) return;
+      logger.error({ err }, 'Errore POST /api/checks/:id/courses');
+      res.status(500).json({ error: 'Errore invio comande' });
+    }
+  });
+
+  // POST /api/checks/:id/fire — manda una portata (la prossima, o quella con ordine di uscita `seq`)
+  router.post('/:id/fire', ...guard, validate({ params: idParamsSchema, body: fireCoursesSchema }), tenantScope, async (req, res) => {
+    try {
+      const ids = await inTransaction(req.db, (db) => fireCourses(db, { checkId: req.params.id, seq: req.body.seq }));
+      await logAudit(req.db, req.user.id, 'FIRE_COURSE', { checkId: Number(req.params.id), orders: ids });
+      await notifyFired(req.db, req.user.tenantId, ids);
+      const check = await getCheckSummary(req.db, req.params.id);
+      notify(req.user.tenantId, check);
+      res.json({ orders: await loadOrdersForNotify(req.db, ids), fired: ids, check });
+    } catch (err) {
+      if (sendHttpError(res, err)) return;
+      logger.error({ err }, 'Errore POST /api/checks/:id/fire');
+      res.status(500).json({ error: 'Errore invio portata' });
+    }
+  });
+
+  // PUT /api/checks/:id/sequence — cambia l'ordine di uscita delle portate ancora da mandare (stesso numero = insieme)
+  router.put('/:id/sequence', ...guard, validate({ params: idParamsSchema, body: resequenceSchema }), tenantScope, async (req, res) => {
+    try {
+      await inTransaction(req.db, (db) => resequenceCourses(db, { checkId: req.params.id, assignments: req.body.orders }));
+      await logAudit(req.db, req.user.id, 'RESEQUENCE_COURSES', { checkId: Number(req.params.id), orders: req.body.orders });
+      const check = await getCheckSummary(req.db, req.params.id);
+      notify(req.user.tenantId, check);
+      res.json(await getCheckDetail(req.db, req.params.id));
+    } catch (err) {
+      if (sendHttpError(res, err)) return;
+      logger.error({ err }, 'Errore PUT /api/checks/:id/sequence');
+      res.status(500).json({ error: 'Errore riordino portate' });
     }
   });
 
