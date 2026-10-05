@@ -4,13 +4,14 @@ import { fetchWithAuth } from '../../utils/apiClient';
 import { useToast } from '../../context/useToast';
 import { formatEuro } from './checkMath';
 import { iconBtn } from './ui';
+import { canCash } from './permissions';
 
 const STATUS = { scheduled: ['Da mandare', 'text-amber-500'], pending: ['In attesa', 'text-amber-500'], preparing: ['In preparazione', 'text-sky-500'], completed: ['Servita', 'text-emerald-500'], canceled: ['Stornata', 'text-red-500'] };
 const time = (iso) => new Date(iso).toLocaleTimeString('it-IT', { hour: '2-digit', minute: '2-digit' });
 
 // Le righe del conto, raggruppate per comanda (come le righe del carrello alla cassa).
 // Una comanda in attesa o in preparazione si può stornare finché il conto è aperto.
-const CheckOrders = ({ detail, onChanged }) => {
+const CheckOrders = ({ detail, user, onChanged }) => {
   const { showToast } = useToast();
   const [confirming, setConfirming] = useState(null);
   const open = detail.status === 'open';
@@ -45,7 +46,7 @@ const CheckOrders = ({ detail, onChanged }) => {
         {!isCover && <div className="flex items-center gap-2 px-1 pt-2">
           <span className="text-xs font-semibold text-[var(--text-muted)]">{order.course_name ? `${order.course_name} · ` : ''}#{order.display_code} · {time(order.created_at)}</span>
           <span className={`text-xs font-semibold ${tone}`}>{text}</span>
-          {open && ['scheduled', 'pending', 'preparing'].includes(order.status) && (
+          {open && canCash(user.role) && ['scheduled', 'pending', 'preparing'].includes(order.status) && (
             <span className="ml-auto flex items-center gap-1.5">
               {confirming === order.id ? (
                 <>

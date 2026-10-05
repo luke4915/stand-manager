@@ -1,5 +1,5 @@
 import express from 'express';
-import { authenticate, authorizeAdmin, authorizeCash } from '../middleware/authenticate.js';
+import { authenticate, authorizeAdmin, authorizeWaiter } from '../middleware/authenticate.js';
 import { validate } from '../middleware/validate.js';
 import { tenantScope } from '../middleware/tenantScope.js';
 import { inTransaction } from '../db.js';
@@ -23,7 +23,7 @@ const UNIQUE_ROOM = 'Esiste già una sala con questo nome';
 const UNIQUE_TABLE = 'Esiste già un tavolo con questo nome in questa sala';
 
 // GET /api/rooms — tutte le sale con i loro tavoli, in una chiamata sola
-roomsRouter.get('/', authenticate, requireModule('tables'), authorizeCash, tenantScope, async (req, res) => {
+roomsRouter.get('/', authenticate, requireModule('tables'), authorizeWaiter, tenantScope, async (req, res) => {
   try {
     const [{ rows: rooms }, { rows: tables }, { rows: elements }] = await Promise.all([
       req.db.query(`SELECT ${ROOM_COLUMNS} FROM rooms ORDER BY id`),

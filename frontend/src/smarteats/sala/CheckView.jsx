@@ -7,11 +7,11 @@ import CheckMenu from './CheckMenu';
 import CheckOrders from './CheckOrders';
 import { formatEuro } from './checkMath';
 import { printFired } from './printFired';
+import { canCash, canDiscount as roleCanDiscount } from './permissions';
 import { btn, btnPrimary, btnDanger, label, row } from './ui';
 
 const METHOD = { cash: 'Contanti', card: 'Carta', other: 'Altro' };
 const time = (iso) => new Date(iso).toLocaleTimeString('it-IT', { hour: '2-digit', minute: '2-digit' });
-const DISCOUNT_ROLES = ['admin', 'responsabile'];
 
 // Il conto di un tavolo, nel pannello a destra: righe per comanda e due azioni sempre in vista (Aggiungi, Incassa).
 // Tutto il resto sta nel menu «⋯».
@@ -24,7 +24,8 @@ const CheckView = ({ detail, user, service, onBack, onOrder, onPay, onAdjust, on
   const activeOrders = detail.orders.filter(o => o.status !== 'canceled');
   // Il coperto è una riga automatica: non conta come comanda quando si decide se il conto è vuoto
   const realOrders = activeOrders.filter(o => o.order_type !== 'cover');
-  const canDiscount = DISCOUNT_ROLES.includes(user.role);
+  const canDiscount = roleCanDiscount(user.role);
+  const cash = canCash(user.role);
   const hasPayments = detail.payments.length > 0;
   const billRequested = open && detail.bill_requested_at;
 
@@ -86,10 +87,13 @@ const CheckView = ({ detail, user, service, onBack, onOrder, onPay, onAdjust, on
           </div>
           {open ? (
             <div className="grid grid-cols-2 gap-2">
-              <button className={btn} disabled={busy || !service} title={service ? undefined : 'Il servizio è chiuso'} onClick={onOrder}><Plus size={16} /> Aggiungi</button>
-              {detail.due > 0
+              <button className={cash ? btn : btnPrimary} disabled={busy || !service} title={service ? undefined : 'Il servizio è chiuso'} onClick={onOrder}><Plus size={16} /> Aggiungi</button>
+              {cash ? (detail.due > 0
                 ? <button className={btnPrimary} disabled={busy} onClick={onPay}><Wallet size={16} /> Incassa</button>
-                : <button className={btnPrimary} disabled={busy || !activeOrders.length} onClick={() => run(() => fetchWithAuth(`/checks/${detail.id}/close`, { method: 'POST', body: {} }))}><Lock size={16} /> Chiudi</button>}
+                : <button className={btnPrimary} disabled={busy || !activeOrders.length} onClick={() => run(() => fetchWithAuth(`/checks/${detail.id}/close`, { method: 'POST', body: {} }))}><Lock size={16} /> Chiudi</button>)
+                // Il cameriere non incassa: chiede il conto alla cassa
+                : <button className={btn} disabled={busy} onClick={() => run(() => fetchWithAuth(`/checks/${detail.id}/bill-request`, { method: 'POST', body: { requested: !detail.bill_requested_at } }))}>
+                  {billRequested ? <BellOff size={16} /> : <BellRing size={16} />} {billRequested ? 'Annulla conto' : 'Chiedi il conto'}</button>}
             </div>
           ) : <button className={`${btn} w-full`} onClick={() => onPrint()}><Printer size={16} /> Stampa ricevuta</button>}
         </>
@@ -123,7 +127,7 @@ const CheckView = ({ detail, user, service, onBack, onOrder, onPay, onAdjust, on
           <button className={`${btnPrimary} !h-10`} disabled={busy} onClick={fireNext}><Send size={15} /> Manda</button>
         </div>
       )}
-      <CheckOrders detail={detail} onChanged={onChanged} />
+      <CheckOrders detail={detail} user={user} onChanged={onChanged} />
       {hasPayments && (
         <section className="space-y-1.5 pt-2">
           <p className="px-1 text-xs font-semibold text-[var(--text-muted)]">Pagamenti</p>

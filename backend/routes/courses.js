@@ -1,5 +1,5 @@
 import express from 'express';
-import { authenticate, authorizeAdmin, authorizeCash } from '../middleware/authenticate.js';
+import { authenticate, authorizeAdmin, authorizeWaiter } from '../middleware/authenticate.js';
 import { validate } from '../middleware/validate.js';
 import { tenantScope } from '../middleware/tenantScope.js';
 import { inTransaction } from '../db.js';
@@ -16,7 +16,7 @@ const router = express.Router();
 const COLUMNS = 'id, name, position, active';
 const UNIQUE = 'Esiste già una portata con questo nome';
 
-router.get('/', authenticate, requireModule('tables'), authorizeCash, tenantScope, async (req, res) => {
+router.get('/', authenticate, requireModule('tables'), authorizeWaiter, tenantScope, async (req, res) => {
   try {
     const { rows } = await req.db.query(`SELECT ${COLUMNS} FROM courses ORDER BY position, id`);
     res.json(rows);

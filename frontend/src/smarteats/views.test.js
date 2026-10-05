@@ -9,6 +9,7 @@ test('ogni ruolo vede le sue pagine', () => {
   assert.deepEqual(ids('admin', all), ['sala', 'cucina', 'carta', 'statistiche', 'impostazioni']);
   assert.deepEqual(ids('responsabile', all), ['sala', 'statistiche']);
   assert.deepEqual(ids('cassa', all), ['sala']);
+  assert.deepEqual(ids('cameriere', all), ['sala']);
   assert.deepEqual(ids('cucina', all), ['cucina']);
 });
 

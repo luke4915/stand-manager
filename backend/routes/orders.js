@@ -1,6 +1,6 @@
 import express from 'express';
 import { inTransaction } from '../db.js';
-import { authenticate, authorizeCash, CASH_ROLES } from '../middleware/authenticate.js';
+import { authenticate, authorizeCash, CASH_ROLES, WAITER_ROLES } from '../middleware/authenticate.js';
 import { tenantScope, withTenantClient } from '../middleware/tenantScope.js';
 import { resolveTenantFromHost } from '../middleware/resolveTenantFromHost.js';
 import { verifyOrderItems } from '../utils/orderLines.js';
@@ -311,7 +311,7 @@ export default function (broadcast) {
   // Cucina e bar le fanno avanzare; solo il personale di sala le serve (e tocca quelle già servite).
   router.put('/:id/lines', authenticate, validate({ params: idParamsSchema, body: lineStatusSchema }), tenantScope, async (req, res) => {
     const { status, station, line_ids: lineIds } = req.body;
-    const canServe = CASH_ROLES.includes(req.user.role);
+    const canServe = WAITER_ROLES.includes(req.user.role);
     if (status === 'served' && !canServe) return res.status(403).json({ error: 'Solo il personale di sala segna i piatti serviti' });
     try {
       const { changed, updated } = await inTransaction(req.db, async (db) => {

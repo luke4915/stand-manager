@@ -76,7 +76,7 @@ Disegno completo e decisioni in `docs/design-tavoli.md`. Un passo alla volta; i 
 | 3-2 | Il cameriere "manda" una portata: solo allora arriva in cucina e si stampa la comanda. Una comanda per portata, quelle future `scheduled` sul conto; ordine di uscita e «insieme» con lo stesso numero; riordino. Comanda in Sala divisa per portata (`DraftOrder`: prima/dopo/insieme, riordino), «Prossima portata → Manda» sul conto, portata stampata sul tagliando. Mancano il riordino di portate già sul conto da interfaccia e il palmare. | `[~]` |
 | 3-3 | Stato per riga (migrazione 041): in preparazione, pronta, servita; la comanda segue le righe. Monitor cucina (`smarteats/cucina/`) con postazioni Tutto/Cucina/Bar, riga toccabile e pulsante «Inizia»/«Pronta»; la Sala mostra sulla pianta quanti piatti sono pronti da servire, e sul conto «Pronti da servire → Servi». | `[x]` |
 | 3-4 | Comanda di cucina con tavolo, coperti e portata. | `[ ]` |
-| 3-5 | Ruolo cameriere con permessi propri (prende ordini, non fa sconti né storni). | `[ ]` |
+| 3-5 | Ruolo `cameriere` (migrazione 042, `WAITER_ROLES`): prende ordini, manda e serve, non incassa né storna né sconta. Interfaccia per palmare: tavoli come schede con filtro (Tutti / Occupati / Da servire) sotto i 640 px, pannello a tutto schermo, comandi limitati al ruolo, nessun menu laterale. | `[x]` |
 
 ## Fase 4: prenotazioni (P2)
 

@@ -1,8 +1,10 @@
 import { useState } from 'react';
+import { useIsMobile } from '../../hooks/useBreakpoint';
 import { Users, Receipt } from 'lucide-react';
 import FloorCanvas from '../floor/FloorCanvas';
 import { isPlaced } from '../floor/geometry';
 import { tableState, formatEuro } from './checkMath';
+import { segment, segmentBox } from './ui';
 
 const minutesSince = (iso) => Math.max(0, Math.round((Date.now() - new Date(iso).getTime()) / 60000));
 
@@ -57,7 +59,11 @@ const mapTable = (checkOf, selectedId, onSelect) => (table, style, cell) => {
 
 // Le sale con i tavoli: un selettore in alto sceglie la sala, la pianta disegnata dall'admin occupa tutta l'area
 // (scalata per starci intera) e mostra lo stato dal vivo. I tavoli non ancora piazzati restano schede sotto la pianta.
+const FILTERS = [{ id: 'all', label: 'Tutti' }, { id: 'busy', label: 'Occupati' }, { id: 'ready', label: 'Da servire' }];
+
 const FloorView = ({ rooms, checks, service, selectedTableId, onSelect }) => {
+  const phone = useIsMobile(640);                 // sul telefono i tavoli sono schede, non la pianta
+  const [filter, setFilter] = useState('all');
   const byTable = new Map(checks.map(c => [c.table_id, c]));
   const checkOf = (t) => byTable.get(t.id);
   const activeRooms = rooms.filter(r => r.active);
@@ -66,6 +72,7 @@ const FloorView = ({ rooms, checks, service, selectedTableId, onSelect }) => {
   const covers = checks.reduce((s, c) => s + c.covers, 0);
   const openIn = (r) => r.tables.filter(t => byTable.has(t.id)).length;
   const loose = room ? room.tables.filter(t => !isPlaced(t)) : [];
+  const shown = (room?.tables ?? []).filter(t => t.active && (filter === 'all' || (filter === 'busy' && byTable.has(t.id)) || (filter === 'ready' && byTable.get(t.id)?.ready_items > 0)));
 
   return (
     <div className="h-full flex flex-col gap-3 min-h-0">
@@ -86,12 +93,25 @@ const FloorView = ({ rooms, checks, service, selectedTableId, onSelect }) => {
       </div>
 
       {!room && <p className="text-sm text-[var(--text-muted)]">Nessuna sala configurata. Un amministratore può crearle in Impostazioni.</p>}
-      {room && room.tables.some(isPlaced) && (
+      {phone && room && (
+        <>
+          <div className={`${segmentBox} shrink-0`} role="tablist" aria-label="Filtro tavoli">
+            {FILTERS.map(f => <button key={f.id} role="tab" aria-selected={filter === f.id} className={segment(filter === f.id)} onClick={() => setFilter(f.id)}>{f.label}</button>)}
+          </div>
+          <div className="flex-1 min-h-0 overflow-y-auto no-scrollbar">
+            {shown.length === 0 && <p className="text-sm text-[var(--text-muted)] py-6 text-center">Nessun tavolo</p>}
+            <div className="grid grid-cols-2 gap-2.5 pb-2">
+              {shown.map(t => <TableCard key={t.id} table={t} check={checkOf(t)} selected={t.id === selectedTableId} onSelect={onSelect} />)}
+            </div>
+          </div>
+        </>
+      )}
+      {!phone && room && room.tables.some(isPlaced) && (
         <div className="flex-1 min-h-[200px]">
           <FloorCanvas fit gridW={room.grid_w} gridH={room.grid_h} tables={room.tables} elements={room.elements} renderTable={mapTable(checkOf, selectedTableId, onSelect)} />
         </div>
       )}
-      {loose.length > 0 && (
+      {!phone && loose.length > 0 && (
         <div className="grid gap-2.5 grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 2xl:grid-cols-5 shrink-0 max-h-[40%] overflow-y-auto no-scrollbar">
           {loose.map(t => <TableCard key={t.id} table={t} check={checkOf(t)} selected={t.id === selectedTableId} onSelect={onSelect} />)}
         </div>

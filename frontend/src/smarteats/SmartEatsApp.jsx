@@ -89,7 +89,7 @@ const SmartEatsApp = () => {
   return (
     <div className="flex h-[100dvh] w-full overflow-hidden bg-[var(--bg-main)]">
       {/* Menu laterale (desktop) */}
-      <aside className="hidden md:flex flex-col shrink-0 w-20 xl:w-60 bg-[var(--bg-card)] border-r border-[var(--border)] py-6 px-3 gap-6">
+      <aside className={`${views.length > 1 ? 'hidden md:flex' : 'hidden'} flex-col shrink-0 w-20 xl:w-60 bg-[var(--bg-card)] border-r border-[var(--border)] py-6 px-3 gap-6`}>
         <div className="flex items-center gap-3 px-1">
           <div className="w-11 h-11 shrink-0 bg-[var(--accent)] rounded-2xl flex items-center justify-center text-white font-semibold text-xl select-none">S</div>
           <span className="hidden xl:inline font-semibold text-lg tracking-tight text-[var(--text-main)]">SmartEats</span>
@@ -131,9 +131,9 @@ const SmartEatsApp = () => {
         </div>
 
         {/* Barra di navigazione (telefono e tablet piccoli) */}
-        <nav className="md:hidden flex justify-around gap-1 px-2 py-2 bg-[var(--bg-card)] border-t border-[var(--border)] shrink-0" style={{ paddingBottom: 'max(0.5rem, env(safe-area-inset-bottom))' }}>
+        {views.length > 1 && <nav className="md:hidden flex justify-around gap-1 px-2 py-2 bg-[var(--bg-card)] border-t border-[var(--border)] shrink-0" style={{ paddingBottom: 'max(0.5rem, env(safe-area-inset-bottom))' }}>
           {views.map(v => <NavItem key={v.id} view={v} compact />)}
-        </nav>
+        </nav>}
       </main>
 
       {showProfile && <UserProfile onClose={() => setShowProfile(false)} />}

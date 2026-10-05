@@ -7,7 +7,7 @@ import { label, row, segment, segmentBox } from './ui';
 
 // Cambio di posto: «Sposta» il conto su un tavolo libero, «Unisci» lo riunisce a quello di un altro tavolo
 // (comande, pagamenti e coperti confluiscono lì). Tutto nello stesso pannello del conto.
-const MoveView = ({ detail, onBack, onMoved, onMerged }) => {
+const MoveView = ({ detail, canMerge, onBack, onMoved, onMerged }) => {
   const { showToast } = useToast();
   const [mode, setMode] = useState('move');
   const [rooms, setRooms] = useState(null);
@@ -32,10 +32,12 @@ const MoveView = ({ detail, onBack, onMoved, onMerged }) => {
 
   return (
     <PanelFrame title="Cambio di posto" subtitle={`Ora: ${detail.table_name}`} onBack={onBack}>
-      <div className={segmentBox} role="tablist" aria-label="Cosa fare">
-        <button role="tab" aria-selected={mode === 'move'} className={segment(mode === 'move')} onClick={() => setMode('move')}>Sposta</button>
-        <button role="tab" aria-selected={mode === 'merge'} className={segment(mode === 'merge')} onClick={() => setMode('merge')}>Unisci</button>
-      </div>
+      {canMerge && (
+        <div className={segmentBox} role="tablist" aria-label="Cosa fare">
+          <button role="tab" aria-selected={mode === 'move'} className={segment(mode === 'move')} onClick={() => setMode('move')}>Sposta</button>
+          <button role="tab" aria-selected={mode === 'merge'} className={segment(mode === 'merge')} onClick={() => setMode('merge')}>Unisci</button>
+        </div>
+      )}
 
       {!rooms && <p className="text-sm text-[var(--text-muted)] px-1 pt-2">Caricamento…</p>}
 
@@ -57,7 +59,7 @@ const MoveView = ({ detail, onBack, onMoved, onMerged }) => {
         );
       })}
 
-      {rooms && mode === 'merge' && (
+      {rooms && canMerge && mode === 'merge' && (
         <section className="pt-1 space-y-1.5">
           <p className={`${label} px-1 py-1.5`}>Unisci questo conto a…</p>
           {others.length === 0 && <p className="text-xs text-[var(--text-muted)] px-1">Non ci sono altri tavoli aperti.</p>}

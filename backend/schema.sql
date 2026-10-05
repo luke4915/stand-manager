@@ -2,7 +2,7 @@
 -- PostgreSQL database dump
 --
 
-\restrict bsCuEf1EShaNqXpErXb7BRUhBPBTrmdr5U9zWtz4jh57uWLaavAanJDm4TyHhIf
+\restrict IZ3Xt7kAfF1QoadsalfHCLGeQcoDsEXdWg19Jka22iw0MD3TQ7DNDvLVLCZ7PId
 
 -- Dumped from database version 17.10 (Homebrew)
 -- Dumped by pg_dump version 17.10 (Homebrew)
@@ -810,7 +810,7 @@ CREATE TABLE public.users (
     role character varying(20) NOT NULL,
     tenant_id integer DEFAULT (NULLIF(current_setting('app.tenant_id'::text, true), ''::text))::integer NOT NULL,
     must_change_password boolean DEFAULT false NOT NULL,
-    CONSTRAINT users_role_check CHECK (((role)::text = ANY ((ARRAY['admin'::character varying, 'responsabile'::character varying, 'cassa'::character varying, 'cucina'::character varying])::text[])))
+    CONSTRAINT users_role_check CHECK (((role)::text = ANY ((ARRAY['admin'::character varying, 'responsabile'::character varying, 'cassa'::character varying, 'cameriere'::character varying, 'cucina'::character varying])::text[])))
 );
 
 ALTER TABLE ONLY public.users FORCE ROW LEVEL SECURITY;
@@ -2226,5 +2226,5 @@ ALTER DEFAULT PRIVILEGES FOR ROLE colettas IN SCHEMA public GRANT SELECT,INSERT,
 -- PostgreSQL database dump complete
 --
 
-\unrestrict bsCuEf1EShaNqXpErXb7BRUhBPBTrmdr5U9zWtz4jh57uWLaavAanJDm4TyHhIf
+\unrestrict IZ3Xt7kAfF1QoadsalfHCLGeQcoDsEXdWg19Jka22iw0MD3TQ7DNDvLVLCZ7PId
 

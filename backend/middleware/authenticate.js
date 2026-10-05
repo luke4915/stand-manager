@@ -58,6 +58,9 @@ export function authorizeAdmin(req, res, next) {
 // La cucina vede gli ordini e ne fa avanzare lo stato, nient'altro.
 export const CASH_ROLES = ['admin', 'responsabile', 'cassa'];
 export const STOCK_ROLES = CASH_ROLES;
+// Ruoli che lavorano in sala (modulo `tables`): ai tavoli, oltre alla cassa, c'è il cameriere. Prende gli ordini, manda
+// le portate e serve; non incassa, non storna, non fa sconti e non tocca lo stock (restano ai CASH_ROLES).
+export const WAITER_ROLES = [...CASH_ROLES, 'cameriere'];
 
 export const authorizeRoles = (roles, message) => (req, res, next) => {
   if (!roles.includes(req.user?.role)) return res.status(403).json({ error: message });
@@ -66,9 +69,10 @@ export const authorizeRoles = (roles, message) => (req, res, next) => {
 
 export const authorizeStock = authorizeRoles(STOCK_ROLES, 'Non hai i permessi per modificare lo stock');
 export const authorizeCash = authorizeRoles(CASH_ROLES, 'Non hai i permessi per questa operazione');
+export const authorizeWaiter = authorizeRoles(WAITER_ROLES, 'Non hai i permessi per questa operazione');
 
 // Ruoli degli utenti di un tenant.
-export const ROLES = ['admin', 'responsabile', 'cassa', 'cucina'];
+export const ROLES = ['admin', 'responsabile', 'cassa', 'cameriere', 'cucina'];
 
 // Ruoli abilitati ad applicare sconti/omaggi su ordini e singoli prodotti.
 // Esportato anche come array riutilizzabile per validazioni inline (non solo middleware di route).

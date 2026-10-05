@@ -11,6 +11,7 @@ import AdjustView from './AdjustView';
 import MoveView from './MoveView';
 import CoversView from './CoversView';
 import DraftOrder from './DraftOrder';
+import { canCash } from './permissions';
 
 const Empty = () => (
   <div className="h-full flex flex-col items-center justify-center gap-2 bg-[var(--bg-card)] rounded-xl border border-[var(--border)] text-[var(--text-muted)] opacity-60">
@@ -40,7 +41,7 @@ const CheckSide = ({ checkId, user, service, event, ordering, cart, setCart, pro
   if (view === 'adjust') return <AdjustView detail={detail} onBack={() => setView('check')} onDone={refresh} />;
   if (view === 'covers') return <CoversView detail={detail} onBack={() => setView('check')} onDone={refresh} />;
   if (view === 'move') {
-    return <MoveView detail={detail} onBack={() => setView('check')} onMoved={(check) => onSwitch(check)} onMerged={(target) => onSwitch(target)} />;
+    return <MoveView detail={detail} canMerge={canCash(user.role)} onBack={() => setView('check')} onMoved={(check) => onSwitch(check)} onMerged={(target) => onSwitch(target)} />;
   }
   return (
     <CheckView detail={detail} user={user} service={service} onBack={onBack} onOrder={onOrder} onPay={() => setView('pay')} onAdjust={() => setView('adjust')} onMove={() => setView('move')} onCovers={() => setView('covers')}

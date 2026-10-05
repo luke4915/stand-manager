@@ -1,5 +1,5 @@
 import express from 'express';
-import { authenticate, authorizeCash, authorizeDiscount } from '../middleware/authenticate.js';
+import { authenticate, authorizeCash, authorizeWaiter, authorizeDiscount } from '../middleware/authenticate.js';
 import { validate } from '../middleware/validate.js';
 import { tenantScope } from '../middleware/tenantScope.js';
 import { inTransaction } from '../db.js';
@@ -21,7 +21,9 @@ import { createCourseOrders, fireCourses, resequenceCourses, loadOrdersForNotify
 
 // Conti dei tavoli (modulo `tables`). Eventi WebSocket: `check_updated` (solo personale, mai al KDS pubblico).
 const router = express.Router();
+// `guard`: ruoli di cassa (incasso, chiusura, unione). `waiterGuard`: anche il cameriere (sala: aprire, ordinare, mandare).
 const guard = [authenticate, requireModule('tables'), authorizeCash];
+const waiterGuard = [authenticate, requireModule('tables'), authorizeWaiter];
 
 export default function (broadcast) {
   const notify = (tenantId, check) => broadcast?.(tenantId, { type: 'check_updated', check });
@@ -35,7 +37,7 @@ export default function (broadcast) {
   };
 
   // GET /api/checks?status=open&table_id= — elenco (la mappa della sala)
-  router.get('/', ...guard, validate({ query: listChecksQuerySchema }), tenantScope, async (req, res) => {
+  router.get('/', ...waiterGuard, validate({ query: listChecksQuerySchema }), tenantScope, async (req, res) => {
     try {
       res.json(await listChecks(req.db, { status: req.validQuery.status, tableId: req.validQuery.table_id }));
     } catch (err) {
@@ -45,7 +47,7 @@ export default function (broadcast) {
   });
 
   // POST /api/checks — apre il conto di un tavolo nella sessione aperta
-  router.post('/', ...guard, validate({ body: openCheckSchema }), tenantScope, async (req, res) => {
+  router.post('/', ...waiterGuard, validate({ body: openCheckSchema }), tenantScope, async (req, res) => {
     const { table_id, covers } = req.body;
     try {
       const id = await inTransaction(req.db, async (db) => {
@@ -79,7 +81,7 @@ export default function (broadcast) {
   });
 
   // GET /api/checks/:id — il conto con comande e righe
-  router.get('/:id', ...guard, validate({ params: idParamsSchema }), tenantScope, async (req, res) => {
+  router.get('/:id', ...waiterGuard, validate({ params: idParamsSchema }), tenantScope, async (req, res) => {
     try {
       res.json(await getCheckDetail(req.db, req.params.id));
     } catch (err) {
@@ -90,7 +92,7 @@ export default function (broadcast) {
   });
 
   // POST /api/checks/:id/bill-request — il tavolo chiede il conto (o si annulla la richiesta)
-  router.post('/:id/bill-request', ...guard, validate({ params: idParamsSchema, body: billRequestSchema }), tenantScope, async (req, res) => {
+  router.post('/:id/bill-request', ...waiterGuard, validate({ params: idParamsSchema, body: billRequestSchema }), tenantScope, async (req, res) => {
     try {
       const { rowCount } = await req.db.query(
         `UPDATE checks SET bill_requested_at = CASE WHEN $2 THEN COALESCE(bill_requested_at, now()) ELSE NULL END
@@ -146,7 +148,7 @@ export default function (broadcast) {
 
   // POST /api/checks/:id/courses — il giro del tavolo diviso per portate: una comanda per portata, la prima esce
   // subito (se `fire_first`), le altre restano «da mandare». Risponde con le comande create, per stampare quelle mandate.
-  router.post('/:id/courses', ...guard, validate({ params: idParamsSchema, body: courseOrdersSchema }), tenantScope, async (req, res) => {
+  router.post('/:id/courses', ...waiterGuard, validate({ params: idParamsSchema, body: courseOrdersSchema }), tenantScope, async (req, res) => {
     const { groups, fire_first: fireFirst } = req.body;
     // Reinvio dello stesso giro (risposta persa, doppio tocco): si risponde con le comande già create, senza rifare nulla.
     const alreadySent = async () => {
@@ -173,7 +175,7 @@ export default function (broadcast) {
   });
 
   // POST /api/checks/:id/fire — manda una portata (la prossima, o quella con ordine di uscita `seq`)
-  router.post('/:id/fire', ...guard, validate({ params: idParamsSchema, body: fireCoursesSchema }), tenantScope, async (req, res) => {
+  router.post('/:id/fire', ...waiterGuard, validate({ params: idParamsSchema, body: fireCoursesSchema }), tenantScope, async (req, res) => {
     try {
       const ids = await inTransaction(req.db, (db) => fireCourses(db, { checkId: req.params.id, seq: req.body.seq }));
       await logAudit(req.db, req.user.id, 'FIRE_COURSE', { checkId: Number(req.params.id), orders: ids });
@@ -189,7 +191,7 @@ export default function (broadcast) {
   });
 
   // PUT /api/checks/:id/sequence — cambia l'ordine di uscita delle portate ancora da mandare (stesso numero = insieme)
-  router.put('/:id/sequence', ...guard, validate({ params: idParamsSchema, body: resequenceSchema }), tenantScope, async (req, res) => {
+  router.put('/:id/sequence', ...waiterGuard, validate({ params: idParamsSchema, body: resequenceSchema }), tenantScope, async (req, res) => {
     try {
       await inTransaction(req.db, (db) => resequenceCourses(db, { checkId: req.params.id, assignments: req.body.orders }));
       await logAudit(req.db, req.user.id, 'RESEQUENCE_COURSES', { checkId: Number(req.params.id), orders: req.body.orders });
@@ -274,7 +276,7 @@ export default function (broadcast) {
 
   // GET /api/checks/:id/receipt[?payment_id=] — dati della ricevuta NON fiscale: di tutto il conto, o di un solo
   // pagamento (la quota di chi ha pagato per voce). La stampa è del client (print/templates.js).
-  router.get('/:id/receipt', ...guard, validate({ params: idParamsSchema, query: receiptQuerySchema }), tenantScope, async (req, res) => {
+  router.get('/:id/receipt', ...waiterGuard, validate({ params: idParamsSchema, query: receiptQuerySchema }), tenantScope, async (req, res) => {
     try {
       res.json(await getCheckReceipt(req.db, req.params.id, req.validQuery.payment_id ?? null));
     } catch (err) {
@@ -324,7 +326,7 @@ export default function (broadcast) {
   });
 
   // POST /api/checks/:id/covers — cambia i coperti (arrivano altri clienti, o qualcuno se ne va); il coperto si adegua.
-  router.post('/:id/covers', ...guard, validate({ params: idParamsSchema, body: coversSchema }), tenantScope, async (req, res) => {
+  router.post('/:id/covers', ...waiterGuard, validate({ params: idParamsSchema, body: coversSchema }), tenantScope, async (req, res) => {
     try {
       const previous = await inTransaction(req.db, async (db) => {
         await lockCheck(db, req.params.id);
@@ -345,7 +347,7 @@ export default function (broadcast) {
   });
 
   // POST /api/checks/:id/move — sposta il conto su un altro tavolo libero (i clienti si cambiano di posto).
-  router.post('/:id/move', ...guard, validate({ params: idParamsSchema, body: moveCheckSchema }), tenantScope, async (req, res) => {
+  router.post('/:id/move', ...waiterGuard, validate({ params: idParamsSchema, body: moveCheckSchema }), tenantScope, async (req, res) => {
     const { table_id: tableId } = req.body;
     try {
       const { from, orderIds } = await inTransaction(req.db, async (db) => {
