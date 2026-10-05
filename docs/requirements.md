@@ -98,7 +98,7 @@ Disegno completo e decisioni in `docs/design-tavoli.md`. Un passo alla volta; i 
 | 5-2 | Ordine dal tavolo da parte del cliente (QR) con conferma del cameriere. | `[ ]` |
 | 5-3 | Asporto e consegne con orari di ritiro. | `[ ]` |
 | 5-4 | Gestione magazzino con ricette e distinta base. | `[ ]` |
-| 5-5 | Statistiche per ristorante: coperti, scontrino medio per coperto, rotazione dei tavoli. | `[ ]` |
+| 5-5 | Statistiche per ristorante (`/stats/restaurant`, pagina Statistiche di SmartEats): coperti, scontrino medio per coperto e per conto, durata e rotazione dei conti, incasso per ora, portate, piatti più venduti, tempi di cucina, sconti e omaggi, incassi per metodo. Da valutare altre metriche con l'uso. | `[x]` |
 | 5-6 | Più sedi per lo stesso cliente. | `[ ]` |
 
 ## Regole di lavoro

@@ -21,7 +21,7 @@ import ModifierSettings from './ModifierSettings';
 import { useModifiers } from './sala/useModifiers';
 
 const CucinaPage = lazy(() => import('./cucina/CucinaPage'));
-const Statistics = lazy(() => import('../components/shared/Statistics'));
+const StatistichePage = lazy(() => import('./statistiche/StatistichePage'));
 
 const ICONS = { sala: LayoutGrid, cucina: UtensilsCrossed, carta: BookOpen, statistiche: BarChart3, impostazioni: Settings };
 const NAV_CLASS = ({ isActive }) => `flex items-center gap-3 px-3.5 py-3 rounded-2xl transition-all text-xs font-semibold
@@ -131,7 +131,7 @@ const SmartEatsApp = () => {
               <Route path="/sala" element={guard('sala', <SalaPage user={user} service={service} event={event} />)} />
               <Route path="/cucina" element={guard('cucina', <Page><CucinaPage event={event} /></Page>)} />
               <Route path="/carta" element={guard('carta', <Page><CartaPage /></Page>)} />
-              <Route path="/statistiche" element={guard('statistiche', <Page><Statistics /></Page>)} />
+              <Route path="/statistiche" element={guard('statistiche', <Page><StatistichePage /></Page>)} />
               <Route path="/impostazioni" element={guard('impostazioni', <Page><SettingsPage user={user} /></Page>)} />
               <Route path="*" element={<Navigate to={`/${home}`} replace />} />
             </Routes>
