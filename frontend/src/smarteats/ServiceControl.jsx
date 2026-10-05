@@ -4,6 +4,7 @@ import { useToast } from '../context/useToast';
 import EndSessionModal from '../components/shared/EndSessionModal';
 import CashCountModal from '../components/shared/CashCountModal';
 import { termsFor } from '../utils/terms';
+import { btn, btnPrimary, input } from './sala/ui';
 
 // Proposta di nome in base all'ora: pranzo fino alle 16, poi cena.
 const suggestedName = () => {
@@ -48,7 +49,7 @@ const ServiceControl = ({ service, canManage, start, closingInfo, end }) => {
   return (
     <>
       <button onClick={canManage ? begin : undefined} disabled={!canManage}
-        className={`flex items-center gap-2 px-3 py-2 rounded-2xl border text-xs font-semibold transition-all
+        className={`flex items-center gap-2 h-9 px-3 rounded-lg border text-sm font-medium transition-colors
           ${service ? 'bg-green-500/10 border-green-500/30 text-green-500' : 'bg-red-500/10 border-red-500/30 text-red-500'}
           ${canManage ? 'cursor-pointer enabled:hover:opacity-80' : 'cursor-default'}`}>
         <Power size={16} className="pointer-events-none" />
@@ -57,16 +58,16 @@ const ServiceControl = ({ service, canManage, start, closingInfo, end }) => {
 
       {step === 'start' && (
         <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex justify-center items-end sm:items-center z-[2000] px-4 pb-4 sm:pb-0">
-          <form onSubmit={submitStart} className="bg-[var(--bg-card)] p-6 sm:p-8 rounded-3xl shadow-2xl w-full max-w-md border border-[var(--border)] space-y-5">
-            <div className="text-center">
-              <h2 className="text-xl font-semibold text-[var(--text-main)]">Apri il servizio</h2>
+          <form onSubmit={submitStart} className="bg-[var(--bg-card)] p-6 rounded-xl shadow-2xl w-full max-w-md border border-[var(--border)] space-y-5">
+            <div>
+              <h2 className="text-lg font-semibold text-[var(--text-main)]">Apri il servizio</h2>
               <p className="text-sm text-[var(--text-muted)] mt-1">Senza un servizio aperto non si aprono i tavoli</p>
             </div>
             <input type="text" autoFocus value={name} onChange={e => setName(e.target.value)}
-              className="w-full px-4 py-3.5 rounded-2xl bg-[var(--bg-input)] border border-[var(--border)] text-[var(--text-main)] font-medium focus:ring-2 focus:ring-[var(--accent)] outline-none" />
+              className={input} />
             <div className="flex gap-3">
-              <button type="button" onClick={() => setStep(null)} className="flex-1 py-3 border border-[var(--border)] text-[var(--text-main)] rounded-2xl font-bold">ANNULLA</button>
-              <button type="submit" className="flex-1 py-3 bg-emerald-500 text-white rounded-2xl font-bold">APRI</button>
+              <button type="button" onClick={() => setStep(null)} className={`${btn} flex-1`}>Annulla</button>
+              <button type="submit" className={`${btnPrimary} flex-1`}>Apri il servizio</button>
             </div>
           </form>
         </div>

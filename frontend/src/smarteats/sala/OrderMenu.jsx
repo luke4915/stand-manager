@@ -4,14 +4,14 @@ import { formatEuro, normalizeText } from './checkMath';
 
 // La carta per fare una comanda: stessa disposizione della cassa (categoria, ricerca, tessere dei prodotti).
 const OrderMenu = ({ products, cart, tableName, onAdd, onBack }) => {
-  const [category, setCategory] = useState('TUTTI');
+  const [category, setCategory] = useState('Tutti');
   const [search, setSearch] = useState('');
 
-  const categories = useMemo(() => ['TUTTI', ...new Set((products ?? []).map(p => p.category || 'Generico'))], [products]);
+  const categories = useMemo(() => ['Tutti', ...new Set((products ?? []).map(p => p.category || 'Generico'))], [products]);
   const shown = useMemo(() => {
     const words = normalizeText(search).trim().split(/\s+/).filter(Boolean);
     return (products ?? []).filter(p =>
-      (category === 'TUTTI' || (p.category || 'Generico') === category)
+      (category === 'Tutti' || (p.category || 'Generico') === category)
       && words.every(w => normalizeText(`${p.name} ${p.category || ''} ${p.price.toFixed(2)}`).includes(w)));
   }, [products, category, search]);
 
@@ -45,9 +45,8 @@ const OrderMenu = ({ products, cart, tableName, onAdd, onBack }) => {
             const color = p.color || 'var(--accent)';
             return (
               <button key={p.id} disabled={out} onClick={() => onAdd(p)}
-                className={`relative flex flex-col justify-between rounded-xl pt-3 px-3 pb-2 min-h-[84px] border border-[var(--border)] border-l-4 bg-[var(--bg-card-2)] text-left select-none transition-all duration-150 ${out ? 'opacity-50 grayscale cursor-not-allowed' : 'hover:border-[var(--text-muted)]/40 active:scale-95 cursor-pointer'}`}
-                style={{ borderLeftColor: color }}>
-                <span className="font-semibold text-sm leading-tight text-[var(--text-main)]">{p.name}</span>
+                className={`relative flex flex-col justify-between rounded-lg p-3 min-h-[84px] border border-[var(--border)] bg-[var(--bg-card-2)] text-left select-none transition ${out ? 'opacity-50 grayscale cursor-not-allowed' : 'hover:border-[var(--border-hover)] active:scale-[0.98] cursor-pointer'}`}>
+                <span className="flex items-start gap-2 font-medium text-sm leading-tight text-[var(--text-main)]"><span className="mt-1 w-2 h-2 rounded-full shrink-0" style={{ backgroundColor: color }} aria-hidden="true" />{p.name}</span>
                 <span className="flex items-baseline justify-between w-full mt-2">
                   <span className="text-xs font-semibold tabular-nums text-[var(--text-muted)]">{formatEuro(p.price)}</span>
                   {remaining !== null && remaining <= 10 && <span className="text-[11px] font-semibold text-orange-500">{out ? 'Esaurito' : `${remaining} rimasti`}</span>}

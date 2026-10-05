@@ -10,8 +10,8 @@ const minutesSince = (iso) => Math.max(0, Math.round((Date.now() - new Date(iso)
 
 const STATE_STYLE = {
   free: 'border-[var(--border)] bg-[var(--bg-card-2)] text-[var(--text-muted)]',
-  busy: 'border-[var(--accent)] bg-[var(--accent)]/10 text-[var(--text-main)]',
-  bill: 'border-amber-500 bg-amber-500/10 text-[var(--text-main)]',
+  busy: 'border-[var(--accent)]/70 bg-[var(--accent)]/10 text-[var(--text-main)]',
+  bill: 'border-amber-500/80 bg-amber-500/10 text-[var(--text-main)]',
 };
 const STATE_LABEL = { free: 'Libero', busy: 'Occupato', bill: 'Conto richiesto' };
 const interactive = 'cursor-pointer hover:brightness-110 active:scale-[0.98] transition-all focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--accent)]';
@@ -22,7 +22,7 @@ const TableCard = ({ table, check, selected, onSelect }) => {
   const state = tableState(check);
   return (
     <button disabled={!table.active} onClick={() => onSelect(table, check)} aria-label={`${table.name}: ${STATE_LABEL[state]}`}
-      className={`text-left rounded-xl border-2 p-3 min-h-[92px] flex flex-col justify-between ${STATE_STYLE[state]} ${table.active ? interactive : 'opacity-40'} ${selected ? ring : ''}`}>
+      className={`text-left rounded-lg border p-3 min-h-[92px] flex flex-col justify-between ${STATE_STYLE[state]} ${table.active ? interactive : 'opacity-40'} ${selected ? ring : ''}`}>
       <div className="flex items-start justify-between gap-2 w-full">
         <span className="text-lg font-semibold leading-none">{table.name}</span>
         <span className="flex items-center gap-1 text-xs font-bold text-[var(--text-muted)]"><Users size={12} />{check ? check.covers : table.seats}</span>
@@ -43,7 +43,7 @@ const mapTable = (checkOf, selectedId, onSelect) => (table, style, cell) => {
   return (
     <button key={table.id} style={style} disabled={!table.active} onClick={() => onSelect(table, check)}
       title={`${table.name} · ${STATE_LABEL[state]}`} aria-label={`${table.name}: ${STATE_LABEL[state]}`}
-      className={`flex flex-col items-center justify-center border-2 box-border overflow-hidden text-center ${table.shape === 'round' ? 'rounded-full' : 'rounded-lg'} ${STATE_STYLE[state]} ${table.active ? interactive : 'opacity-40'} ${table.id === selectedId ? `${ring} z-10` : ''}`}>
+      className={`flex flex-col items-center justify-center border box-border overflow-hidden text-center ${table.shape === 'round' ? 'rounded-full' : 'rounded-lg'} ${STATE_STYLE[state]} ${table.active ? interactive : 'opacity-40'} ${table.id === selectedId ? `${ring} z-10` : ''}`}>
       <span className="font-semibold leading-none text-[var(--text-main)] truncate max-w-full px-1" style={{ fontSize: Math.max(10, Math.min(cell * 0.45, 18)) }}>{table.name}</span>
       {check?.ready_items > 0 && (
         <span title={`${check.ready_items} da servire`} className="absolute top-0.5 right-0.5 min-w-4 h-4 px-1 rounded-full bg-emerald-500 text-white text-[11px] font-semibold leading-none flex items-center justify-center">{check.ready_items}</span>

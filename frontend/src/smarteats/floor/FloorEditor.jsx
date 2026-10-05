@@ -242,7 +242,7 @@ const FloorEditor = ({ room, onClose, onSaved }) => {
         </div>
 
         <aside className="lg:w-72 shrink-0 space-y-4">
-          <section className="p-4 rounded-2xl border border-[var(--border)] bg-[var(--bg-card)] space-y-3">
+          <section className="p-4 rounded-xl border border-[var(--border)] bg-[var(--bg-card)] space-y-3">
             <p className={label}>Misura della sala (celle)</p>
             <div className="flex items-center gap-2 text-sm text-[var(--text-main)]">
               <input className={numInput} type="number" min={4} max={60} aria-label="Larghezza della sala" value={gridW} onChange={e => setGrid('gridW', e.target.value)} />
@@ -251,7 +251,7 @@ const FloorEditor = ({ room, onClose, onSaved }) => {
             </div>
           </section>
 
-          <section className="p-4 rounded-2xl border border-[var(--border)] bg-[var(--bg-card)] space-y-3">
+          <section className="p-4 rounded-xl border border-[var(--border)] bg-[var(--bg-card)] space-y-3">
             <p className={label}>Strumento</p>
             <div className="grid grid-cols-3 gap-2" role="group" aria-label="Strumento">
               {TOOLS.map((t) => {
@@ -267,7 +267,7 @@ const FloorEditor = ({ room, onClose, onSaved }) => {
             )}
           </section>
 
-          <section className="p-4 rounded-2xl border border-[var(--border)] bg-[var(--bg-card)] space-y-3">
+          <section className="p-4 rounded-xl border border-[var(--border)] bg-[var(--bg-card)] space-y-3">
             <div className="flex items-center justify-between">
               <p className={label}>Da piazzare ({pending.length})</p>
               {pending.length > 1 && <button className={btn} onClick={placeAll}><Wand2 size={12} /> Tutti</button>}
@@ -279,7 +279,7 @@ const FloorEditor = ({ room, onClose, onSaved }) => {
               ))}</div>}
           </section>
 
-          <section className="p-4 rounded-2xl border border-[var(--border)] bg-[var(--bg-card)] space-y-3">
+          <section className="p-4 rounded-xl border border-[var(--border)] bg-[var(--bg-card)] space-y-3">
             <p className={label}>Tavolo selezionato</p>
             {selected && isPlaced(selected) ? (
               <>

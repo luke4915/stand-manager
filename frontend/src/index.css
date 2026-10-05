@@ -87,3 +87,16 @@ button.border:not(:disabled):not(.product-card):hover,
 button[class*="border-[var(--border)]"]:not([class*="border-l-"]):not(:disabled):not(.product-card):hover {
   border-color: var(--border-hover) !important;
 }
+/* App SmartEats (ristoranti): linguaggio visivo sobrio anche per i componenti condivisi con la cassa delle sagre
+   (utenti, sale, profilo, form prodotto, finestre di chiusura), che altrimenti restano nello stile maiuscolo e pesante.
+   Vale solo dentro `.se-app`: la cassa delle sagre non cambia. Le schermate nuove di SmartEats non ne hanno bisogno
+   (usano già sala/ui.js); quando un componente condiviso viene riscritto si toglie da qui la sua parte. */
+.se-app .uppercase { text-transform: none; }
+.se-app .font-black { font-weight: 600; }
+.se-app .font-extrabold { font-weight: 600; }
+.se-app .tracking-widest, .se-app .tracking-wider, .se-app .tracking-tighter { letter-spacing: normal; }
+.se-app .tracking-tight { letter-spacing: -0.01em; }
+.se-app .text-\[9px\], .se-app .text-\[10px\] { font-size: 0.75rem; line-height: 1rem; }
+.se-app .rounded-3xl { border-radius: 0.875rem; }
+.se-app .rounded-2xl { border-radius: 0.75rem; }
+.se-app [class*="shadow-[var(--accent-shadow)]"] { box-shadow: none; }

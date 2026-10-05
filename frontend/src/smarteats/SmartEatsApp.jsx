@@ -24,8 +24,8 @@ const CucinaPage = lazy(() => import('./cucina/CucinaPage'));
 const StatistichePage = lazy(() => import('./statistiche/StatistichePage'));
 
 const ICONS = { sala: LayoutGrid, cucina: UtensilsCrossed, carta: BookOpen, statistiche: BarChart3, impostazioni: Settings };
-const NAV_CLASS = ({ isActive }) => `flex items-center gap-3 px-3.5 py-3 rounded-2xl transition-all text-xs font-semibold
-  ${isActive ? 'bg-[var(--accent)] text-white' : 'text-[var(--text-muted)] hover:bg-[var(--bg-card-2)] hover:text-[var(--text-main)]'}`;
+const NAV_CLASS = ({ isActive }) => `flex items-center gap-3 px-3 py-2.5 rounded-lg transition-colors text-sm font-medium
+  ${isActive ? 'bg-[var(--bg-card-2)] text-[var(--text-main)] [&>svg]:text-[var(--accent)]' : 'text-[var(--text-muted)] hover:bg-[var(--bg-card-2)] hover:text-[var(--text-main)]'}`;
 
 const NavItem = ({ view, compact }) => {
   const Icon = ICONS[view.id];
@@ -64,7 +64,7 @@ const CartaPage = () => {
 
 const SettingsPage = ({ user }) => (
   <div className="space-y-6">
-    <h2 className="text-3xl font-semibold text-[var(--text-main)]">IMPOSTAZIONI</h2>
+    <h2 className="text-2xl font-semibold tracking-tight text-[var(--text-main)]">Impostazioni</h2>
     {user.modules?.includes('tables') && <><CoverSettings /><CourseSettings /><RoomsSettings /></>}
     <UsersSettings />
   </div>
@@ -95,32 +95,32 @@ const SmartEatsApp = () => {
   const canManageService = ['admin', 'responsabile', 'cassa'].includes(user.role);
 
   return (
-    <div className="flex h-[100dvh] w-full overflow-hidden bg-[var(--bg-main)]">
+    <div className="se-app flex h-[100dvh] w-full overflow-hidden bg-[var(--bg-main)]">
       {/* Menu laterale (desktop) */}
-      <aside className={`${views.length > 1 ? 'hidden md:flex' : 'hidden'} flex-col shrink-0 w-20 xl:w-60 bg-[var(--bg-card)] border-r border-[var(--border)] py-6 px-3 gap-6`}>
+      <aside className={`${views.length > 1 ? 'hidden md:flex' : 'hidden'} flex-col shrink-0 w-20 xl:w-60 bg-[var(--bg-card)] border-r border-[var(--border)] py-5 px-3 gap-6`}>
         <div className="flex items-center gap-3 px-1">
-          <div className="w-11 h-11 shrink-0 bg-[var(--accent)] rounded-2xl flex items-center justify-center text-white font-semibold text-xl select-none">S</div>
-          <span className="hidden xl:inline font-semibold text-lg tracking-tight text-[var(--text-main)]">SmartEats</span>
+          <div className="w-9 h-9 shrink-0 bg-[var(--accent)] rounded-lg flex items-center justify-center text-white font-semibold text-lg select-none">S</div>
+          <span className="hidden xl:inline font-semibold text-base tracking-tight text-[var(--text-main)]">SmartEats</span>
         </div>
-        <nav className="flex-1 space-y-2">{views.map(v => <NavItem key={v.id} view={v} />)}</nav>
+        <nav className="flex-1 space-y-1">{views.map(v => <NavItem key={v.id} view={v} />)}</nav>
       </aside>
 
       <main className="flex-1 flex flex-col min-w-0 overflow-hidden">
         <header className="flex items-center justify-between gap-3 px-4 mt-3 mb-1 shrink-0">
           <div className="min-w-0">
             <p className="text-xs text-[var(--text-muted)] truncate">SmartEats{service ? ` / ${service.name}` : ''}</p>
-            <h1 className="text-lg sm:text-2xl font-semibold tracking-tight text-[var(--text-main)] leading-tight truncate">{user.tenantName}</h1>
+            <h1 className="text-lg sm:text-xl font-semibold tracking-tight text-[var(--text-main)] leading-tight truncate">{user.tenantName}</h1>
           </div>
           <div className="flex items-center gap-2 shrink-0">
             <ServiceControl service={service} canManage={canManageService} start={start} closingInfo={closingInfo} end={end} />
-            <div className="flex items-center gap-1 bg-[var(--bg-card)] px-2 py-1.5 rounded-2xl border border-[var(--border)]">
-              <button onClick={() => setShowProfile(true)} className="flex items-center gap-2 px-2 py-1 rounded-xl hover:bg-[var(--bg-card-2)] text-[var(--text-main)]">
+            <div className="flex items-center gap-0.5">
+              <button onClick={() => setShowProfile(true)} className="flex items-center gap-2 h-9 px-2.5 rounded-lg hover:bg-[var(--bg-card-2)] text-[var(--text-main)] cursor-pointer">
                 <UserRound size={16} /><span className="hidden sm:inline text-xs font-semibold">{user.username}</span>
               </button>
-              <button onClick={() => setTheme(t => (t === 'dark' ? 'light' : 'dark'))} aria-label="Cambia tema" className="p-2 rounded-xl hover:bg-[var(--bg-card-2)] text-[var(--text-muted)]">
+              <button onClick={() => setTheme(t => (t === 'dark' ? 'light' : 'dark'))} aria-label="Cambia tema" className="h-9 w-9 flex items-center justify-center rounded-lg hover:bg-[var(--bg-card-2)] text-[var(--text-muted)] cursor-pointer">
                 {theme === 'dark' ? <Moon size={16} /> : <Sun size={16} />}
               </button>
-              <button onClick={doLogout} aria-label="Esci" className="p-2 rounded-xl hover:bg-red-500/10 text-red-500"><LogOut size={16} /></button>
+              <button onClick={doLogout} aria-label="Esci" className="h-9 w-9 flex items-center justify-center rounded-lg hover:bg-red-500/10 text-red-500 cursor-pointer"><LogOut size={16} /></button>
             </div>
           </div>
         </header>
