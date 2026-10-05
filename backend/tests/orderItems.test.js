@@ -9,8 +9,14 @@ test('riga completa: tutti i campi riportati senza anomalie', () => {
   assert.deepEqual(anomalies, []);
   assert.deepEqual(row, {
     position: 3, product_id: 61, name: 'Calzone', category: 'Calzoni', print_destination: 'kitchen', quantity: 2,
-    unit_price: 2.5, line_total: 5, original_price: 5, line_type: 'discount', discount_mode: 'percent', discount_value: 50, note: 'senza cipolla',
+    unit_price: 2.5, line_total: 5, original_price: 5, line_type: 'discount', discount_mode: 'percent', discount_value: 50, note: 'senza cipolla', modifiers: '[]',
   });
+});
+
+test('le opzioni scelte si salvano come copia (JSON), vuote se mancano', () => {
+  const mods = [{ id: 4, name: 'Parmigiano', price: 1 }];
+  assert.equal(toOrderItemRow({ ...full, modifiers: mods }, 0).row.modifiers, JSON.stringify(mods));
+  assert.equal(toOrderItemRow({ ...full, modifiers: 'x' }, 0).row.modifiers, '[]');
 });
 
 test('riga vecchia senza line_total, categoria e destinazione: line_total = prezzo × quantità, nessuna anomalia', () => {

@@ -12,6 +12,8 @@ export const orderItemSchema = z.object({
     quantity: z.number().int().positive().max(999),
     price: z.number().nonnegative().optional(), // non usato per il calcolo, solo compatibilità payload
     note: z.string().max(300).optional().default(''),
+    // Opzioni scelte (id): nome e supplemento si leggono dal catalogo
+    modifiers: z.array(z.number().int().positive()).max(30).optional().default([]),
     category: z.string().max(100).optional().nullable(),
     print_destination: z.enum(['bar', 'kitchen', 'both']).optional(),
     type: z.enum(VALID_TYPES).optional().default('sale'),

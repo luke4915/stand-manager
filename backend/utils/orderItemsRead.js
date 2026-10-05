@@ -17,6 +17,7 @@ export const rowToItem = (r) => ({
   discountMode: r.discount_mode,
   discountValue: toNumber(r.discount_value),
   note: r.note,
+  modifiers: r.modifiers ?? [],
   category: r.category,
   print_destination: r.print_destination,
 });
@@ -27,7 +28,7 @@ export async function loadItems(db, orderIds) {
   if (!orderIds.length) return byOrder;
   const { rows } = await db.query(
     `SELECT id, order_id, product_id, name, category, print_destination, quantity, unit_price, line_total, original_price,
-            line_type, discount_mode, discount_value, note, prep_status
+            line_type, discount_mode, discount_value, note, prep_status, modifiers
      FROM order_items WHERE order_id = ANY($1::int[]) ORDER BY order_id, position`, [orderIds]);
   for (const r of rows) {
     if (!byOrder.has(r.order_id)) byOrder.set(r.order_id, []);

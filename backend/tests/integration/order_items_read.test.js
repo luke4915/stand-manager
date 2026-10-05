@@ -63,8 +63,8 @@ describe('order_items: letture', () => {
   });
 
   const expectedItems = (o) => o.json.map(fromJson);
-  // `line_id` e `prep_status` (stato per riga, 041) sono campi in più: la forma storica dell'API resta quella di sempre
-  const legacy = ({ line_id, prep_status, ...item }) => { assert.ok(line_id && prep_status); return item; };
+  // `line_id`, `prep_status` (stato per riga, 041) e `modifiers` (043) sono campi in più: la forma storica dell'API resta quella di sempre
+  const legacy = ({ line_id, prep_status, modifiers, ...item }) => { assert.ok(line_id && prep_status && Array.isArray(modifiers)); return item; };
 
   it('GET /orders: le righe attese (la categoria mancante si completa dal catalogo o diventa "Altro")', async () => {
     const res = await api.get('/orders?session=active');

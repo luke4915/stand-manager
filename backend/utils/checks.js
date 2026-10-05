@@ -1,6 +1,7 @@
 import { withItems } from './orderItemsRead.js';
 import { HttpError } from './httpError.js';
 import { loadPayments, loadLinePayments } from './payments.js';
+import { withModifiers } from './modifiers.js';
 
 // Conti dei tavoli: lettura con i totali calcolati dal server. Il client non decide mai importi (CLAUDE.md §4).
 
@@ -76,7 +77,7 @@ export async function getCheckReceipt(db, checkId, paymentId = null) {
   }
 
   const { rows } = await db.query(
-    `SELECT oi.name, oi.quantity, oi.line_total FROM order_items oi JOIN orders o ON o.id = oi.order_id
+    `SELECT oi.name, oi.modifiers, oi.quantity, oi.line_total FROM order_items oi JOIN orders o ON o.id = oi.order_id
      WHERE o.check_id = $1 AND o.status <> 'canceled' ORDER BY oi.order_id, oi.position`, [checkId]);
-  return { ...base, scope: 'check', lines: rows.map(r => ({ name: r.name, quantity: r.quantity, amount: Number(r.line_total) })), payments };
+  return { ...base, scope: 'check', lines: rows.map(r => ({ name: withModifiers(r.name, r.modifiers), quantity: r.quantity, amount: Number(r.line_total) })), payments };
 }

@@ -2,7 +2,7 @@
 -- PostgreSQL database dump
 --
 
-\restrict IZ3Xt7kAfF1QoadsalfHCLGeQcoDsEXdWg19Jka22iw0MD3TQ7DNDvLVLCZ7PId
+\restrict MQ5POc7JWxOHgxuIw6v8ZleKd2c2GbUGwuhDVlHi07nXIGgokNjPbc5WvaUGEpC
 
 -- Dumped from database version 17.10 (Homebrew)
 -- Dumped by pg_dump version 17.10 (Homebrew)
@@ -321,6 +321,92 @@ ALTER SEQUENCE public.dining_tables_id_seq OWNED BY public.dining_tables.id;
 
 
 --
+-- Name: modifier_groups; Type: TABLE; Schema: public; Owner: colettas
+--
+
+CREATE TABLE public.modifier_groups (
+    id integer NOT NULL,
+    tenant_id integer DEFAULT (NULLIF(current_setting('app.tenant_id'::text, true), ''::text))::integer NOT NULL,
+    name text NOT NULL,
+    min_select integer DEFAULT 0 NOT NULL,
+    max_select integer,
+    "position" integer DEFAULT 0 NOT NULL,
+    CONSTRAINT modifier_groups_max_select_check CHECK (((max_select >= 1) AND (max_select <= 20))),
+    CONSTRAINT modifier_groups_min_max CHECK (((max_select IS NULL) OR (max_select >= min_select))),
+    CONSTRAINT modifier_groups_min_select_check CHECK (((min_select >= 0) AND (min_select <= 20))),
+    CONSTRAINT modifier_groups_name_check CHECK ((length(btrim(name)) > 0))
+);
+
+ALTER TABLE ONLY public.modifier_groups FORCE ROW LEVEL SECURITY;
+
+
+ALTER TABLE public.modifier_groups OWNER TO colettas;
+
+--
+-- Name: modifier_groups_id_seq; Type: SEQUENCE; Schema: public; Owner: colettas
+--
+
+CREATE SEQUENCE public.modifier_groups_id_seq
+    AS integer
+    START WITH 1
+    INCREMENT BY 1
+    NO MINVALUE
+    NO MAXVALUE
+    CACHE 1;
+
+
+ALTER SEQUENCE public.modifier_groups_id_seq OWNER TO colettas;
+
+--
+-- Name: modifier_groups_id_seq; Type: SEQUENCE OWNED BY; Schema: public; Owner: colettas
+--
+
+ALTER SEQUENCE public.modifier_groups_id_seq OWNED BY public.modifier_groups.id;
+
+
+--
+-- Name: modifiers; Type: TABLE; Schema: public; Owner: colettas
+--
+
+CREATE TABLE public.modifiers (
+    id integer NOT NULL,
+    tenant_id integer DEFAULT (NULLIF(current_setting('app.tenant_id'::text, true), ''::text))::integer NOT NULL,
+    group_id integer NOT NULL,
+    name text NOT NULL,
+    price_delta numeric(12,2) DEFAULT 0 NOT NULL,
+    "position" integer DEFAULT 0 NOT NULL,
+    CONSTRAINT modifiers_name_check CHECK ((length(btrim(name)) > 0)),
+    CONSTRAINT modifiers_price_delta_check CHECK (((price_delta >= ('-1000'::integer)::numeric) AND (price_delta <= (1000)::numeric)))
+);
+
+ALTER TABLE ONLY public.modifiers FORCE ROW LEVEL SECURITY;
+
+
+ALTER TABLE public.modifiers OWNER TO colettas;
+
+--
+-- Name: modifiers_id_seq; Type: SEQUENCE; Schema: public; Owner: colettas
+--
+
+CREATE SEQUENCE public.modifiers_id_seq
+    AS integer
+    START WITH 1
+    INCREMENT BY 1
+    NO MINVALUE
+    NO MAXVALUE
+    CACHE 1;
+
+
+ALTER SEQUENCE public.modifiers_id_seq OWNER TO colettas;
+
+--
+-- Name: modifiers_id_seq; Type: SEQUENCE OWNED BY; Schema: public; Owner: colettas
+--
+
+ALTER SEQUENCE public.modifiers_id_seq OWNED BY public.modifiers.id;
+
+
+--
 -- Name: order_items; Type: TABLE; Schema: public; Owner: colettas
 --
 
@@ -344,6 +430,7 @@ CREATE TABLE public.order_items (
     prep_status text DEFAULT 'new'::text NOT NULL,
     ready_at timestamp with time zone,
     served_at timestamp with time zone,
+    modifiers jsonb DEFAULT '[]'::jsonb NOT NULL,
     CONSTRAINT order_items_line_type_check CHECK ((line_type = ANY (ARRAY['sale'::text, 'gift'::text, 'discount'::text]))),
     CONSTRAINT order_items_position_check CHECK (("position" >= 0)),
     CONSTRAINT order_items_prep_status_check CHECK ((prep_status = ANY (ARRAY['new'::text, 'preparing'::text, 'ready'::text, 'served'::text]))),
@@ -562,6 +649,22 @@ ALTER SEQUENCE public.print_settings_id_seq OWNER TO colettas;
 
 ALTER SEQUENCE public.print_settings_id_seq OWNED BY public.print_settings.id;
 
+
+--
+-- Name: product_modifier_groups; Type: TABLE; Schema: public; Owner: colettas
+--
+
+CREATE TABLE public.product_modifier_groups (
+    tenant_id integer DEFAULT (NULLIF(current_setting('app.tenant_id'::text, true), ''::text))::integer NOT NULL,
+    product_id integer NOT NULL,
+    group_id integer NOT NULL,
+    "position" integer DEFAULT 0 NOT NULL
+);
+
+ALTER TABLE ONLY public.product_modifier_groups FORCE ROW LEVEL SECURITY;
+
+
+ALTER TABLE public.product_modifier_groups OWNER TO colettas;
 
 --
 -- Name: products; Type: TABLE; Schema: public; Owner: colettas
@@ -890,6 +993,20 @@ ALTER TABLE ONLY public.dining_tables ALTER COLUMN id SET DEFAULT nextval('publi
 
 
 --
+-- Name: modifier_groups id; Type: DEFAULT; Schema: public; Owner: colettas
+--
+
+ALTER TABLE ONLY public.modifier_groups ALTER COLUMN id SET DEFAULT nextval('public.modifier_groups_id_seq'::regclass);
+
+
+--
+-- Name: modifiers id; Type: DEFAULT; Schema: public; Owner: colettas
+--
+
+ALTER TABLE ONLY public.modifiers ALTER COLUMN id SET DEFAULT nextval('public.modifiers_id_seq'::regclass);
+
+
+--
 -- Name: order_items id; Type: DEFAULT; Schema: public; Owner: colettas
 --
 
@@ -1039,6 +1156,22 @@ ALTER TABLE ONLY public.dining_tables
 
 
 --
+-- Name: modifier_groups modifier_groups_pkey; Type: CONSTRAINT; Schema: public; Owner: colettas
+--
+
+ALTER TABLE ONLY public.modifier_groups
+    ADD CONSTRAINT modifier_groups_pkey PRIMARY KEY (id);
+
+
+--
+-- Name: modifiers modifiers_pkey; Type: CONSTRAINT; Schema: public; Owner: colettas
+--
+
+ALTER TABLE ONLY public.modifiers
+    ADD CONSTRAINT modifiers_pkey PRIMARY KEY (id);
+
+
+--
 -- Name: order_items order_items_pkey; Type: CONSTRAINT; Schema: public; Owner: colettas
 --
 
@@ -1084,6 +1217,14 @@ ALTER TABLE ONLY public.print_settings
 
 ALTER TABLE ONLY public.print_settings
     ADD CONSTRAINT print_settings_pkey PRIMARY KEY (id);
+
+
+--
+-- Name: product_modifier_groups product_modifier_groups_pkey; Type: CONSTRAINT; Schema: public; Owner: colettas
+--
+
+ALTER TABLE ONLY public.product_modifier_groups
+    ADD CONSTRAINT product_modifier_groups_pkey PRIMARY KEY (product_id, group_id);
 
 
 --
@@ -1207,6 +1348,27 @@ CREATE INDEX idx_dining_tables_tenant ON public.dining_tables USING btree (tenan
 
 
 --
+-- Name: idx_modifier_groups_tenant; Type: INDEX; Schema: public; Owner: colettas
+--
+
+CREATE INDEX idx_modifier_groups_tenant ON public.modifier_groups USING btree (tenant_id);
+
+
+--
+-- Name: idx_modifiers_group; Type: INDEX; Schema: public; Owner: colettas
+--
+
+CREATE INDEX idx_modifiers_group ON public.modifiers USING btree (group_id);
+
+
+--
+-- Name: idx_modifiers_tenant; Type: INDEX; Schema: public; Owner: colettas
+--
+
+CREATE INDEX idx_modifiers_tenant ON public.modifiers USING btree (tenant_id);
+
+
+--
 -- Name: idx_order_items_ready; Type: INDEX; Schema: public; Owner: colettas
 --
 
@@ -1274,6 +1436,20 @@ CREATE INDEX idx_payments_check ON public.payments USING btree (check_id);
 --
 
 CREATE INDEX idx_payments_tenant ON public.payments USING btree (tenant_id);
+
+
+--
+-- Name: idx_pmg_group; Type: INDEX; Schema: public; Owner: colettas
+--
+
+CREATE INDEX idx_pmg_group ON public.product_modifier_groups USING btree (group_id);
+
+
+--
+-- Name: idx_pmg_tenant; Type: INDEX; Schema: public; Owner: colettas
+--
+
+CREATE INDEX idx_pmg_tenant ON public.product_modifier_groups USING btree (tenant_id);
 
 
 --
@@ -1351,6 +1527,13 @@ CREATE UNIQUE INDEX uniq_courses_tenant_name ON public.courses USING btree (tena
 --
 
 CREATE UNIQUE INDEX uniq_dining_tables_room_name ON public.dining_tables USING btree (room_id, lower(name));
+
+
+--
+-- Name: uniq_modifier_groups_tenant_name; Type: INDEX; Schema: public; Owner: colettas
+--
+
+CREATE UNIQUE INDEX uniq_modifier_groups_tenant_name ON public.modifier_groups USING btree (tenant_id, lower(name));
 
 
 --
@@ -1499,6 +1682,30 @@ ALTER TABLE ONLY public.dining_tables
 
 
 --
+-- Name: modifier_groups modifier_groups_tenant_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: colettas
+--
+
+ALTER TABLE ONLY public.modifier_groups
+    ADD CONSTRAINT modifier_groups_tenant_id_fkey FOREIGN KEY (tenant_id) REFERENCES public.tenants(id);
+
+
+--
+-- Name: modifiers modifiers_group_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: colettas
+--
+
+ALTER TABLE ONLY public.modifiers
+    ADD CONSTRAINT modifiers_group_id_fkey FOREIGN KEY (group_id) REFERENCES public.modifier_groups(id) ON DELETE CASCADE;
+
+
+--
+-- Name: modifiers modifiers_tenant_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: colettas
+--
+
+ALTER TABLE ONLY public.modifiers
+    ADD CONSTRAINT modifiers_tenant_id_fkey FOREIGN KEY (tenant_id) REFERENCES public.tenants(id);
+
+
+--
 -- Name: order_items order_items_order_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: colettas
 --
 
@@ -1611,6 +1818,30 @@ ALTER TABLE ONLY public.print_settings
 
 
 --
+-- Name: product_modifier_groups product_modifier_groups_group_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: colettas
+--
+
+ALTER TABLE ONLY public.product_modifier_groups
+    ADD CONSTRAINT product_modifier_groups_group_id_fkey FOREIGN KEY (group_id) REFERENCES public.modifier_groups(id) ON DELETE CASCADE;
+
+
+--
+-- Name: product_modifier_groups product_modifier_groups_product_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: colettas
+--
+
+ALTER TABLE ONLY public.product_modifier_groups
+    ADD CONSTRAINT product_modifier_groups_product_id_fkey FOREIGN KEY (product_id) REFERENCES public.products(id) ON DELETE CASCADE;
+
+
+--
+-- Name: product_modifier_groups product_modifier_groups_tenant_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: colettas
+--
+
+ALTER TABLE ONLY public.product_modifier_groups
+    ADD CONSTRAINT product_modifier_groups_tenant_id_fkey FOREIGN KEY (tenant_id) REFERENCES public.tenants(id);
+
+
+--
 -- Name: products products_course_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: colettas
 --
 
@@ -1718,6 +1949,18 @@ CREATE POLICY master_read ON public.users FOR SELECT TO standmanager_master USIN
 
 
 --
+-- Name: modifier_groups; Type: ROW SECURITY; Schema: public; Owner: colettas
+--
+
+ALTER TABLE public.modifier_groups ENABLE ROW LEVEL SECURITY;
+
+--
+-- Name: modifiers; Type: ROW SECURITY; Schema: public; Owner: colettas
+--
+
+ALTER TABLE public.modifiers ENABLE ROW LEVEL SECURITY;
+
+--
 -- Name: order_items; Type: ROW SECURITY; Schema: public; Owner: colettas
 --
 
@@ -1746,6 +1989,12 @@ ALTER TABLE public.payments ENABLE ROW LEVEL SECURITY;
 --
 
 ALTER TABLE public.print_settings ENABLE ROW LEVEL SECURITY;
+
+--
+-- Name: product_modifier_groups; Type: ROW SECURITY; Schema: public; Owner: colettas
+--
+
+ALTER TABLE public.product_modifier_groups ENABLE ROW LEVEL SECURITY;
 
 --
 -- Name: products; Type: ROW SECURITY; Schema: public; Owner: colettas
@@ -1820,6 +2069,20 @@ CREATE POLICY tenant_isolation ON public.dining_tables USING ((tenant_id = (NULL
 
 
 --
+-- Name: modifier_groups tenant_isolation; Type: POLICY; Schema: public; Owner: colettas
+--
+
+CREATE POLICY tenant_isolation ON public.modifier_groups USING ((tenant_id = (NULLIF(current_setting('app.tenant_id'::text, true), ''::text))::integer));
+
+
+--
+-- Name: modifiers tenant_isolation; Type: POLICY; Schema: public; Owner: colettas
+--
+
+CREATE POLICY tenant_isolation ON public.modifiers USING ((tenant_id = (NULLIF(current_setting('app.tenant_id'::text, true), ''::text))::integer));
+
+
+--
 -- Name: order_items tenant_isolation; Type: POLICY; Schema: public; Owner: colettas
 --
 
@@ -1852,6 +2115,13 @@ CREATE POLICY tenant_isolation ON public.payments USING ((tenant_id = (NULLIF(cu
 --
 
 CREATE POLICY tenant_isolation ON public.print_settings USING ((tenant_id = (NULLIF(current_setting('app.tenant_id'::text, true), ''::text))::integer));
+
+
+--
+-- Name: product_modifier_groups tenant_isolation; Type: POLICY; Schema: public; Owner: colettas
+--
+
+CREATE POLICY tenant_isolation ON public.product_modifier_groups USING ((tenant_id = (NULLIF(current_setting('app.tenant_id'::text, true), ''::text))::integer));
 
 
 --
@@ -2023,6 +2293,38 @@ GRANT SELECT,USAGE ON SEQUENCE public.dining_tables_id_seq TO standmanager_maste
 
 
 --
+-- Name: TABLE modifier_groups; Type: ACL; Schema: public; Owner: colettas
+--
+
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE public.modifier_groups TO standmanager_app;
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE public.modifier_groups TO standmanager_master;
+
+
+--
+-- Name: SEQUENCE modifier_groups_id_seq; Type: ACL; Schema: public; Owner: colettas
+--
+
+GRANT ALL ON SEQUENCE public.modifier_groups_id_seq TO standmanager_app;
+GRANT SELECT,USAGE ON SEQUENCE public.modifier_groups_id_seq TO standmanager_master;
+
+
+--
+-- Name: TABLE modifiers; Type: ACL; Schema: public; Owner: colettas
+--
+
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE public.modifiers TO standmanager_app;
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE public.modifiers TO standmanager_master;
+
+
+--
+-- Name: SEQUENCE modifiers_id_seq; Type: ACL; Schema: public; Owner: colettas
+--
+
+GRANT ALL ON SEQUENCE public.modifiers_id_seq TO standmanager_app;
+GRANT SELECT,USAGE ON SEQUENCE public.modifiers_id_seq TO standmanager_master;
+
+
+--
 -- Name: TABLE order_items; Type: ACL; Schema: public; Owner: colettas
 --
 
@@ -2100,6 +2402,14 @@ GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE public.print_settings TO standmanager
 
 GRANT ALL ON SEQUENCE public.print_settings_id_seq TO standmanager_app;
 GRANT SELECT,USAGE ON SEQUENCE public.print_settings_id_seq TO standmanager_master;
+
+
+--
+-- Name: TABLE product_modifier_groups; Type: ACL; Schema: public; Owner: colettas
+--
+
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE public.product_modifier_groups TO standmanager_app;
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE public.product_modifier_groups TO standmanager_master;
 
 
 --
@@ -2226,5 +2536,5 @@ ALTER DEFAULT PRIVILEGES FOR ROLE colettas IN SCHEMA public GRANT SELECT,INSERT,
 -- PostgreSQL database dump complete
 --
 
-\unrestrict IZ3Xt7kAfF1QoadsalfHCLGeQcoDsEXdWg19Jka22iw0MD3TQ7DNDvLVLCZ7PId
+\unrestrict MQ5POc7JWxOHgxuIw6v8ZleKd2c2GbUGwuhDVlHi07nXIGgokNjPbc5WvaUGEpC
 

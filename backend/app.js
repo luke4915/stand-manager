@@ -14,6 +14,7 @@ import sessionRoutes from './routes/sessions.js';
 import statsRoutes from './routes/stats.js';
 import { roomsRouter, tablesRouter } from './routes/rooms.js';
 import coursesRouter from './routes/courses.js';
+import { modifierGroupsRouter, productModifiersRouter } from './routes/modifierGroups.js';
 import checkRoutes from './routes/checks.js';
 import healthRoutes from './routes/health.js';
 import { requestLogger } from './middleware/requestLogger.js';
@@ -73,7 +74,9 @@ export function createApp({ broadcast, rateLimit = true, logRequests = true }) {
 
   app.use('/api/auth', authRoutes);
   app.use('/api/profile', profileRoutes);
+  app.use('/api/products', productModifiersRouter); // PUT /:id/modifier-groups, prima delle route dei prodotti
   app.use('/api/products', productRoutes);
+  app.use('/api/modifier-groups', modifierGroupsRouter);
   app.use('/api/print-settings', printSettingsRoutes);
   app.use('/api/orders', orderRoutes(broadcast));
   app.use('/api/devices', deviceRoutes);

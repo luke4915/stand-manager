@@ -53,6 +53,7 @@ export function toOrderItemRow(item, position) {
       discount_mode: typeof item.discountMode === 'string' ? item.discountMode : null,
       discount_value: finite(item.discountValue),
       note: typeof item.note === 'string' ? item.note : '',
+      modifiers: JSON.stringify(Array.isArray(item.modifiers) ? item.modifiers : []),
     },
     anomalies,
   };

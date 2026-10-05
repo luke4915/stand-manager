@@ -1,6 +1,7 @@
 import { computeLineTotal, sanitizeAdjustment } from './pricing.js';
 import { DISCOUNT_ROLES } from '../middleware/authenticate.js';
 import { HttpError } from './httpError.js';
+import { loadProductGroups, resolveModifiers } from './modifiers.js';
 
 // Righe di un ordine verificate dal server (CLAUDE.md §4): dal client contano solo `id` e `quantity`; nome, categoria,
 // destinazione di stampa e prezzo vengono dal catalogo. Sconti e omaggi solo per i ruoli autorizzati.
@@ -20,9 +21,12 @@ export async function verifyOrderItems(db, items, role) {
   if (items.some(i => i.type && i.type !== 'sale') && !authorized)
     throw new HttpError(403, 'Non hai i permessi per applicare sconti o omaggi.');
 
+  const groupsByProduct = await loadProductGroups(db, productIds);
   const verifiedItems = items.map(i => {
     const product = productMap[i.id];
-    const original_price = parseFloat(product.price);
+    // Il prezzo di listino della riga è prezzo del prodotto + supplementi delle opzioni scelte
+    const { modifiers, extra } = resolveModifiers(i.modifiers, groupsByProduct.get(Number(i.id)) ?? [], product.name);
+    const original_price = Math.round((parseFloat(product.price) + extra) * 100) / 100;
     const adjustment = sanitizeAdjustment(i, authorized);
     const line_total = computeLineTotal(original_price, i.quantity, adjustment);
     return {
@@ -36,6 +40,7 @@ export async function verifyOrderItems(db, items, role) {
       discountMode: adjustment.discountMode,
       discountValue: adjustment.discountValue,
       note: i.note || '',
+      modifiers,
       category: product.category || 'Altro',
       print_destination: product.print_destination || 'both',
     };
