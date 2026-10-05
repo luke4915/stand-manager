@@ -7,8 +7,8 @@ const PanelFrame = ({ title, subtitle, subtitleClass = 'text-[var(--text-muted)]
     <header className="px-4 py-3 flex items-center gap-2 border-b border-[var(--border)] shrink-0">
       {onBack && <button onClick={onBack} aria-label="Indietro" className="p-1.5 -ml-1 rounded-lg text-[var(--text-muted)] hover:text-[var(--text-main)] hover:bg-[var(--bg-card-2)]"><ChevronLeft size={22} /></button>}
       <div className="min-w-0 flex-1">
-        <h2 className="text-xl font-black tracking-tighter uppercase text-[var(--text-main)] truncate">{title}</h2>
-        {subtitle && <span className={`text-[11px] font-black uppercase tracking-widest ${subtitleClass}`}>{subtitle}</span>}
+        <h2 className="text-xl font-semibold text-[var(--text-main)] truncate">{title}</h2>
+        {subtitle && <span className={`text-[11px] font-semibold ${subtitleClass}`}>{subtitle}</span>}
       </div>
       {actions}
     </header>

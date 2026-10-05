@@ -95,6 +95,8 @@ function renderTableBanner(printer, order) {
   const label = tableLabel(order);
   if (!label) return;
   printer.align('CT').reverse(true).size(2, 2).style('B').text(` ${label} `).size(1, 1).style('NORMAL').reverse(false);
+  // La portata (comande dei tavoli divise per uscita): subito sotto il tavolo
+  if (order.course_name) printer.align('CT').size(1, 2).style('B').text(String(order.course_name).toUpperCase()).size(1, 1).style('NORMAL');
   printer.align('CT').text(DIVIDER_THIN);
 }
 

@@ -22,11 +22,11 @@ const TableCard = ({ table, check, selected, onSelect }) => {
     <button disabled={!table.active} onClick={() => onSelect(table, check)} aria-label={`${table.name}: ${STATE_LABEL[state]}`}
       className={`text-left rounded-xl border-2 p-3 min-h-[92px] flex flex-col justify-between ${STATE_STYLE[state]} ${table.active ? interactive : 'opacity-40'} ${selected ? ring : ''}`}>
       <div className="flex items-start justify-between gap-2 w-full">
-        <span className="text-lg font-black leading-none">{table.name}</span>
+        <span className="text-lg font-semibold leading-none">{table.name}</span>
         <span className="flex items-center gap-1 text-xs font-bold text-[var(--text-muted)]"><Users size={12} />{check ? check.covers : table.seats}</span>
       </div>
       <div className="text-xs">
-        <p className="font-black uppercase tracking-widest">{table.active ? STATE_LABEL[state] : 'Non in uso'}</p>
+        <p className="font-semibold">{table.active ? STATE_LABEL[state] : 'Non in uso'}</p>
         {check && <p className="mt-0.5 flex items-center gap-1.5 text-[var(--text-muted)]"><Receipt size={12} /> {formatEuro(check.total)} · {minutesSince(check.opened_at)} min</p>}
       </div>
     </button>
@@ -41,7 +41,7 @@ const mapTable = (checkOf, selectedId, onSelect) => (table, style, cell) => {
     <button key={table.id} style={style} disabled={!table.active} onClick={() => onSelect(table, check)}
       title={`${table.name} · ${STATE_LABEL[state]}`} aria-label={`${table.name}: ${STATE_LABEL[state]}`}
       className={`flex flex-col items-center justify-center border-2 box-border overflow-hidden text-center ${table.shape === 'round' ? 'rounded-full' : 'rounded-lg'} ${STATE_STYLE[state]} ${table.active ? interactive : 'opacity-40'} ${table.id === selectedId ? `${ring} z-10` : ''}`}>
-      <span className="font-black leading-none text-[var(--text-main)] truncate max-w-full px-1" style={{ fontSize: Math.max(10, Math.min(cell * 0.45, 18)) }}>{table.name}</span>
+      <span className="font-semibold leading-none text-[var(--text-main)] truncate max-w-full px-1" style={{ fontSize: Math.max(10, Math.min(cell * 0.45, 18)) }}>{table.name}</span>
       {cell >= 24 && table.h > 1 && (
         <span className="leading-none mt-0.5 text-[var(--text-muted)]" style={{ fontSize: Math.max(9, cell * 0.3) }}>
           {check ? `${check.covers}/${table.seats} · ${formatEuro(check.total)}` : `${table.seats} posti`}
@@ -69,7 +69,7 @@ const FloorView = ({ rooms, checks, service, selectedTableId, onSelect }) => {
         <div className="flex items-center gap-2 min-w-0 overflow-x-auto no-scrollbar" role="tablist" aria-label="Sale">
           {activeRooms.map(r => (
             <button key={r.id} role="tab" aria-selected={r.id === room.id} onClick={() => setRoomId(r.id)}
-              className={`shrink-0 px-4 py-2 rounded-xl text-sm font-black transition-all ${r.id === room.id ? 'bg-[var(--accent)] text-white' : 'bg-[var(--bg-card-2)] text-[var(--text-muted)] hover:text-[var(--text-main)]'}`}>
+              className={`shrink-0 px-4 py-2 rounded-xl text-sm font-semibold transition-all ${r.id === room.id ? 'bg-[var(--accent)] text-white' : 'bg-[var(--bg-card-2)] text-[var(--text-muted)] hover:text-[var(--text-main)]'}`}>
               {r.name}{openIn(r) > 0 && <span className={`ml-2 text-xs ${r.id === room.id ? 'text-white/80' : 'text-[var(--accent)]'}`}>{openIn(r)}</span>}
             </button>
           ))}

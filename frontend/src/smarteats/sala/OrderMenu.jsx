@@ -18,12 +18,12 @@ const OrderMenu = ({ products, cart, tableName, onAdd, onBack }) => {
   return (
     <div className="flex flex-col h-full">
       <div className="flex items-center gap-3 pb-3 shrink-0">
-        <button onClick={onBack} className="flex items-center gap-1 pr-3 py-1.5 text-[var(--text-muted)] hover:text-[var(--text-main)] text-xs font-black uppercase tracking-widest"><ChevronLeft size={18} /> Sala</button>
-        <h2 className="text-xl font-black tracking-tighter uppercase text-[var(--text-main)] truncate">Carta · {tableName}</h2>
+        <button onClick={onBack} className="flex items-center gap-1 pr-3 py-1.5 text-[var(--text-muted)] hover:text-[var(--text-main)] text-xs font-semibold"><ChevronLeft size={18} /> Sala</button>
+        <h2 className="text-xl font-semibold text-[var(--text-main)] truncate">Carta · {tableName}</h2>
       </div>
       <div className="flex gap-2 pb-3 shrink-0">
         <select value={category} onChange={e => setCategory(e.target.value)} aria-label="Categoria"
-          className="shrink-0 w-40 sm:w-48 h-10 pl-3 pr-8 rounded-xl bg-[var(--bg-card-2)] border border-[var(--border)] text-[var(--text-main)] font-black text-xs uppercase tracking-wider focus:outline-none focus:border-[var(--accent)]">
+          className="shrink-0 w-40 sm:w-48 h-10 pl-3 pr-8 rounded-xl bg-[var(--bg-card-2)] border border-[var(--border)] text-[var(--text-main)] font-semibold text-xs focus:outline-none focus:border-[var(--accent)]">
           {categories.map(c => <option key={c} value={c}>{c}</option>)}
         </select>
         <div className="relative flex-1">
@@ -36,7 +36,7 @@ const OrderMenu = ({ products, cart, tableName, onAdd, onBack }) => {
 
       <div className="flex-1 overflow-y-auto no-scrollbar">
         {!products && <p className="text-[var(--text-muted)] text-sm">Caricamento carta…</p>}
-        {products && !shown.length && <div className="flex items-center justify-center h-40 text-[var(--text-muted)]"><p className="font-black uppercase tracking-widest text-xs">Nessun prodotto disponibile</p></div>}
+        {products && !shown.length && <div className="flex items-center justify-center h-40 text-[var(--text-muted)]"><p className="font-semibold text-xs">Nessun prodotto disponibile</p></div>}
         <div className="grid grid-cols-2 sm:grid-cols-3 xl:grid-cols-3 2xl:grid-cols-4 gap-3">
           {shown.map(p => {
             const inCart = cart.filter(l => l.id === p.id).reduce((s, l) => s + l.quantity, 0);
@@ -47,12 +47,12 @@ const OrderMenu = ({ products, cart, tableName, onAdd, onBack }) => {
               <button key={p.id} disabled={out} onClick={() => onAdd(p)}
                 className={`relative flex flex-col justify-between rounded-xl pt-3 px-3 pb-2 min-h-[84px] border border-[var(--border)] border-l-4 bg-[var(--bg-card-2)] text-left select-none transition-all duration-150 ${out ? 'opacity-50 grayscale cursor-not-allowed' : 'hover:border-[var(--text-muted)]/40 active:scale-95 cursor-pointer'}`}
                 style={{ borderLeftColor: color }}>
-                <span className="font-black text-sm uppercase leading-tight text-[var(--text-main)]">{p.name}</span>
+                <span className="font-semibold text-sm leading-tight text-[var(--text-main)]">{p.name}</span>
                 <span className="flex items-baseline justify-between w-full mt-2">
-                  <span className="text-xs font-black tabular-nums text-[var(--text-muted)]">{formatEuro(p.price)}</span>
-                  {remaining !== null && remaining <= 10 && <span className="text-[9px] font-black uppercase tracking-widest text-orange-500">{out ? 'Esaurito' : `${remaining} rimasti`}</span>}
+                  <span className="text-xs font-semibold tabular-nums text-[var(--text-muted)]">{formatEuro(p.price)}</span>
+                  {remaining !== null && remaining <= 10 && <span className="text-[11px] font-semibold text-orange-500">{out ? 'Esaurito' : `${remaining} rimasti`}</span>}
                 </span>
-                {inCart > 0 && <span className="absolute top-2 right-2 min-w-5 h-5 px-1 rounded-full bg-[var(--accent)] text-white text-[10px] font-black flex items-center justify-center">{inCart}</span>}
+                {inCart > 0 && <span className="absolute top-2 right-2 min-w-5 h-5 px-1 rounded-full bg-[var(--accent)] text-white text-xs font-semibold flex items-center justify-center">{inCart}</span>}
               </button>
             );
           })}

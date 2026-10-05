@@ -9,7 +9,7 @@ import { reprintFromLocal } from './reprint.js';
 // Stampa le copie di un ordine appena battuto: le prepara, le mette in coda locale e prova
 // a inviarle subito. Non dipende dal server, quindi funziona anche offline.
 // Ritorna il numero di stampanti a cui è stato accodato un lavoro (0 = stampa non configurata).
-export async function printOrderTickets({ cart, displayCode, clientOrderId, sessionId, isTakeaway, table = null }) {
+export async function printOrderTickets({ cart, displayCode, clientOrderId, sessionId, isTakeaway, table = null, courseName = null }) {
   const config = await getPrintConfig();
   if (!config?.settings.some(s => s.enabled && s.printer_address)) return 0;
 
@@ -21,6 +21,7 @@ export async function printOrderTickets({ cart, displayCode, clientOrderId, sess
     is_takeaway: isTakeaway,
     table_name: table?.name ?? null,
     covers: table?.covers ?? null,
+    course_name: courseName,
     items: cart.map(i => ({ ...i, price: getEffectivePrice(i), line_total: getLineTotal(i) })),
   };
 

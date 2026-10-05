@@ -17,7 +17,7 @@ import { readCoverCharge, syncCoverOrder } from '../utils/cover.js';
 import { idParamsSchema } from '../schemas/common.js';
 import { openCheckSchema, listChecksQuerySchema, billRequestSchema, paymentSchema, adjustSchema, voidCheckSchema, receiptQuerySchema, moveCheckSchema, mergeCheckSchema, coversSchema } from '../schemas/checkSchema.js';
 import { courseOrdersSchema, fireCoursesSchema, resequenceSchema } from '../schemas/courseSchema.js';
-import { createCourseOrders, fireCourses, resequenceCourses, loadOrdersForNotify } from '../utils/courseOrders.js';
+import { createCourseOrders, fireCourses, resequenceCourses, loadOrdersForNotify, findExistingCourseOrders } from '../utils/courseOrders.js';
 
 // Conti dei tavoli (modulo `tables`). Eventi WebSocket: `check_updated` (solo personale, mai al KDS pubblico).
 const router = express.Router();
@@ -148,7 +148,13 @@ export default function (broadcast) {
   // subito (se `fire_first`), le altre restano «da mandare». Risponde con le comande create, per stampare quelle mandate.
   router.post('/:id/courses', ...guard, validate({ params: idParamsSchema, body: courseOrdersSchema }), tenantScope, async (req, res) => {
     const { groups, fire_first: fireFirst } = req.body;
+    // Reinvio dello stesso giro (risposta persa, doppio tocco): si risponde con le comande già create, senza rifare nulla.
+    const alreadySent = async () => {
+      const ids = await findExistingCourseOrders(req.db, groups);
+      return ids.length ? res.json({ orders: await loadOrdersForNotify(req.db, ids), fired: [], duplicate: true, check: await getCheckSummary(req.db, req.params.id) }) : null;
+    };
     try {
+      if (await alreadySent()) return;
       const result = await inTransaction(req.db, (db) => createCourseOrders(db, {
         tenantId: req.user.tenantId, userId: req.user.id, role: req.user.role, checkId: req.params.id, groups, fireFirst }));
       await logAudit(req.db, req.user.id, 'CREATE_COURSE_ORDERS', { checkId: Number(req.params.id), orders: result.orderIds, fired: result.firedIds });
@@ -158,6 +164,8 @@ export default function (broadcast) {
       notify(req.user.tenantId, check);
       res.status(201).json({ orders: await loadOrdersForNotify(req.db, result.orderIds), fired: result.firedIds, check });
     } catch (err) {
+      // Due invii contemporanei dello stesso giro: il secondo trova il vincolo di unicità
+      if (err.constraint === 'uniq_orders_client_order_id' && await alreadySent()) return;
       if (sendHttpError(res, err)) return;
       logger.error({ err }, 'Errore POST /api/checks/:id/courses');
       res.status(500).json({ error: 'Errore invio comande' });

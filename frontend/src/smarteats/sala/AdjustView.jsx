@@ -49,7 +49,7 @@ const AdjustView = ({ detail, onBack, onDone }) => {
       }>
       <div className="flex items-center justify-between px-1 pt-1">
         <span className={label}>Voci del conto</span>
-        <button className="text-[10px] font-black uppercase tracking-widest text-[var(--accent)]" onClick={() => setSelected(allSelected ? new Set() : new Set(editable.map(l => l.line_id)))}>{allSelected ? 'Nessuna' : 'Tutte'}</button>
+        <button className="text-xs font-semibold text-[var(--accent)]" onClick={() => setSelected(allSelected ? new Set() : new Set(editable.map(l => l.line_id)))}>{allSelected ? 'Nessuna' : 'Tutte'}</button>
       </div>
       {lines.map(line => {
         const locked = line.paid_quantity > 0;
@@ -57,11 +57,11 @@ const AdjustView = ({ detail, onBack, onDone }) => {
         return (
           <button key={line.line_id} disabled={locked} aria-pressed={on} onClick={() => toggle(line.line_id)}
             className={`${row} w-full flex items-center gap-2.5 text-left disabled:opacity-50 disabled:cursor-not-allowed ${on ? '!border-[var(--accent)]' : ''}`}>
-            <span className={`text-[10px] font-black w-5 h-5 flex items-center justify-center rounded shrink-0 ${on ? 'bg-[var(--accent)] text-white' : 'bg-[var(--border)] text-[var(--text-muted)]'}`}>{line.quantity}</span>
-            <span className="flex-1 min-w-0 font-bold text-xs uppercase text-[var(--text-main)] truncate">{line.name}</span>
-            {locked && <span className="text-[9px] font-black uppercase tracking-widest text-[var(--text-muted)]">pagata</span>}
-            {!locked && line.type !== 'sale' && <span className={`text-[9px] font-black px-1.5 py-0.5 rounded-full ${line.type === 'gift' ? 'bg-purple-500/10 text-purple-500' : 'bg-orange-500/10 text-orange-500'}`}>{line.type === 'gift' ? 'Omaggio' : 'Sconto'}</span>}
-            <span className="font-black text-xs tabular-nums text-[var(--text-main)] shrink-0">{formatEuro(line.line_total)}</span>
+            <span className={`text-xs font-semibold w-5 h-5 flex items-center justify-center rounded shrink-0 ${on ? 'bg-[var(--accent)] text-white' : 'bg-[var(--border)] text-[var(--text-muted)]'}`}>{line.quantity}</span>
+            <span className="flex-1 min-w-0 font-bold text-xs text-[var(--text-main)] truncate">{line.name}</span>
+            {locked && <span className="text-[11px] font-semibold text-[var(--text-muted)]">pagata</span>}
+            {!locked && line.type !== 'sale' && <span className={`text-[11px] font-semibold px-1.5 py-0.5 rounded-full ${line.type === 'gift' ? 'bg-purple-500/10 text-purple-500' : 'bg-orange-500/10 text-orange-500'}`}>{line.type === 'gift' ? 'Omaggio' : 'Sconto'}</span>}
+            <span className="font-semibold text-xs tabular-nums text-[var(--text-main)] shrink-0">{formatEuro(line.line_total)}</span>
           </button>
         );
       })}

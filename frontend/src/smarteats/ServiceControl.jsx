@@ -48,7 +48,7 @@ const ServiceControl = ({ service, canManage, start, closingInfo, end }) => {
   return (
     <>
       <button onClick={canManage ? begin : undefined} disabled={!canManage}
-        className={`flex items-center gap-2 px-3 py-2 rounded-2xl border text-xs font-black uppercase tracking-widest transition-all
+        className={`flex items-center gap-2 px-3 py-2 rounded-2xl border text-xs font-semibold transition-all
           ${service ? 'bg-green-500/10 border-green-500/30 text-green-500' : 'bg-red-500/10 border-red-500/30 text-red-500'}
           ${canManage ? 'cursor-pointer enabled:hover:opacity-80' : 'cursor-default'}`}>
         <Power size={16} className="pointer-events-none" />
@@ -59,7 +59,7 @@ const ServiceControl = ({ service, canManage, start, closingInfo, end }) => {
         <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex justify-center items-end sm:items-center z-[2000] px-4 pb-4 sm:pb-0">
           <form onSubmit={submitStart} className="bg-[var(--bg-card)] p-6 sm:p-8 rounded-3xl shadow-2xl w-full max-w-md border border-[var(--border)] space-y-5">
             <div className="text-center">
-              <h2 className="text-xl font-black text-[var(--text-main)]">Apri il servizio</h2>
+              <h2 className="text-xl font-semibold text-[var(--text-main)]">Apri il servizio</h2>
               <p className="text-sm text-[var(--text-muted)] mt-1">Senza un servizio aperto non si aprono i tavoli</p>
             </div>
             <input type="text" autoFocus value={name} onChange={e => setName(e.target.value)}

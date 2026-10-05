@@ -15,12 +15,12 @@ import DraftOrder from './DraftOrder';
 const Empty = () => (
   <div className="h-full flex flex-col items-center justify-center gap-2 bg-[var(--bg-card)] rounded-xl border border-[var(--border)] text-[var(--text-muted)] opacity-60">
     <LayoutGrid size={32} />
-    <p className="text-sm text-center font-black uppercase tracking-widest">Scegli un tavolo</p>
+    <p className="text-sm text-center font-semibold">Scegli un tavolo</p>
   </div>
 );
 
 // Il conto di un tavolo e le sue viste (conto, incasso, sconto, comanda): sempre nello stesso pannello.
-const CheckSide = ({ checkId, user, service, event, ordering, cart, setCart, products, onBack, onDraftBack, onOrder, onSent, onChanged, onSwitch }) => {
+const CheckSide = ({ checkId, user, service, event, ordering, cart, setCart, products, courses, plan, setPlan, onBack, onDraftBack, onOrder, onSent, onChanged, onSwitch }) => {
   const { showToast } = useToast();
   const [view, setView] = useState('check');      // 'check' | 'pay' | 'adjust' | 'move' | 'covers'
   const { detail, reload } = useCheckDetail(checkId, event, onBack);
@@ -35,7 +35,7 @@ const CheckSide = ({ checkId, user, service, event, ordering, cart, setCart, pro
   };
 
   if (!detail) return null;
-  if (ordering) return <DraftOrder detail={detail} service={service} cart={cart} setCart={setCart} products={products} onBack={onDraftBack} onSent={() => { onSent(); refresh(); }} />;
+  if (ordering) return <DraftOrder detail={detail} service={service} cart={cart} setCart={setCart} products={products} courses={courses} plan={plan} setPlan={setPlan} onBack={onDraftBack} onSent={() => { onSent(); refresh(); }} />;
   if (view === 'pay') return <PayView detail={detail} onBack={() => setView('check')} onPaid={refresh} onPrint={print} />;
   if (view === 'adjust') return <AdjustView detail={detail} onBack={() => setView('check')} onDone={refresh} />;
   if (view === 'covers') return <CoversView detail={detail} onBack={() => setView('check')} onDone={refresh} />;

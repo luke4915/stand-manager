@@ -16,13 +16,14 @@ import ProductConfig from '../components/products/ProductConfig';
 import RoomsSettings from '../components/setup/RoomsSettings';
 import UsersSettings from '../components/setup/UsersSettings';
 import CoverSettings from './CoverSettings';
+import CourseSettings from './CourseSettings';
 
 const OrdersKitchen = lazy(() => import('../components/kitchen/OrdersKitchen'));
 const Statistics = lazy(() => import('../components/shared/Statistics'));
 
 const ICONS = { sala: LayoutGrid, cucina: UtensilsCrossed, carta: BookOpen, statistiche: BarChart3, impostazioni: Settings };
-const NAV_CLASS = ({ isActive }) => `flex items-center gap-3 px-3.5 py-3 rounded-2xl transition-all text-xs font-black uppercase tracking-widest
-  ${isActive ? 'bg-[var(--accent)] text-white shadow-md shadow-[var(--accent-shadow)]' : 'text-[var(--text-muted)] hover:bg-[var(--bg-card-2)] hover:text-[var(--text-main)]'}`;
+const NAV_CLASS = ({ isActive }) => `flex items-center gap-3 px-3.5 py-3 rounded-2xl transition-all text-xs font-semibold
+  ${isActive ? 'bg-[var(--accent)] text-white' : 'text-[var(--text-muted)] hover:bg-[var(--bg-card-2)] hover:text-[var(--text-main)]'}`;
 
 const NavItem = ({ view, compact }) => {
   const Icon = ICONS[view.id];
@@ -43,19 +44,20 @@ const Page = ({ children }) => (
 const CartaPage = () => {
   const { showToast } = useToast();
   const [products, setProducts] = useState(null);
+  const [courses, setCourses] = useState(null);
   useEffect(() => {
-    fetchWithAuth('/products')
-      .then(list => setProducts(list.map(p => ({ ...p, price: parseFloat(p.price) }))))
+    Promise.all([fetchWithAuth('/products'), fetchWithAuth('/courses')])
+      .then(([list, courseList]) => { setProducts(list.map(p => ({ ...p, price: parseFloat(p.price) }))); setCourses(courseList.filter(c => c.active)); })
       .catch(err => showToast(err.message || 'Errore caricamento carta', 'error'));
   }, [showToast]);
-  if (!products) return <p className="text-[var(--text-muted)]">Caricamento carta…</p>;
-  return <ProductConfig products={products} setProducts={setProducts} />;
+  if (!products || !courses) return <p className="text-[var(--text-muted)]">Caricamento carta…</p>;
+  return <ProductConfig products={products} setProducts={setProducts} courses={courses} />;
 };
 
 const SettingsPage = ({ user }) => (
   <div className="space-y-6">
-    <h2 className="text-3xl font-black tracking-tighter text-[var(--text-main)]">IMPOSTAZIONI</h2>
-    {user.modules?.includes('tables') && <><CoverSettings /><RoomsSettings /></>}
+    <h2 className="text-3xl font-semibold text-[var(--text-main)]">IMPOSTAZIONI</h2>
+    {user.modules?.includes('tables') && <><CoverSettings /><CourseSettings /><RoomsSettings /></>}
     <UsersSettings />
   </div>
 );
@@ -89,8 +91,8 @@ const SmartEatsApp = () => {
       {/* Menu laterale (desktop) */}
       <aside className="hidden md:flex flex-col shrink-0 w-20 xl:w-60 bg-[var(--bg-card)] border-r border-[var(--border)] py-6 px-3 gap-6">
         <div className="flex items-center gap-3 px-1">
-          <div className="w-11 h-11 shrink-0 bg-[var(--accent)] rounded-2xl flex items-center justify-center text-white font-black text-xl shadow-lg shadow-[var(--accent-shadow)] select-none">S</div>
-          <span className="hidden xl:inline font-black text-lg tracking-tight text-[var(--text-main)]">SmartEats</span>
+          <div className="w-11 h-11 shrink-0 bg-[var(--accent)] rounded-2xl flex items-center justify-center text-white font-semibold text-xl select-none">S</div>
+          <span className="hidden xl:inline font-semibold text-lg tracking-tight text-[var(--text-main)]">SmartEats</span>
         </div>
         <nav className="flex-1 space-y-2">{views.map(v => <NavItem key={v.id} view={v} />)}</nav>
       </aside>
@@ -99,13 +101,13 @@ const SmartEatsApp = () => {
         <header className="flex items-center justify-between gap-3 px-4 mt-3 mb-1 shrink-0">
           <div className="min-w-0">
             <p className="text-xs text-[var(--text-muted)] truncate">SmartEats{service ? ` / ${service.name}` : ''}</p>
-            <h1 className="text-lg sm:text-2xl font-black tracking-tight text-[var(--text-main)] leading-tight truncate">{user.tenantName}</h1>
+            <h1 className="text-lg sm:text-2xl font-semibold tracking-tight text-[var(--text-main)] leading-tight truncate">{user.tenantName}</h1>
           </div>
           <div className="flex items-center gap-2 shrink-0">
             <ServiceControl service={service} canManage={canManageService} start={start} closingInfo={closingInfo} end={end} />
             <div className="flex items-center gap-1 bg-[var(--bg-card)] px-2 py-1.5 rounded-2xl border border-[var(--border)]">
               <button onClick={() => setShowProfile(true)} className="flex items-center gap-2 px-2 py-1 rounded-xl hover:bg-[var(--bg-card-2)] text-[var(--text-main)]">
-                <UserRound size={16} /><span className="hidden sm:inline text-xs font-black">{user.username}</span>
+                <UserRound size={16} /><span className="hidden sm:inline text-xs font-semibold">{user.username}</span>
               </button>
               <button onClick={() => setTheme(t => (t === 'dark' ? 'light' : 'dark'))} aria-label="Cambia tema" className="p-2 rounded-xl hover:bg-[var(--bg-card-2)] text-[var(--text-muted)]">
                 {theme === 'dark' ? <Moon size={16} /> : <Sun size={16} />}

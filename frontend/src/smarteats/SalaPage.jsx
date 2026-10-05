@@ -7,6 +7,8 @@ import FloorView from './sala/FloorView';
 import SidePanel from './sala/SidePanel';
 import OrderMenu from './sala/OrderMenu';
 import { useProducts } from './sala/useProducts';
+import { useCourses } from './sala/useCourses';
+import { emptyPlan, courseOfProduct } from './sala/courses';
 import { addToCart, cartTotal, formatEuro } from './sala/checkMath';
 import { btnPrimary } from './sala/ui';
 
@@ -23,7 +25,9 @@ const SalaPage = ({ user, service, event }) => {
   const [ordering, setOrdering] = useState(false);
   const [draftOpen, setDraftOpen] = useState(false);  // solo su schermo stretto: la comanda sopra la carta
   const [cart, setCart] = useState([]);
+  const [plan, setPlan] = useState(emptyPlan);    // ordine d'uscita delle portate della comanda
   const products = useProducts(ordering);
+  const courses = useCourses();
 
   const load = useCallback(async () => {
     try {
@@ -36,7 +40,7 @@ const SalaPage = ({ user, service, event }) => {
   // Un conto cambia su un altro dispositivo
   useEffect(() => { if (event?.type === 'check_updated') load(); }, [event, load]);
 
-  const reset = () => { setOrdering(false); setDraftOpen(false); setCart([]); };
+  const reset = () => { setOrdering(false); setDraftOpen(false); setCart([]); setPlan(emptyPlan()); };
   const close = () => { reset(); setSelection(null); load(); };
   const select = (table, check) => {
     if (!check && !service) return showToast('Apri il servizio per aprire i tavoli', 'warning');
@@ -44,7 +48,7 @@ const SalaPage = ({ user, service, event }) => {
     setSelection({ table, checkId: check?.id ?? null });
   };
   const add = (product) => {
-    const res = addToCart(cart, product);
+    const res = addToCart(cart, { ...product, course_id: courseOfProduct(product, courses) });
     if (res.blocked) return showToast(`"${product.name}": disponibilità esaurita`, 'warning');
     setCart(res.cart);
   };
@@ -53,7 +57,7 @@ const SalaPage = ({ user, service, event }) => {
 
   const side = (
     <SidePanel selection={selection} user={user} service={service} event={event} ordering={ordering}
-      cart={cart} setCart={setCart} products={products}
+      cart={cart} setCart={setCart} products={products} courses={courses} plan={plan} setPlan={setPlan}
       onBack={close} onOpened={(check) => { setSelection(s => ({ ...s, checkId: check.id })); load(); }} onBusy={close}
       onOrder={() => setOrdering(true)} onDraftBack={() => (narrow ? setDraftOpen(false) : setOrdering(false))}
       onSent={() => { reset(); load(); }} onChanged={load}

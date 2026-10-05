@@ -2,6 +2,7 @@
 import { describe, it, before, after } from 'node:test';
 import assert from 'node:assert/strict';
 import bcrypt from 'bcrypt';
+import { randomUUID } from 'node:crypto';
 import { startServer, createTenant, deleteTenants, closePools, apiClient, adminDb, connectWs, sleep, PASSWORD } from './helpers.js';
 
 describe('portate', () => {
@@ -29,7 +30,7 @@ describe('portate', () => {
     cashier = await user('cassa');
     kitchen = await user('cucina');
     const room = (await admin.post('/rooms', { name: 'Sala' })).body;
-    tables = (await admin.post(`/rooms/${room.id}/tables/bulk`, { prefix: 'T', from: 1, to: 8 })).body.created;
+    tables = (await admin.post(`/rooms/${room.id}/tables/bulk`, { prefix: 'T', from: 1, to: 12 })).body.created;
     [starter, main, dessert] = [];
     for (const name of ['Antipasti', 'Primi', 'Dolci']) {
       const course = (await admin.post('/courses', { name })).body;
@@ -131,6 +132,31 @@ describe('portate', () => {
     assert.deepEqual(fired.body.orders.map(o => o.course_name).sort(), ['Antipasti', 'Primi']);
   });
 
+  it('reinviare lo stesso giro non lo duplica (anche due invii insieme)', async () => {
+    const check = await openCheck(tables[8]);
+    const groups = () => [
+      { course_id: starter.id, seq: 1, client_order_id: keys[0], items: [line()] },
+      { course_id: main.id, seq: 2, client_order_id: keys[1], items: [line()] },
+    ];
+    const keys = [randomUUID(), randomUUID()];
+    const first = await send(check, groups());
+    assert.equal(first.status, 201);
+    const again = await send(check, groups());
+    assert.equal(again.status, 200);
+    assert.equal(again.body.duplicate, true);
+    assert.deepEqual(again.body.orders.map(o => o.id).sort(), first.body.orders.map(o => o.id).sort());
+    assert.deepEqual(again.body.fired, [], 'non si ristampa');
+    assert.equal((await adminDb.query(`SELECT COUNT(*)::int AS n FROM orders WHERE check_id = $1 AND order_type <> 'cover'`, [check])).rows[0].n, 2);
+
+    const keys2 = [randomUUID()];
+    const check2 = await openCheck(tables[9]);
+    const results = await Promise.all([1, 2, 3].map(() => send(check2, [{ course_id: starter.id, seq: 1, client_order_id: keys2[0], items: [line()] }])));
+    assert.ok(results.every(r => [200, 201].includes(r.status)), JSON.stringify(results.map(r => r.body)));
+    assert.equal(results.filter(r => r.status === 201).length, 1);
+    assert.equal((await adminDb.query(`SELECT COUNT(*)::int AS n FROM orders WHERE check_id = $1 AND order_type <> 'cover'`, [check2])).rows[0].n, 1);
+    assert.equal((await send(check2, [{ course_id: starter.id, seq: 1, client_order_id: keys2[0], items: [line()] }, { course_id: main.id, seq: 2, client_order_id: keys2[0], items: [line()] }])).status, 400, 'stessa chiave su due portate');
+  });
+
   it('un secondo giro si accoda al primo', async () => {
     const check = await openCheck(tables[3]);
     await send(check, [{ course_id: starter.id, seq: 1, items: [line()] }, { course_id: main.id, seq: 2, items: [line()] }]);
@@ -198,7 +224,7 @@ describe('portate', () => {
   });
 
   it('un servizio non si chiude con portate da mandare (il conto è aperto)', async () => {
-    const check = await openCheck((await admin.post(`/rooms/${(await admin.get('/rooms')).body[0].id}/tables`, { name: 'T9' })).body);
+    const check = await openCheck((await admin.post(`/rooms/${(await admin.get('/rooms')).body[0].id}/tables`, { name: 'X1' })).body);
     await send(check, [{ course_id: starter.id, seq: 1, items: [line()] }, { course_id: main.id, seq: 2, items: [line()] }]);
     const end = await admin.post('/sessions/end', {});
     assert.equal(end.status, 409);
@@ -206,7 +232,7 @@ describe('portate', () => {
   });
 
   it('regole: conto chiuso o inesistente, portata di un altro locale, forma, ruoli, sagra', async () => {
-    const check = await openCheck((await admin.post(`/rooms/${(await admin.get('/rooms')).body[0].id}/tables`, { name: 'T10' })).body);
+    const check = await openCheck((await admin.post(`/rooms/${(await admin.get('/rooms')).body[0].id}/tables`, { name: 'X2' })).body);
     const ok = [{ course_id: starter.id, seq: 1, items: [line()] }];
     assert.equal((await send(999999999, ok)).status, 404);
     const { rows: [foreign] } = await adminDb.query(`INSERT INTO courses (name, tenant_id) VALUES ('Altrui', $1) RETURNING id`, [sagra.id]);
@@ -230,7 +256,7 @@ describe('portate', () => {
     const staff = await connectWs(server.port, t.host, { cookie: admin.cookie });
     const kds = await connectWs(server.port, t.host, { publicKds: true });
     const room = (await admin.get('/rooms')).body[0];
-    const check = await openCheck((await admin.post(`/rooms/${room.id}/tables`, { name: 'T11' })).body, 3);
+    const check = await openCheck((await admin.post(`/rooms/${room.id}/tables`, { name: 'X3' })).body, 3);
     await send(check, [{ course_id: starter.id, seq: 1, items: [line()] }, { course_id: main.id, seq: 2, items: [line()] }]);
     await sleep(120);
     assert.equal(staff.messages.filter(m => m.type === 'order_created').length, 1, 'solo l\'antipasto');
@@ -241,7 +267,7 @@ describe('portate', () => {
     await sleep(120);
     const created = staff.messages.filter(m => m.type === 'order_created');
     assert.equal(created.length, 2);
-    assert.equal(created[1].order.table_name, 'T11');
+    assert.equal(created[1].order.table_name, 'X3');
     assert.equal(kds.messages.filter(m => m.type === 'order_created').length, 2);
     assert.ok(staff.messages.some(m => m.type === 'check_updated'));
     staff.ws.close(); kds.ws.close();

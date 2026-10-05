@@ -21,9 +21,11 @@ export const reorderCoursesSchema = z.object({
 export const courseOrdersSchema = z.object({
   groups: z.array(z.object({
     course_id: idSchema.nullable().default(null),
+    // Chiave di idempotenza della comanda di questa portata: se la risposta si perde e il giro si reinvia, non si duplica.
+    client_order_id: z.uuid().optional(),
     seq: z.number().int().min(1).max(50),
     items: z.array(orderItemSchema).min(1, 'Portata vuota').max(100),
-  })).min(1).max(20),
+  })).min(1).max(20).refine(gs => { const ids = gs.map(g => g.client_order_id).filter(Boolean); return new Set(ids).size === ids.length; }, { message: 'Chiave ripetuta' }),
   // Se il primo gruppo esce subito (di solito sì) o tutto resta da mandare.
   fire_first: z.boolean().default(true),
 });

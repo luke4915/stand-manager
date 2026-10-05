@@ -43,10 +43,11 @@ export const cartTotal = (cart) => cart.reduce((sum, i) => sum + toCents(i.price
 export function addToCart(cart, product, quantity = 1) {
   const inCart = cart.filter(i => i.id === product.id).reduce((s, i) => s + i.quantity, 0);
   if (product.stock_enabled && product.stock !== null && inCart + quantity > product.stock) return { cart, blocked: true };
-  const existing = cart.find(i => i.id === product.id && !i.note);
+  const courseId = product.course_id ?? null;
+  const existing = cart.find(i => i.id === product.id && !i.note && (i.course_id ?? null) === courseId);
   const next = existing
     ? cart.map(i => (i === existing ? { ...i, quantity: i.quantity + quantity } : i))
-    : [...cart, { id: product.id, name: product.name, price: Number(product.price), quantity, note: '', print_destination: product.print_destination || 'both', category: product.category || null }];
+    : [...cart, { id: product.id, name: product.name, price: Number(product.price), quantity, note: '', print_destination: product.print_destination || 'both', category: product.category || null, course_id: courseId }];
   return { cart: next, blocked: false };
 }
 

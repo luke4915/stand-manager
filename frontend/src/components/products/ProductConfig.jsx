@@ -58,7 +58,8 @@ const Combobox = ({ name, value, onChange, options, placeholder }) => {
   );
 };
 
-const ProductConfig = ({ products, setProducts }) => {
+// `courses` (solo ristoranti): le portate del locale; con la lista il prodotto ne sceglie una.
+const ProductConfig = ({ products, setProducts, courses = null }) => {
   const { showToast } = useToast();
   const [editingProduct, setEditingProduct] = useState(null);
   const [formData, setFormData] = useState({ 
@@ -95,6 +96,7 @@ const ProductConfig = ({ products, setProducts }) => {
       color: '#3b82f6', 
       visible: true, 
       print_destination: 'both',
+      ...(courses && { course_id: null }),
       stock_enabled: false,
       stock: ''
     });
@@ -110,6 +112,7 @@ const ProductConfig = ({ products, setProducts }) => {
       color: p.color || '#3b82f6',
       visible: p.visible ?? true,
       print_destination: p.print_destination || 'both',
+      ...(courses && { course_id: p.course_id ?? null }),
       stock_enabled: p.stock_enabled ?? false,
       stock: p.stock !== undefined && p.stock !== null ? String(p.stock) : ''
     });
@@ -592,6 +595,17 @@ const ProductConfig = ({ products, setProducts }) => {
                     ))}
                   </div>
                 </div>
+
+                {courses && (
+                  <div className="p-3 rounded-xl bg-[var(--bg-input)] border border-[var(--border)]">
+                    <label htmlFor="course" className="text-xs font-medium text-[var(--text-muted)] block mb-2">Portata</label>
+                    <select id="course" value={formData.course_id ?? ''} onChange={e => setFormData(prev => ({ ...prev, course_id: e.target.value ? Number(e.target.value) : null }))}
+                      className="w-full h-10 px-3 rounded-lg bg-[var(--bg-card)] border border-[var(--border)] text-[var(--text-main)] text-sm focus:outline-none focus:border-[var(--accent)]">
+                      <option value="">Nessuna (esce subito: bevande, pane…)</option>
+                      {courses.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
+                    </select>
+                  </div>
+                )}
 
                 {editingProduct && (
                   <div className="p-3 rounded-xl bg-[var(--bg-input)] border border-[var(--border)] flex items-center gap-3">

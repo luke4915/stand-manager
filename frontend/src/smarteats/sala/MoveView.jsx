@@ -48,8 +48,8 @@ const MoveView = ({ detail, onBack, onMoved, onMerged }) => {
             <div className="grid grid-cols-3 gap-2">
               {free.map(t => (
                 <button key={t.id} disabled={busy} onClick={() => run('move', { table_id: t.id }, onMoved)}
-                  className={`${row} text-center font-black text-sm uppercase text-[var(--text-main)] hover:!border-[var(--accent)] active:scale-95 transition-all disabled:opacity-50`}>
-                  {t.name}<span className="block text-[10px] font-bold text-[var(--text-muted)]">{t.seats} posti</span>
+                  className={`${row} text-center font-semibold text-sm text-[var(--text-main)] hover:!border-[var(--accent)] active:scale-95 transition-all disabled:opacity-50`}>
+                  {t.name}<span className="block text-xs font-bold text-[var(--text-muted)]">{t.seats} posti</span>
                 </button>
               ))}
             </div>
@@ -64,8 +64,8 @@ const MoveView = ({ detail, onBack, onMoved, onMerged }) => {
           {others.map(c => (
             <button key={c.id} disabled={busy} onClick={() => run('merge', { into: c.id }, (target) => onMerged(target))}
               className={`${row} w-full flex items-center gap-2 text-left hover:!border-[var(--accent)] active:scale-[0.99] transition-all disabled:opacity-50`}>
-              <span className="flex-1 min-w-0 font-black text-sm uppercase text-[var(--text-main)] truncate">{c.table_name ?? 'Banco'}<span className="ml-2 text-[10px] font-bold normal-case text-[var(--text-muted)]">{c.covers} cop.</span></span>
-              <span className="font-black text-xs tabular-nums text-[var(--text-main)]">{formatEuro(c.total)}</span>
+              <span className="flex-1 min-w-0 font-semibold text-sm text-[var(--text-main)] truncate">{c.table_name ?? 'Banco'}<span className="ml-2 text-xs font-bold normal-case text-[var(--text-muted)]">{c.covers} cop.</span></span>
+              <span className="font-semibold text-xs tabular-nums text-[var(--text-main)]">{formatEuro(c.total)}</span>
             </button>
           ))}
         </section>

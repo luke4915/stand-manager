@@ -58,8 +58,8 @@ const PayView = ({ detail, onBack, onPaid, onPrint }) => {
         }>
         <div className="h-full flex flex-col items-center justify-center gap-3 py-8 text-center">
           <div className="w-14 h-14 rounded-full bg-emerald-500/10 border border-emerald-500/30 text-emerald-500 flex items-center justify-center"><Check size={28} /></div>
-          <p className="text-4xl font-black tabular-nums text-[var(--text-main)]">{formatEuro(done.payment.amount)}</p>
-          {done.change > 0 && <div><p className={label}>Resto da dare</p><p className="text-3xl font-black tabular-nums text-amber-500">{formatEuro(done.change)}</p></div>}
+          <p className="text-4xl font-semibold tabular-nums text-[var(--text-main)]">{formatEuro(done.payment.amount)}</p>
+          {done.change > 0 && <div><p className={label}>Resto da dare</p><p className="text-3xl font-semibold tabular-nums text-amber-500">{formatEuro(done.change)}</p></div>}
         </div>
       </PanelFrame>
     );
@@ -72,7 +72,7 @@ const PayView = ({ detail, onBack, onPaid, onPrint }) => {
           {method === 'cash' && (
             <div className="flex items-center gap-3">
               <input className={`${input} flex-1`} inputMode="decimal" placeholder="Contanti ricevuti (facoltativo)" aria-label="Contanti ricevuti" value={tendered} onChange={e => setTendered(e.target.value)} />
-              {change !== null && <span className={`text-sm font-black tabular-nums shrink-0 ${tooLow ? 'text-red-500' : 'text-amber-500'}`}>{tooLow ? 'Insufficienti' : `Resto ${formatEuro(change)}`}</span>}
+              {change !== null && <span className={`text-sm font-semibold tabular-nums shrink-0 ${tooLow ? 'text-red-500' : 'text-amber-500'}`}>{tooLow ? 'Insufficienti' : `Resto ${formatEuro(change)}`}</span>}
             </div>
           )}
           <button className={`${btnPrimary} w-full !py-4 !text-sm`} disabled={!valid || tooLow || busy} onClick={pay}>
@@ -96,24 +96,24 @@ const PayView = ({ detail, onBack, onPaid, onPrint }) => {
         <>
           <div className="flex items-center justify-between px-1 pt-1">
             <span className={label}>Cosa paga questa persona</span>
-            <button className="text-[10px] font-black uppercase tracking-widest text-[var(--accent)]" onClick={toggleAll}>{allSelected ? 'Nessuna' : 'Tutto'}</button>
+            <button className="text-xs font-semibold text-[var(--accent)]" onClick={toggleAll}>{allSelected ? 'Nessuna' : 'Tutto'}</button>
           </div>
           {lines.map(line => {
             const q = selection[line.line_id] ?? 0;
             return (
               <div key={line.line_id} className={`${row} flex items-center gap-2 ${q > 0 ? '!border-[var(--accent)]' : ''}`}>
                 <button className="flex items-center gap-2.5 min-w-0 flex-1 text-left" onClick={() => setQty(line, q > 0 ? 0 : line.remaining_quantity)} aria-pressed={q > 0}>
-                  <span className={`text-[10px] font-black w-5 h-5 flex items-center justify-center rounded shrink-0 ${q > 0 ? 'bg-[var(--accent)] text-white' : 'bg-[var(--border)] text-[var(--text-muted)]'}`}>{line.remaining_quantity}</span>
-                  <span className="font-bold text-xs uppercase text-[var(--text-main)] truncate">{line.name}</span>
+                  <span className={`text-xs font-semibold w-5 h-5 flex items-center justify-center rounded shrink-0 ${q > 0 ? 'bg-[var(--accent)] text-white' : 'bg-[var(--border)] text-[var(--text-muted)]'}`}>{line.remaining_quantity}</span>
+                  <span className="font-bold text-xs text-[var(--text-main)] truncate">{line.name}</span>
                 </button>
                 {line.remaining_quantity > 1 && q > 0 && (
                   <span className="flex items-center gap-1 shrink-0">
                     <button className={`${iconBtn} !p-1`} aria-label={`Meno ${line.name}`} onClick={() => setQty(line, q - 1)}><Minus size={12} /></button>
-                    <span className="w-5 text-center text-xs font-black tabular-nums text-[var(--text-main)]">{q}</span>
+                    <span className="w-5 text-center text-xs font-semibold tabular-nums text-[var(--text-main)]">{q}</span>
                     <button className={`${iconBtn} !p-1`} aria-label={`Più ${line.name}`} disabled={q >= line.remaining_quantity} onClick={() => setQty(line, q + 1)}><Plus size={12} /></button>
                   </span>
                 )}
-                <span className="font-black text-xs tabular-nums text-[var(--text-main)] shrink-0 w-16 text-right">{formatEuro(line.remaining_amount)}</span>
+                <span className="font-semibold text-xs tabular-nums text-[var(--text-main)] shrink-0 w-16 text-right">{formatEuro(line.remaining_amount)}</span>
               </div>
             );
           })}
@@ -121,7 +121,7 @@ const PayView = ({ detail, onBack, onPaid, onPrint }) => {
       ) : (
         <div className="space-y-3 pt-1">
           <label className="block"><span className={label}>Importo</span>
-            <input className={`${input} !h-14 !text-2xl !font-black`} inputMode="decimal" aria-label="Importo da incassare" value={amount} onChange={e => setAmount(e.target.value)} /></label>
+            <input className={`${input} !h-14 !text-2xl !font-semibold`} inputMode="decimal" aria-label="Importo da incassare" value={amount} onChange={e => setAmount(e.target.value)} /></label>
           <div>
             <span className={label}>Alla romana · in quanti</span>
             <div className="flex gap-1.5 mt-1.5 flex-wrap">
@@ -133,7 +133,7 @@ const PayView = ({ detail, onBack, onPaid, onPrint }) => {
           </div>
         </div>
       )}
-      {Number.isFinite(amountValue) && toCents(amountValue) > toCents(detail.due) && <p className="text-xs font-black uppercase tracking-widest text-red-500 px-1">Supera il residuo del conto</p>}
+      {Number.isFinite(amountValue) && toCents(amountValue) > toCents(detail.due) && <p className="text-xs font-semibold text-red-500 px-1">Supera il residuo del conto</p>}
     </PanelFrame>
   );
 };

@@ -1,11 +1,12 @@
 import { useState } from 'react';
-import { Plus, Wallet, Lock, BellRing, BellOff, Percent, Printer, Trash2, ArrowRightLeft, Users } from 'lucide-react';
+import { Plus, Send, Wallet, Lock, BellRing, BellOff, Percent, Printer, Trash2, ArrowRightLeft, Users } from 'lucide-react';
 import { fetchWithAuth } from '../../utils/apiClient';
 import { useToast } from '../../context/useToast';
 import PanelFrame from './PanelFrame';
 import CheckMenu from './CheckMenu';
 import CheckOrders from './CheckOrders';
 import { formatEuro } from './checkMath';
+import { printFired } from './printFired';
 import { btn, btnPrimary, btnDanger, label, row } from './ui';
 
 const METHOD = { cash: 'Contanti', card: 'Carta', other: 'Altro' };
@@ -32,6 +33,14 @@ const CheckView = ({ detail, user, service, onBack, onOrder, onPay, onAdjust, on
     try { await action(); } catch (err) { showToast(err.message, 'error'); }
     finally { setBusy(false); await onChanged(); }
   };
+  // Portate ancora da mandare: la prossima è quella con l'ordine d'uscita più basso (le «insieme» escono tutte)
+  const scheduled = activeOrders.filter(o => o.status === 'scheduled').sort((a, b) => a.course_seq - b.course_seq || a.id - b.id);
+  const next = scheduled.filter(o => o.course_seq === scheduled[0]?.course_seq);
+  const fireNext = () => run(async () => {
+    const res = await fetchWithAuth(`/checks/${detail.id}/fire`, { method: 'POST', body: {} });
+    await printFired(res.orders, res.fired, detail, service, showToast);
+    showToast('Portata mandata in cucina', 'success');
+  });
   const deleteCheck = async () => {
     setBusy(true);
     try {
@@ -64,7 +73,7 @@ const CheckView = ({ detail, user, service, onBack, onOrder, onPay, onAdjust, on
             {hasPayments && <div className="flex justify-between text-xs text-[var(--text-muted)]"><span>Totale {formatEuro(detail.total)}</span><span>Pagato {formatEuro(detail.paid)}</span></div>}
             <div className="flex justify-between items-baseline">
               <span className={label}>{open ? 'Da pagare' : 'Totale'}</span>
-              <span className="text-3xl font-black tabular-nums text-[var(--text-main)]">{formatEuro(open ? detail.due : detail.total)}</span>
+              <span className="text-3xl font-semibold tabular-nums text-[var(--text-main)]">{formatEuro(open ? detail.due : detail.total)}</span>
             </div>
           </div>
           {open ? (
@@ -88,16 +97,25 @@ const CheckView = ({ detail, user, service, onBack, onOrder, onPay, onAdjust, on
           </div>
         </div>
       )}
+      {open && next.length > 0 && (
+        <div className="flex items-center gap-3 p-3 rounded-lg border border-[var(--accent)]/40 bg-[var(--accent)]/5">
+          <div className="min-w-0 flex-1">
+            <p className="text-xs text-[var(--text-muted)]">Prossima portata</p>
+            <p className="text-sm font-semibold text-[var(--text-main)] truncate">{next.map(o => o.course_name ?? 'Subito').join(' + ')}</p>
+          </div>
+          <button className={`${btnPrimary} !h-10`} disabled={busy} onClick={fireNext}><Send size={15} /> Manda</button>
+        </div>
+      )}
       <CheckOrders detail={detail} onChanged={onChanged} />
       {hasPayments && (
         <section className="space-y-1.5 pt-2">
-          <p className="px-1 text-[10px] font-black uppercase tracking-widest text-[var(--text-muted)]">Pagamenti</p>
+          <p className="px-1 text-xs font-semibold text-[var(--text-muted)]">Pagamenti</p>
           {detail.payments.map(p => (
             <button key={p.id} onClick={() => onPrint(p.id)} title="Stampa la ricevuta di questo pagamento" className={`${row} w-full flex items-center gap-2 text-left hover:border-[var(--accent)]/60`}>
-              <span className="flex-1 min-w-0 text-xs font-bold uppercase text-[var(--text-main)] truncate">
+              <span className="flex-1 min-w-0 text-xs font-bold text-[var(--text-main)] truncate">
                 {METHOD[p.method]} · {time(p.paid_at)}{p.items.length > 0 && <span className="font-normal normal-case text-[var(--text-muted)]"> · {p.items.map(i => `${i.quantity}× ${i.name}`).join(', ')}</span>}
               </span>
-              <span className="font-black text-xs tabular-nums text-[var(--text-main)]">{formatEuro(p.amount)}</span>
+              <span className="font-semibold text-xs tabular-nums text-[var(--text-main)]">{formatEuro(p.amount)}</span>
               <Printer size={14} className="text-[var(--text-muted)] shrink-0" />
             </button>
           ))}

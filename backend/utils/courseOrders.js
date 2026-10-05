@@ -52,10 +52,10 @@ export async function createCourseOrders(db, { tenantId, userId, role, checkId, 
       'UPDATE sessions SET order_counter = order_counter + 1 WHERE id = $1 RETURNING order_counter', [check.session_id]);
     const fired = fireFirst && g.seq === firstSeq;
     const { rows: [order] } = await db.query(
-      `INSERT INTO orders (total, status, created_by, order_type, display_code, session_id, check_id, course_seq, course_name, fired_at)
-       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, ${fired ? 'now()' : 'NULL'}) RETURNING id`,
+      `INSERT INTO orders (total, status, created_by, order_type, display_code, session_id, check_id, course_seq, course_name, fired_at, client_order_id)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, ${fired ? 'now()' : 'NULL'}, $10) RETURNING id`,
       [g.total, fired ? 'pending' : 'scheduled', userId, g.orderType, formatDisplayCode(counter), check.session_id, checkId,
-        base + g.seq, courseName.get(g.course_id) ?? null]);
+        base + g.seq, courseName.get(g.course_id) ?? null, g.client_order_id ?? null]);
     await writeOrderItems(db, tenantId, order.id, g.items);
     created.push({ id: order.id, fired });
   }
@@ -86,4 +86,12 @@ export async function resequenceCourses(db, { checkId, assignments }) {
   if (assignments.some(a => !scheduled.has(a.id)))
     throw new HttpError(409, 'Una delle portate è già stata mandata o non fa parte del conto', 'ORDER_NOT_SCHEDULED');
   for (const a of assignments) await db.query('UPDATE orders SET course_seq = $1 WHERE id = $2', [a.seq, a.id]);
+}
+
+// Comande già create da un invio precedente dello stesso giro (stessa chiave di idempotenza), o [] se è nuovo.
+export async function findExistingCourseOrders(db, groups) {
+  const keys = groups.map(g => g.client_order_id).filter(Boolean);
+  if (!keys.length) return [];
+  const { rows } = await db.query('SELECT id FROM orders WHERE client_order_id = ANY($1::uuid[]) ORDER BY id', [keys]);
+  return rows.map(r => r.id);
 }

@@ -20,14 +20,14 @@ const TOOLS = [
 ];
 const unplaced = { x: null, y: null, w: null, h: null };
 
-const btn = 'flex items-center gap-1.5 px-3 py-2 rounded-xl border border-[var(--border)] text-[var(--text-main)] font-black text-[10px] uppercase tracking-widest hover:bg-[var(--bg-card-2)] disabled:opacity-40 transition-colors';
+const btn = 'flex items-center gap-1.5 px-3 py-2 rounded-xl border border-[var(--border)] text-[var(--text-main)] font-semibold text-xs hover:bg-[var(--bg-card-2)] disabled:opacity-40 transition-colors';
 const numInput = 'w-16 p-2 rounded-lg bg-[var(--bg-input)] border border-[var(--border)] text-[var(--text-main)] text-sm text-center outline-none focus:ring-2 focus:ring-[var(--accent)]';
-const label = 'text-[10px] font-black uppercase tracking-widest text-[var(--text-muted)]';
+const label = 'text-xs font-semibold text-[var(--text-muted)]';
 
 const Stepper = ({ name, value, min, max, onChange }) => (
   <div className="flex items-center gap-1" role="group" aria-label={name}>
     <button className={`${btn} px-2`} aria-label={`Riduci ${name}`} disabled={value <= min} onClick={() => onChange(value - 1)}><Minus size={12} /></button>
-    <span className="w-8 text-center font-black text-[var(--text-main)]">{value}</span>
+    <span className="w-8 text-center font-semibold text-[var(--text-main)]">{value}</span>
     <button className={`${btn} px-2`} aria-label={`Aumenta ${name}`} disabled={value >= max} onClick={() => onChange(value + 1)}><Plus size={12} /></button>
   </div>
 );
@@ -178,7 +178,7 @@ const FloorEditor = ({ room, onClose, onSaved }) => {
           ${t.shape === 'round' ? 'rounded-full' : 'rounded-lg'}
           ${bad ? 'border-red-500 bg-red-500/20' : 'border-[var(--accent)] bg-[var(--accent)]/15'}
           ${isSel ? 'ring-2 ring-offset-1 ring-[var(--text-main)] z-10' : ''} ${t.active ? '' : 'opacity-50'}`}>
-        <span className="font-black text-[var(--text-main)] leading-none truncate max-w-full px-1" style={{ fontSize: Math.max(10, Math.min(cell * 0.45, 18)) }}>{t.name}</span>
+        <span className="font-semibold text-[var(--text-main)] leading-none truncate max-w-full px-1" style={{ fontSize: Math.max(10, Math.min(cell * 0.45, 18)) }}>{t.name}</span>
         {cell >= 24 && t.h > 1 && <span className="text-[var(--text-muted)] leading-none mt-0.5" style={{ fontSize: Math.max(9, cell * 0.3) }}>{t.seats} posti</span>}
         {isSel && (
           <span role="separator" aria-label="Ridimensiona" onPointerDown={e => beginDrag(e, t, 'resize', cell)}
@@ -209,11 +209,11 @@ const FloorEditor = ({ room, onClose, onSaved }) => {
       <header className="flex flex-wrap items-center gap-2 px-4 py-3 border-b border-[var(--border)] bg-[var(--bg-card)]">
         <div className="mr-auto min-w-0">
           <p className={label}>Pianta della sala</p>
-          <h2 className="text-lg font-black text-[var(--text-main)] truncate">{room.name}</h2>
+          <h2 className="text-lg font-semibold text-[var(--text-main)] truncate">{room.name}</h2>
         </div>
         <button className={btn} onClick={undo} disabled={!canUndo} aria-label="Annulla"><Undo2 size={14} /></button>
         <button className={btn} onClick={redo} disabled={!canRedo} aria-label="Ripristina"><Redo2 size={14} /></button>
-        <button className="flex items-center gap-1.5 px-4 py-2 rounded-xl bg-[var(--accent)] hover:bg-[var(--accent-hover)] text-white font-black text-[10px] uppercase tracking-widest disabled:opacity-40"
+        <button className="flex items-center gap-1.5 px-4 py-2 rounded-xl bg-[var(--accent)] hover:bg-[var(--accent-hover)] text-white font-semibold text-xs disabled:opacity-40"
           onClick={save} disabled={!dirty || conflicts.size > 0 || saving}><Save size={14} /> {saving ? 'Salvataggio…' : 'Salva'}</button>
         <button className={btn} onClick={requestClose} aria-label="Chiudi"><X size={14} /></button>
       </header>
@@ -222,7 +222,7 @@ const FloorEditor = ({ room, onClose, onSaved }) => {
         <div className="px-4 py-3 bg-amber-500/10 border-b border-amber-500/30 flex flex-wrap items-center gap-3 text-sm text-[var(--text-main)]">
           <span className="mr-auto">Hai modifiche non salvate.</span>
           <button className={btn} onClick={() => setConfirmExit(false)}>Continua a modificare</button>
-          <button className="px-3 py-2 rounded-xl bg-red-500 text-white font-black text-[10px] uppercase tracking-widest" onClick={onClose}>Esci senza salvare</button>
+          <button className="px-3 py-2 rounded-xl bg-red-500 text-white font-semibold text-xs" onClick={onClose}>Esci senza salvare</button>
         </div>
       )}
 
@@ -238,7 +238,7 @@ const FloorEditor = ({ room, onClose, onSaved }) => {
               ? 'Trascina i tavoli; la maniglia in basso a destra li ridimensiona. Frecce per spostare, Maiusc+frecce per ridimensionare, Canc per toglierli dalla pianta.'
               : `Trascina sulla griglia per tracciare un ${ELEMENT_LABEL[tool].toLowerCase()}; un tocco ne mette una cella. Torna a «Seleziona» per spostare i tavoli.`}
           </p>
-          {conflicts.size > 0 && <p className="text-xs font-black uppercase tracking-widest text-red-500">Elementi sovrapposti o fuori dalla sala (in rosso): sistemali per poter salvare.</p>}
+          {conflicts.size > 0 && <p className="text-xs font-semibold text-red-500">Elementi sovrapposti o fuori dalla sala (in rosso): sistemali per poter salvare.</p>}
         </div>
 
         <aside className="lg:w-72 shrink-0 space-y-4">
@@ -283,7 +283,7 @@ const FloorEditor = ({ room, onClose, onSaved }) => {
             <p className={label}>Tavolo selezionato</p>
             {selected && isPlaced(selected) ? (
               <>
-                <p className="font-black text-[var(--text-main)]">{selected.name} <span className="font-normal text-[var(--text-muted)] text-sm">· {selected.seats} posti</span></p>
+                <p className="font-semibold text-[var(--text-main)]">{selected.name} <span className="font-normal text-[var(--text-muted)] text-sm">· {selected.seats} posti</span></p>
                 <div className="flex items-center justify-between"><span className="text-sm text-[var(--text-main)]">Larghezza</span>
                   <Stepper name="larghezza" value={selected.w} min={1} max={Math.min(30, gridW - selected.x)} onChange={w => commit(patchTable(selected.id, { w }))} /></div>
                 <div className="flex items-center justify-between"><span className="text-sm text-[var(--text-main)]">Altezza</span>
