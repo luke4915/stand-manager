@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Plus, Send, Wallet, Lock, BellRing, BellOff, Percent, Printer, Trash2, ArrowRightLeft, Users } from 'lucide-react';
+import { Plus, Send, Check, Wallet, Lock, BellRing, BellOff, Percent, Printer, Trash2, ArrowRightLeft, Users } from 'lucide-react';
 import { fetchWithAuth } from '../../utils/apiClient';
 import { useToast } from '../../context/useToast';
 import PanelFrame from './PanelFrame';
@@ -36,6 +36,14 @@ const CheckView = ({ detail, user, service, onBack, onOrder, onPay, onAdjust, on
   // Portate ancora da mandare: la prossima è quella con l'ordine d'uscita più basso (le «insieme» escono tutte)
   const scheduled = activeOrders.filter(o => o.status === 'scheduled').sort((a, b) => a.course_seq - b.course_seq || a.id - b.id);
   const next = scheduled.filter(o => o.course_seq === scheduled[0]?.course_seq);
+  // Piatti pronti da servire, per comanda: «Servi» li segna tutti serviti
+  const readyByOrder = activeOrders.filter(o => o.order_type !== 'cover')
+    .map(o => ({ order: o, lines: o.items.filter(i => i.prep_status === 'ready') })).filter(r => r.lines.length);
+  const readyCount = readyByOrder.reduce((n, r) => n + r.lines.length, 0);
+  const serveAll = () => run(async () => {
+    for (const { order, lines } of readyByOrder)
+      await fetchWithAuth(`/orders/${order.id}/lines`, { method: 'PUT', body: { status: 'served', line_ids: lines.map(l => l.line_id) } });
+  });
   const fireNext = () => run(async () => {
     const res = await fetchWithAuth(`/checks/${detail.id}/fire`, { method: 'POST', body: {} });
     await printFired(res.orders, res.fired, detail, service, showToast);
@@ -95,6 +103,15 @@ const CheckView = ({ detail, user, service, onBack, onOrder, onPay, onAdjust, on
             <button className={`${btn} flex-1 !py-2`} onClick={() => setConfirmDelete(false)}>No</button>
             <button className={`${btnDanger} flex-1 !py-2`} disabled={busy} onClick={deleteCheck}>Sì, elimina</button>
           </div>
+        </div>
+      )}
+      {open && readyCount > 0 && (
+        <div className="flex items-center gap-3 p-3 rounded-lg border border-emerald-500/40 bg-emerald-500/5">
+          <div className="min-w-0 flex-1">
+            <p className="text-xs text-[var(--text-muted)]">Pronti da servire</p>
+            <p className="text-sm font-semibold text-[var(--text-main)] truncate">{readyByOrder.flatMap(r => r.lines).map(l => `${l.quantity}× ${l.name}`).join(', ')}</p>
+          </div>
+          <button className={`${btnPrimary} !h-10`} disabled={busy} onClick={serveAll}><Check size={15} /> Servi</button>
         </div>
       )}
       {open && next.length > 0 && (

@@ -2,7 +2,7 @@
 -- PostgreSQL database dump
 --
 
-\restrict z8dURnf7pPgPvjwoNN68ajp6ZV3zmrebCKULiQpq15QbIbGPtlb2aO91QuKZk2Q
+\restrict bsCuEf1EShaNqXpErXb7BRUhBPBTrmdr5U9zWtz4jh57uWLaavAanJDm4TyHhIf
 
 -- Dumped from database version 17.10 (Homebrew)
 -- Dumped by pg_dump version 17.10 (Homebrew)
@@ -341,8 +341,12 @@ CREATE TABLE public.order_items (
     discount_mode text,
     discount_value numeric(12,4),
     note text DEFAULT ''::text NOT NULL,
+    prep_status text DEFAULT 'new'::text NOT NULL,
+    ready_at timestamp with time zone,
+    served_at timestamp with time zone,
     CONSTRAINT order_items_line_type_check CHECK ((line_type = ANY (ARRAY['sale'::text, 'gift'::text, 'discount'::text]))),
     CONSTRAINT order_items_position_check CHECK (("position" >= 0)),
+    CONSTRAINT order_items_prep_status_check CHECK ((prep_status = ANY (ARRAY['new'::text, 'preparing'::text, 'ready'::text, 'served'::text]))),
     CONSTRAINT order_items_print_destination_check CHECK ((print_destination = ANY (ARRAY['bar'::text, 'kitchen'::text, 'both'::text]))),
     CONSTRAINT order_items_quantity_check CHECK ((quantity > 0))
 );
@@ -1200,6 +1204,13 @@ CREATE INDEX idx_devices_tenant ON public.devices USING btree (tenant_id);
 --
 
 CREATE INDEX idx_dining_tables_tenant ON public.dining_tables USING btree (tenant_id);
+
+
+--
+-- Name: idx_order_items_ready; Type: INDEX; Schema: public; Owner: colettas
+--
+
+CREATE INDEX idx_order_items_ready ON public.order_items USING btree (order_id) WHERE (prep_status = 'ready'::text);
 
 
 --
@@ -2215,5 +2226,5 @@ ALTER DEFAULT PRIVILEGES FOR ROLE colettas IN SCHEMA public GRANT SELECT,INSERT,
 -- PostgreSQL database dump complete
 --
 
-\unrestrict z8dURnf7pPgPvjwoNN68ajp6ZV3zmrebCKULiQpq15QbIbGPtlb2aO91QuKZk2Q
+\unrestrict bsCuEf1EShaNqXpErXb7BRUhBPBTrmdr5U9zWtz4jh57uWLaavAanJDm4TyHhIf
 

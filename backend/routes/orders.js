@@ -18,6 +18,8 @@ import { computeExpectedCash, clampToSession } from '../utils/session.js';
 import { loadItems, withItems } from '../utils/orderItemsRead.js';
 import { writeOrderItems } from '../utils/orderItemsWrite.js';
 import { requireModule, getTenantModules } from '../utils/tenantModules.js';
+import { setLineStatus } from '../utils/lineStatus.js';
+import { lineStatusSchema } from '../schemas/lineStatusSchema.js';
 import { withCheckInfo } from '../utils/orderCheck.js';
 import { lockCheck, assertOrderCancelable } from '../utils/payments.js';
 import { getCheckSummary } from '../utils/checks.js';
@@ -273,6 +275,11 @@ export default function (broadcast) {
            WHERE id = $2 RETURNING *`,
           [status, id]
         );
+        // Le righe seguono la comanda: completata = tutte pronte, in preparazione = quelle in attesa partono
+        if (status === 'completed')
+          await db.query(`UPDATE order_items SET prep_status = 'ready', ready_at = COALESCE(ready_at, now()) WHERE order_id = $1 AND prep_status IN ('new', 'preparing')`, [id]);
+        else if (status === 'preparing')
+          await db.query(`UPDATE order_items SET prep_status = 'preparing' WHERE order_id = $1 AND prep_status = 'new'`, [id]);
         const [withInfo] = await withCheckInfo(db, [rows[0]]);
         const updated = { ...withInfo, items: (await loadItems(db, [id])).get(id) ?? [] };
         const stockUpdates = status === 'canceled'
@@ -297,6 +304,34 @@ export default function (broadcast) {
       if (sendHttpError(res, err)) return;
       logger.error({ err }, 'Errore PUT /api/orders/:id');
       res.status(500).json({ error: 'Errore aggiornamento ordine' });
+    }
+  });
+
+  // PUT /orders/:id/lines — stato delle righe (in preparazione, pronta, servita): tutte, di una postazione o alcune.
+  // Cucina e bar le fanno avanzare; solo il personale di sala le serve (e tocca quelle già servite).
+  router.put('/:id/lines', authenticate, validate({ params: idParamsSchema, body: lineStatusSchema }), tenantScope, async (req, res) => {
+    const { status, station, line_ids: lineIds } = req.body;
+    const canServe = CASH_ROLES.includes(req.user.role);
+    if (status === 'served' && !canServe) return res.status(403).json({ error: 'Solo il personale di sala segna i piatti serviti' });
+    try {
+      const { changed, updated } = await inTransaction(req.db, async (db) => {
+        const { changed } = await setLineStatus(db, req.params.id, { status, station, lineIds, canServe });
+        const { rows } = await db.query('SELECT * FROM orders WHERE id = $1', [req.params.id]);
+        const [withInfo] = await withCheckInfo(db, rows);
+        return { changed, updated: { ...withInfo, total: Number(withInfo.total), items: (await loadItems(db, [req.params.id])).get(Number(req.params.id)) ?? [] } };
+      });
+      if (changed.length) {
+        await logAudit(req.db, req.user.id, 'UPDATE_LINE_STATUS', { orderId: Number(req.params.id), status, lines: changed.length });
+        if (broadcast) {
+          broadcast(req.user.tenantId, { type: 'order_updated', order: updated });
+          if (updated.check_id) broadcast(req.user.tenantId, { type: 'check_updated', check: await getCheckSummary(req.db, updated.check_id) });
+        }
+      }
+      res.json(updated);
+    } catch (err) {
+      if (sendHttpError(res, err)) return;
+      logger.error({ err }, 'Errore PUT /api/orders/:id/lines');
+      res.status(500).json({ error: 'Errore aggiornamento righe' });
     }
   });
 

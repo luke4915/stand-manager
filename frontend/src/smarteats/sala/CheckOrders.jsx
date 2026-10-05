@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Undo2 } from 'lucide-react';
+import { Undo2, Check } from 'lucide-react';
 import { fetchWithAuth } from '../../utils/apiClient';
 import { useToast } from '../../context/useToast';
 import { formatEuro } from './checkMath';
@@ -21,6 +21,13 @@ const CheckOrders = ({ detail, onChanged }) => {
       showToast('Comanda stornata', 'info');
     } catch (err) { showToast(err.message, 'error'); }
     setConfirming(null);
+    onChanged();
+  };
+
+  // Il piatto è pronto: il cameriere lo segna servito con un tocco
+  const serve = async (order, item) => {
+    try { await fetchWithAuth(`/orders/${order.id}/lines`, { method: 'PUT', body: { status: 'served', line_ids: [item.line_id] } }); }
+    catch (err) { showToast(err.message, 'error'); }
     onChanged();
   };
 
@@ -58,6 +65,11 @@ const CheckOrders = ({ detail, onChanged }) => {
                   <span className="bg-[var(--accent)] text-white text-xs font-semibold w-5 h-5 flex items-center justify-center rounded shrink-0">{item.quantity}</span>
                   <span className={`font-bold text-xs text-[var(--text-main)] leading-tight truncate ${canceled ? 'line-through' : ''}`}>{item.name}</span>
                   {!canceled && item.type !== 'sale' && <span className={`shrink-0 text-[11px] font-semibold px-1.5 py-0.5 rounded-full ${item.type === 'gift' ? 'bg-purple-500/10 text-purple-500' : 'bg-orange-500/10 text-orange-500'}`}>{item.type === 'gift' ? 'Omaggio' : 'Sconto'}</span>}
+                  {!canceled && !isCover && item.prep_status === 'preparing' && <span className="shrink-0 text-xs font-medium text-sky-500">In preparazione</span>}
+                  {!canceled && !isCover && item.prep_status === 'ready' && open && (
+                    <button onClick={() => serve(order, item)} className="shrink-0 h-6 px-2 rounded-full text-xs font-semibold bg-emerald-500/15 text-emerald-500 hover:bg-emerald-500/25 transition cursor-pointer" title="Segna servito">Pronto · servi</button>
+                  )}
+                  {!canceled && !isCover && item.prep_status === 'served' && <Check size={14} className="shrink-0 text-[var(--text-muted)]" aria-label="Servito" />}
                   {!canceled && paid && <span className="shrink-0 text-[11px] font-semibold px-1.5 py-0.5 rounded-full bg-emerald-500/10 text-emerald-500">{item.remaining_quantity === 0 ? 'Pagata' : `${item.paid_quantity}/${item.quantity} pagate`}</span>}
                 </div>
                 <span className="font-semibold text-xs tabular-nums text-[var(--text-main)] shrink-0">{formatEuro(item.line_total)}</span>

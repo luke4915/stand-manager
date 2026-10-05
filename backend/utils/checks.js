@@ -10,7 +10,9 @@ const SUMMARY_SQL = `
          c.covers, c.merged_into, c.opened_by, u.username AS opened_by_name, c.opened_at, c.bill_requested_at, c.closed_at,
          COALESCE((SELECT SUM(o.total) FROM orders o WHERE o.check_id = c.id AND o.status <> 'canceled'), 0) AS orders_total,
          (SELECT COUNT(*) FROM orders o WHERE o.check_id = c.id AND o.status <> 'canceled')::int AS orders_count,
-         COALESCE((SELECT SUM(p.amount) FROM payments p WHERE p.check_id = c.id), 0) AS paid_total
+         COALESCE((SELECT SUM(p.amount) FROM payments p WHERE p.check_id = c.id), 0) AS paid_total,
+         (SELECT COUNT(*) FROM order_items oi JOIN orders o ON o.id = oi.order_id
+           WHERE o.check_id = c.id AND o.status <> 'canceled' AND oi.prep_status = 'ready')::int AS ready_items
   FROM checks c
   LEFT JOIN dining_tables t ON t.id = c.table_id
   LEFT JOIN rooms r ON r.id = t.room_id
@@ -42,17 +44,12 @@ export async function getCheckDetail(db, id) {
   const { rows } = await db.query(
     `SELECT id, display_code, status, created_at, total, is_takeaway, order_type, course_seq, course_name, fired_at FROM orders WHERE check_id = $1 ORDER BY id`, [id]);
   const linePayments = await loadLinePayments(db, id);
-  // `line_id` (id in order_items) serve a pagare o scontare una voce; le righe di un ordine sono già in ordine di posizione.
-  const { rows: lineIds } = await db.query(
-    `SELECT oi.id, oi.order_id FROM order_items oi JOIN orders o ON o.id = oi.order_id WHERE o.check_id = $1 ORDER BY oi.order_id, oi.position`, [id]);
-  const idsByOrder = new Map();
-  for (const l of lineIds) idsByOrder.set(l.order_id, [...(idsByOrder.get(l.order_id) ?? []), l.id]);
+  // `line_id` (id in order_items) serve a pagare o scontare una voce.
   const orders = (await withItems(db, rows)).map(o => ({
     ...o, total: Number(o.total),
     // Per ogni riga: quanta ne è già pagata e quanto resta (solo per le comande non annullate)
-    items: o.items.map((i, idx) => {
-      const line_id = idsByOrder.get(o.id)?.[idx] ?? null;
-      return { ...i, line_id, ...(linePayments.get(line_id) ?? {}) };
+    items: o.items.map((i) => {
+      return { ...i, ...(linePayments.get(i.line_id) ?? {}) };
     }),
   }));
   return { ...summary, orders, payments: await loadPayments(db, id) };

@@ -5,6 +5,8 @@ const toNumber = (v) => (v === null || v === undefined ? null : Number(v));
 
 // `product_id` e i prezzi sono bigint/numeric: pg li restituisce come stringhe.
 export const rowToItem = (r) => ({
+  line_id: r.id,
+  prep_status: r.prep_status,
   id: toNumber(r.product_id),
   name: r.name,
   quantity: r.quantity,
@@ -24,8 +26,8 @@ export async function loadItems(db, orderIds) {
   const byOrder = new Map();
   if (!orderIds.length) return byOrder;
   const { rows } = await db.query(
-    `SELECT order_id, product_id, name, category, print_destination, quantity, unit_price, line_total, original_price,
-            line_type, discount_mode, discount_value, note
+    `SELECT id, order_id, product_id, name, category, print_destination, quantity, unit_price, line_total, original_price,
+            line_type, discount_mode, discount_value, note, prep_status
      FROM order_items WHERE order_id = ANY($1::int[]) ORDER BY order_id, position`, [orderIds]);
   for (const r of rows) {
     if (!byOrder.has(r.order_id)) byOrder.set(r.order_id, []);

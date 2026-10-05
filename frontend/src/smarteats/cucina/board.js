@@ -10,13 +10,30 @@ export const WARN_MINUTES = 10;
 export const LATE_MINUTES = 20;
 export const urgency = (minutes) => (minutes >= LATE_MINUTES ? 'late' : minutes >= WARN_MINUTES ? 'warn' : 'ok');
 
-// Comande da preparare (la riga automatica del coperto non è per la cucina), le più vecchie per prime.
-export function activeOrders(orders, now = Date.now()) {
+// Postazioni: una riga è del bar se si stampa solo al bar, altrimenti della cucina (anche «bar + cucina»).
+export const STATIONS = [{ id: 'all', label: 'Tutto' }, { id: 'kitchen', label: 'Cucina' }, { id: 'bar', label: 'Bar' }];
+export const stationOf = (item) => (item.print_destination === 'bar' ? 'bar' : 'kitchen');
+export const isDone = (item) => item.prep_status === 'ready' || item.prep_status === 'served';
+
+// Comande da mostrare a una postazione (`all` = tutte): solo le righe di quella postazione, e solo finché ce n'è una
+// ancora da fare. La riga automatica del coperto non è per la cucina. Le più vecchie per prime.
+export function boardOrders(orders, station = 'all', now = Date.now()) {
   return orders
     .filter(o => ['pending', 'preparing'].includes(o.status) && o.order_type !== 'cover')
-    .map(o => ({ ...o, minutes: minutesSince(o, now) }))
+    .map(o => ({ ...o, items: station === 'all' ? o.items : o.items.filter(i => stationOf(i) === station), minutes: minutesSince(o, now) }))
+    .filter(o => o.items.some(i => !isDone(i)))
     .sort((a, b) => new Date(a.fired_at ?? a.created_at) - new Date(b.fired_at ?? b.created_at) || a.id - b.id);
 }
+
+// Cosa fa il pulsante di una comanda sulle sue righe da fare: se nessuna è partita «Inizia», altrimenti «Pronta».
+export function ticketAction(order) {
+  const open = order.items.filter(i => !isDone(i));
+  const started = open.some(i => i.prep_status === 'preparing');
+  return { label: started ? 'Pronta' : 'Inizia', status: started ? 'ready' : 'preparing', lineIds: open.map(i => i.line_id) };
+}
+
+// Un tocco sulla singola riga: da fare → pronta; già pronta → di nuovo in preparazione (correzione).
+export const toggleLineStatus = (item) => (isDone(item) ? 'preparing' : 'ready');
 
 // Portate già sul conto ma non ancora mandate, raggruppate per tavolo, per far vedere alla cucina cosa sta per arrivare.
 export function upcomingByTable(orders) {
@@ -31,5 +48,6 @@ export function upcomingByTable(orders) {
   }));
 }
 
-// Dopo una modifica di stato: la comanda cambia, e se è finita esce dall'elenco.
-export const withStatus = (orders, id, status) => orders.map(o => (o.id === id ? { ...o, status } : o));
+// Aggiorna a schermo lo stato di alcune righe, in attesa che il server risponda.
+export const withLineStatus = (orders, orderId, lineIds, status) =>
+  orders.map(o => (o.id === orderId ? { ...o, items: o.items.map(i => (lineIds.includes(i.line_id) ? { ...i, prep_status: status } : i)) } : o));

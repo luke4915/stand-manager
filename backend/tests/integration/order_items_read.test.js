@@ -63,6 +63,8 @@ describe('order_items: letture', () => {
   });
 
   const expectedItems = (o) => o.json.map(fromJson);
+  // `line_id` e `prep_status` (stato per riga, 041) sono campi in più: la forma storica dell'API resta quella di sempre
+  const legacy = ({ line_id, prep_status, ...item }) => { assert.ok(line_id && prep_status); return item; };
 
   it('GET /orders: le righe attese (la categoria mancante si completa dal catalogo o diventa "Altro")', async () => {
     const res = await api.get('/orders?session=active');
@@ -70,7 +72,7 @@ describe('order_items: letture', () => {
     for (const o of orders) {
       const got = res.body.find(x => x.id === o.id);
       assert.ok(got, `ordine ${o.id} presente`);
-      assert.deepEqual(got.items.map(i => ({ ...i, category: undefined })), expectedItems(o).map(i => ({ ...i, category: undefined })));
+      assert.deepEqual(got.items.map(legacy).map(i => ({ ...i, category: undefined })), expectedItems(o).map(i => ({ ...i, category: undefined })));
       assert.ok(got.items.every(i => typeof i.category === 'string' && i.category), 'categoria sempre valorizzata');
     }
     // categoria del prodotto di catalogo per la riga che non ce l'ha
@@ -82,7 +84,7 @@ describe('order_items: letture', () => {
     for (const o of orders) {
       const res = await api.post(`/orders/${o.id}/reprint`);
       assert.equal(res.status, 200);
-      assert.deepEqual(res.body.items, expectedItems(o));
+      assert.deepEqual(res.body.items.map(legacy), expectedItems(o));
       assert.equal(res.body.total > 0, true);
     }
     assert.equal((await api.post('/orders/999999999/reprint')).status, 404);

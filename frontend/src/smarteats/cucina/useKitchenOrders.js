@@ -1,7 +1,7 @@
 import { useState, useEffect, useCallback } from 'react';
 import { fetchWithAuth } from '../../utils/apiClient';
 import { useToast } from '../../context/useToast';
-import { withStatus } from './board';
+import { withLineStatus } from './board';
 
 const REFRESH_MS = 30000;
 
@@ -20,13 +20,13 @@ export function useKitchenOrders(event) {
   useEffect(() => { if (event && ['order_created', 'order_updated', 'check_updated'].includes(event.type)) load(); }, [event, load]);
   useEffect(() => { const t = setInterval(load, REFRESH_MS); return () => clearInterval(t); }, [load]);
 
-  // Avanza una comanda (in preparazione → pronta); si aggiorna subito a schermo e poi si rilegge
-  const advance = useCallback(async (order, status) => {
-    setOrders(list => withStatus(list, order.id, status));
-    try { await fetchWithAuth(`/orders/${order.id}`, { method: 'PUT', body: { status } }); }
+  // Cambia lo stato di alcune righe di una comanda: si vede subito a schermo, poi si rilegge dal server
+  const setLines = useCallback(async (order, lineIds, status) => {
+    setOrders(list => withLineStatus(list, order.id, lineIds, status));
+    try { await fetchWithAuth(`/orders/${order.id}/lines`, { method: 'PUT', body: { status, line_ids: lineIds } }); }
     catch (err) { showToast(err.message, 'error'); }
     load();
   }, [load, showToast]);
 
-  return { orders, advance };
+  return { orders, setLines };
 }
