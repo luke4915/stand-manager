@@ -65,7 +65,7 @@ const SalaPage = ({ user, service, event }) => {
   if (!narrow) {
     return (
       <>
-        <div className={`${card} flex-1 overflow-y-auto no-scrollbar`}>{ordering ? menu : floor}</div>
+        <div className={`${card} flex-1 min-h-0 ${ordering ? 'overflow-y-auto no-scrollbar' : 'overflow-hidden'}`}>{ordering ? menu : floor}</div>
         <div className="w-[420px] shrink-0 h-full">{side}</div>
       </>
     );
@@ -74,7 +74,7 @@ const SalaPage = ({ user, service, event }) => {
   // Schermo stretto: i tavoli, e sopra a tutto schermo il pannello (o la carta con la comanda in basso)
   return (
     <>
-      <div className={`${card} flex-1 overflow-y-auto no-scrollbar`}>{floor}</div>
+      <div className={`${card} flex-1 min-h-0 overflow-hidden`}>{floor}</div>
       {selection && (
         <div className="fixed inset-0 z-[1700] bg-[var(--bg-main)] p-3" style={{ paddingTop: 'max(0.75rem, env(safe-area-inset-top))', paddingBottom: 'max(0.75rem, env(safe-area-inset-bottom))' }}>
           {ordering ? (
