@@ -57,7 +57,7 @@ describe('sale e tavoli', () => {
   it('sale: crea, nome unico senza distinguere le maiuscole, rinomina, disattiva', async () => {
     const created = await admin1.post('/rooms', { name: '  Sala interna ' });
     assert.equal(created.status, 201, JSON.stringify(created.body));
-    assert.deepEqual(created.body, { id: created.body.id, name: 'Sala interna', active: true, grid_w: 24, grid_h: 16, tables: [] });
+    assert.deepEqual(created.body, { id: created.body.id, name: 'Sala interna', active: true, grid_w: 24, grid_h: 16, tables: [], elements: [] });
     assert.equal((await admin1.post('/rooms', { name: 'SALA INTERNA' })).status, 409);
     assert.equal((await admin1.post('/rooms', { name: '   ' })).status, 400);
 
@@ -170,6 +170,39 @@ describe('sale e tavoli', () => {
     const unplace = await put({ ...ok, tables: [{ id: a.id, x: null, y: null, w: null, h: null, shape: 'rect' }] });
     assert.equal(unplace.status, 200);
     assert.equal(unplace.body.tables.find(t => t.id === a.id).x, null);
+  });
+
+  it('pianta: muri e separatori si salvano con la pianta, si sostituiscono e non coprono i tavoli', async () => {
+    const room = (await admin1.post('/rooms', { name: 'Muri' })).body;
+    assert.deepEqual(room.elements, []);
+    const tbl = (await admin1.post(`/rooms/${room.id}/tables`, { name: 'M1' })).body;
+    const put = (body) => admin1.put(`/rooms/${room.id}/layout`, body);
+    const base = { grid_w: 12, grid_h: 8, tables: [{ id: tbl.id, x: 0, y: 0, w: 2, h: 2, shape: 'rect' }] };
+
+    const saved = await put({ ...base, elements: [{ kind: 'wall', x: 5, y: 0, w: 1, h: 8 }, { kind: 'divider', x: 2, y: 0, w: 1, h: 2 }] });
+    assert.equal(saved.status, 200, JSON.stringify(saved.body));
+    assert.equal(saved.body.elements.length, 2);
+    const listed = (await admin1.get('/rooms')).body.find(r => r.id === room.id);
+    assert.deepEqual(listed.elements.map(e => [e.kind, e.x, e.y, e.w, e.h]), [['wall', 5, 0, 1, 8], ['divider', 2, 0, 1, 2]]);
+
+    // senza `elements` restano; con la lista vuota si tolgono
+    assert.equal((await put(base)).body.elements.length, 2);
+    // un muro sopra un tavolo, o fuori dalla sala, non si salva e non cambia nulla
+    for (const bad of [{ kind: 'wall', x: 1, y: 1, w: 2, h: 1 }, { kind: 'wall', x: 11, y: 0, w: 2, h: 1 }]) {
+      const res = await put({ ...base, elements: [bad] });
+      assert.equal(res.status, 400);
+      assert.equal(res.body.code, 'LAYOUT_INVALID');
+    }
+    assert.equal((await put({ ...base, elements: [{ kind: 'siepe', x: 5, y: 0, w: 1, h: 1 }] })).status, 400);
+    assert.equal((await admin1.get('/rooms')).body.find(r => r.id === room.id).elements.length, 2);
+    // restringere la sala sotto a un muro è un errore
+    assert.equal((await put({ ...base, grid_w: 5 })).status, 400);
+    assert.equal((await put({ ...base, elements: [] })).body.elements.length, 0);
+
+    // un altro tenant non li vede, e togliere la sala porta via i suoi muri
+    await put({ ...base, elements: [{ kind: 'wall', x: 5, y: 0, w: 1, h: 8 }] });
+    assert.ok(!(await admin2.get('/rooms')).body.some(r => r.id === room.id));
+    await admin1.put(`/rooms/${room.id}/layout`, { ...base, tables: [] });
   });
 
   it('pianta: solo l\'admin la salva e un altro tenant non la tocca', async () => {

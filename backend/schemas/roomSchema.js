@@ -44,8 +44,18 @@ const layoutTable = z.object({
 }).refine(t => [t.x, t.y, t.w, t.h].every(v => v === null) || [t.x, t.y, t.w, t.h].every(v => v !== null),
   { message: 'Posizione e misure vanno indicate insieme' });
 
+// Muri e separatori (039): `elements` è facoltativo; se c'è sostituisce tutti quelli della sala, se manca restano.
+const layoutElement = z.object({
+  kind: z.enum(['wall', 'divider']),
+  x: cell,
+  y: cell,
+  w: z.number().int().min(1).max(60),
+  h: z.number().int().min(1).max(60),
+});
+
 export const roomLayoutSchema = z.object({
   grid_w: z.number().int().min(4).max(60),
   grid_h: z.number().int().min(4).max(60),
   tables: z.array(layoutTable).max(300),
+  elements: z.array(layoutElement).max(300).optional(),
 }).refine(v => new Set(v.tables.map(t => t.id)).size === v.tables.length, { message: 'Tavolo ripetuto', path: ['tables'] });

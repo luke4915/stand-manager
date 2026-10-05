@@ -2,7 +2,7 @@
 -- PostgreSQL database dump
 --
 
-\restrict 7i0Eaav0NCZTaBhGrtM1vIOFzkoe3NUnZOVSziVAWdA8rOCdcrlz9SRDW2FDcHS
+\restrict vPhPkRy8aWCPSG5PucwjZpkpiW3KJIFWIIO2TOI7IkUjyh8m4Z8RTkKO9HvtabL
 
 -- Dumped from database version 17.10 (Homebrew)
 -- Dumped by pg_dump version 17.10 (Homebrew)
@@ -560,6 +560,53 @@ ALTER SEQUENCE public.products_id_seq OWNED BY public.products.id;
 
 
 --
+-- Name: room_elements; Type: TABLE; Schema: public; Owner: colettas
+--
+
+CREATE TABLE public.room_elements (
+    id integer NOT NULL,
+    tenant_id integer DEFAULT (NULLIF(current_setting('app.tenant_id'::text, true), ''::text))::integer NOT NULL,
+    room_id integer NOT NULL,
+    kind text DEFAULT 'wall'::text NOT NULL,
+    x integer NOT NULL,
+    y integer NOT NULL,
+    w integer NOT NULL,
+    h integer NOT NULL,
+    CONSTRAINT room_elements_h_check CHECK (((h >= 1) AND (h <= 60))),
+    CONSTRAINT room_elements_kind_check CHECK ((kind = ANY (ARRAY['wall'::text, 'divider'::text]))),
+    CONSTRAINT room_elements_w_check CHECK (((w >= 1) AND (w <= 60))),
+    CONSTRAINT room_elements_x_check CHECK ((x >= 0)),
+    CONSTRAINT room_elements_y_check CHECK ((y >= 0))
+);
+
+ALTER TABLE ONLY public.room_elements FORCE ROW LEVEL SECURITY;
+
+
+ALTER TABLE public.room_elements OWNER TO colettas;
+
+--
+-- Name: room_elements_id_seq; Type: SEQUENCE; Schema: public; Owner: colettas
+--
+
+CREATE SEQUENCE public.room_elements_id_seq
+    AS integer
+    START WITH 1
+    INCREMENT BY 1
+    NO MINVALUE
+    NO MAXVALUE
+    CACHE 1;
+
+
+ALTER SEQUENCE public.room_elements_id_seq OWNER TO colettas;
+
+--
+-- Name: room_elements_id_seq; Type: SEQUENCE OWNED BY; Schema: public; Owner: colettas
+--
+
+ALTER SEQUENCE public.room_elements_id_seq OWNED BY public.room_elements.id;
+
+
+--
 -- Name: rooms; Type: TABLE; Schema: public; Owner: colettas
 --
 
@@ -828,6 +875,13 @@ ALTER TABLE ONLY public.products ALTER COLUMN id SET DEFAULT nextval('public.pro
 
 
 --
+-- Name: room_elements id; Type: DEFAULT; Schema: public; Owner: colettas
+--
+
+ALTER TABLE ONLY public.room_elements ALTER COLUMN id SET DEFAULT nextval('public.room_elements_id_seq'::regclass);
+
+
+--
 -- Name: rooms id; Type: DEFAULT; Schema: public; Owner: colettas
 --
 
@@ -973,6 +1027,14 @@ ALTER TABLE ONLY public.print_settings
 
 ALTER TABLE ONLY public.products
     ADD CONSTRAINT products_pkey PRIMARY KEY (id);
+
+
+--
+-- Name: room_elements room_elements_pkey; Type: CONSTRAINT; Schema: public; Owner: colettas
+--
+
+ALTER TABLE ONLY public.room_elements
+    ADD CONSTRAINT room_elements_pkey PRIMARY KEY (id);
 
 
 --
@@ -1147,6 +1209,20 @@ CREATE INDEX idx_print_settings_tenant ON public.print_settings USING btree (ten
 --
 
 CREATE INDEX idx_products_tenant ON public.products USING btree (tenant_id);
+
+
+--
+-- Name: idx_room_elements_room; Type: INDEX; Schema: public; Owner: colettas
+--
+
+CREATE INDEX idx_room_elements_room ON public.room_elements USING btree (room_id);
+
+
+--
+-- Name: idx_room_elements_tenant; Type: INDEX; Schema: public; Owner: colettas
+--
+
+CREATE INDEX idx_room_elements_tenant ON public.room_elements USING btree (tenant_id);
 
 
 --
@@ -1449,6 +1525,22 @@ ALTER TABLE ONLY public.products
 
 
 --
+-- Name: room_elements room_elements_room_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: colettas
+--
+
+ALTER TABLE ONLY public.room_elements
+    ADD CONSTRAINT room_elements_room_id_fkey FOREIGN KEY (room_id) REFERENCES public.rooms(id) ON DELETE CASCADE;
+
+
+--
+-- Name: room_elements room_elements_tenant_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: colettas
+--
+
+ALTER TABLE ONLY public.room_elements
+    ADD CONSTRAINT room_elements_tenant_id_fkey FOREIGN KEY (tenant_id) REFERENCES public.tenants(id);
+
+
+--
 -- Name: rooms rooms_tenant_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: colettas
 --
 
@@ -1554,6 +1646,12 @@ ALTER TABLE public.print_settings ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.products ENABLE ROW LEVEL SECURITY;
 
 --
+-- Name: room_elements; Type: ROW SECURITY; Schema: public; Owner: colettas
+--
+
+ALTER TABLE public.room_elements ENABLE ROW LEVEL SECURITY;
+
+--
 -- Name: rooms; Type: ROW SECURITY; Schema: public; Owner: colettas
 --
 
@@ -1646,6 +1744,13 @@ CREATE POLICY tenant_isolation ON public.print_settings USING ((tenant_id = (NUL
 --
 
 CREATE POLICY tenant_isolation ON public.products USING ((tenant_id = (NULLIF(current_setting('app.tenant_id'::text, true), ''::text))::integer));
+
+
+--
+-- Name: room_elements tenant_isolation; Type: POLICY; Schema: public; Owner: colettas
+--
+
+CREATE POLICY tenant_isolation ON public.room_elements USING ((tenant_id = (NULLIF(current_setting('app.tenant_id'::text, true), ''::text))::integer));
 
 
 --
@@ -1883,6 +1988,22 @@ GRANT SELECT,USAGE ON SEQUENCE public.products_id_seq TO standmanager_master;
 
 
 --
+-- Name: TABLE room_elements; Type: ACL; Schema: public; Owner: colettas
+--
+
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE public.room_elements TO standmanager_app;
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE public.room_elements TO standmanager_master;
+
+
+--
+-- Name: SEQUENCE room_elements_id_seq; Type: ACL; Schema: public; Owner: colettas
+--
+
+GRANT ALL ON SEQUENCE public.room_elements_id_seq TO standmanager_app;
+GRANT SELECT,USAGE ON SEQUENCE public.room_elements_id_seq TO standmanager_master;
+
+
+--
 -- Name: TABLE rooms; Type: ACL; Schema: public; Owner: colettas
 --
 
@@ -1974,5 +2095,5 @@ ALTER DEFAULT PRIVILEGES FOR ROLE colettas IN SCHEMA public GRANT SELECT,INSERT,
 -- PostgreSQL database dump complete
 --
 
-\unrestrict 7i0Eaav0NCZTaBhGrtM1vIOFzkoe3NUnZOVSziVAWdA8rOCdcrlz9SRDW2FDcHS
+\unrestrict vPhPkRy8aWCPSG5PucwjZpkpiW3KJIFWIIO2TOI7IkUjyh8m4Z8RTkKO9HvtabL
 

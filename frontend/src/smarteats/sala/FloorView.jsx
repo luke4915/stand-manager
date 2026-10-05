@@ -84,7 +84,7 @@ const FloorView = ({ rooms, checks, service, selectedTableId, onSelect }) => {
       {!room && <p className="text-sm text-[var(--text-muted)]">Nessuna sala configurata. Un amministratore può crearle in Impostazioni.</p>}
       {room && room.tables.some(isPlaced) && (
         <div className="flex-1 min-h-[200px]">
-          <FloorCanvas fit gridW={room.grid_w} gridH={room.grid_h} tables={room.tables} renderTable={mapTable(checkOf, selectedTableId, onSelect)} />
+          <FloorCanvas fit gridW={room.grid_w} gridH={room.grid_h} tables={room.tables} elements={room.elements} renderTable={mapTable(checkOf, selectedTableId, onSelect)} />
         </div>
       )}
       {loose.length > 0 && (

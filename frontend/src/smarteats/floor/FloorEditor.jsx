@@ -1,15 +1,23 @@
 import { useState, useEffect, useRef, useMemo } from 'react';
-import { X, Undo2, Redo2, Save, Minus, Plus, Square, Circle, Eraser, Wand2 } from 'lucide-react';
+import { X, Undo2, Redo2, Save, Minus, Plus, Square, Circle, Eraser, Wand2, MousePointer2, BrickWall, SeparatorVertical } from 'lucide-react';
 import { fetchWithAuth } from '../../utils/apiClient';
 import { useToast } from '../../context/useToast';
 import FloorCanvas from './FloorCanvas';
 import { useDraft } from './useDraft';
-import { conflictIds, moveBy, resizeBy, defaultSize, findFreeSpot, isPlaced, clamp } from './geometry';
+import { conflictIds, moveBy, resizeBy, defaultSize, findFreeSpot, isPlaced, clamp, lineBetween } from './geometry';
+import { ELEMENT_CLASS, ELEMENT_LABEL } from './elementStyle';
 
 const toDraft = (room) => ({
   gridW: room.grid_w, gridH: room.grid_h,
   tables: room.tables.map(({ id, name, seats, active, x, y, w, h, shape }) => ({ id, name, seats, active, x, y, w, h, shape })),
+  // id solo lato client ("e12" salvati, "n3" nuovi): il server li risalva tutti insieme alla pianta
+  elements: (room.elements ?? []).map(({ id, kind, x, y, w, h }) => ({ id: `e${id}`, kind, x, y, w, h })),
 });
+const TOOLS = [
+  { id: 'select', name: 'Seleziona', icon: MousePointer2 },
+  { id: 'wall', name: 'Muro', icon: BrickWall },
+  { id: 'divider', name: 'Separatore', icon: SeparatorVertical },
+];
 const unplaced = { x: null, y: null, w: null, h: null };
 
 const btn = 'flex items-center gap-1.5 px-3 py-2 rounded-xl border border-[var(--border)] text-[var(--text-main)] font-black text-[10px] uppercase tracking-widest hover:bg-[var(--bg-card-2)] disabled:opacity-40 transition-colors';
@@ -26,7 +34,8 @@ const Stepper = ({ name, value, min, max, onChange }) => (
 
 // Editor della pianta di una sala (solo admin). I tavoli si trascinano sulla griglia con scatto alla cella; la maniglia
 // in basso a destra li ridimensiona; con la tastiera: frecce = sposta, Maiusc+frecce = ridimensiona, Canc = togli dalla
-// pianta, Ctrl+Z / Ctrl+Y = annulla / ripristina. Si salva tutto insieme, e solo se non ci sono tavoli sovrapposti o fuori.
+// pianta, Ctrl+Z / Ctrl+Y = annulla / ripristina. Muri e separatori si tracciano trascinando sulla griglia con lo
+// strumento scelto a destra. Si salva tutto insieme, e solo se non ci sono elementi sovrapposti a un tavolo o fuori.
 const FloorEditor = ({ room, onClose, onSaved }) => {
   const { showToast } = useToast();
   const initial = useMemo(() => toDraft(room), [room]);
@@ -34,12 +43,18 @@ const FloorEditor = ({ room, onClose, onSaved }) => {
   const [selectedId, setSelectedId] = useState(null);
   const [saving, setSaving] = useState(false);
   const [confirmExit, setConfirmExit] = useState(false);
+  const [tool, setTool] = useState('select');   // select | wall | divider
+  const [ghost, setGhost] = useState(null);
   const drag = useRef(null);
+  const drawing = useRef(null);
+  const canvasRef = useRef(null);
+  const newId = useRef(0);
 
-  const { gridW, gridH, tables } = draft;
+  const { gridW, gridH, tables, elements } = draft;
   const dirty = JSON.stringify(draft) !== JSON.stringify(initial);
-  const conflicts = useMemo(() => conflictIds(tables, gridW, gridH), [tables, gridW, gridH]);
+  const conflicts = useMemo(() => conflictIds(tables, gridW, gridH, elements), [tables, gridW, gridH, elements]);
   const selected = tables.find(t => t.id === selectedId);
+  const selectedEl = elements.find(e => e.id === selectedId);
   const pending = tables.filter(t => !isPlaced(t));
 
   const patchTable = (id, patch) => ({ ...draft, tables: tables.map(t => (t.id === id ? { ...t, ...patch } : t)) });
@@ -62,6 +77,7 @@ const FloorEditor = ({ room, onClose, onSaved }) => {
     }
     commit({ ...draft, tables: next });
   };
+  const removeElement = (id) => { commit({ ...draft, elements: elements.filter(e => e.id !== id) }); setSelectedId(null); };
   const removeFromPlan = (id) => { commit(patchTable(id, unplaced)); setSelectedId(null); };
   const setGrid = (key, value) => commit({ ...draft, [key]: clamp(Number(value) || 4, 4, 60) });
 
@@ -73,6 +89,14 @@ const FloorEditor = ({ room, onClose, onSaved }) => {
       if (mod && e.key.toLowerCase() === 'z') { e.preventDefault(); return e.shiftKey ? redo() : undo(); }
       if (mod && e.key.toLowerCase() === 'y') { e.preventDefault(); return redo(); }
       if (e.key === 'Escape') return requestClose();
+      const el = elements.find(x => x.id === selectedId);
+      if (el) {
+        if (e.key === 'Delete' || e.key === 'Backspace') { e.preventDefault(); return removeElement(el.id); }
+        const move = { ArrowLeft: [-1, 0], ArrowRight: [1, 0], ArrowUp: [0, -1], ArrowDown: [0, 1] }[e.key];
+        if (!move) return;
+        e.preventDefault();
+        return commit({ ...draft, elements: elements.map(x => (x.id === el.id ? { ...x, ...moveBy(el, move[0], move[1], gridW, gridH) } : x)) });
+      }
       const t = tables.find(x => x.id === selectedId);
       if (!t || !isPlaced(t)) return;
       if (e.key === 'Delete' || e.key === 'Backspace') { e.preventDefault(); return removeFromPlan(t.id); }
@@ -93,6 +117,7 @@ const FloorEditor = ({ room, onClose, onSaved }) => {
 
   // Trascinamento e ridimensionamento con i pointer events (mouse, dito, penna).
   const beginDrag = (e, t, mode, cell) => {
+    if (tool !== 'select') return;
     e.stopPropagation();
     e.currentTarget.setPointerCapture(e.pointerId);
     setSelectedId(t.id);
@@ -107,6 +132,42 @@ const FloorEditor = ({ room, onClose, onSaved }) => {
     update(patchTable(d.id, patch));
   };
   const endDrag = () => { drag.current = null; endGesture(); };
+
+  // Muri e separatori: si traccia una linea trascinando da una cella all'altra; un tocco è una cella sola.
+  const cellAt = (e) => {
+    const rect = canvasRef.current.getBoundingClientRect();
+    const cell = rect.width / gridW;
+    return { x: clamp(Math.floor((e.clientX - rect.left) / cell), 0, gridW - 1), y: clamp(Math.floor((e.clientY - rect.top) / cell), 0, gridH - 1) };
+  };
+  const backgroundDown = (e) => {
+    if (e.target !== e.currentTarget) return;
+    if (tool === 'select') return setSelectedId(null);
+    e.currentTarget.setPointerCapture(e.pointerId);
+    const from = cellAt(e);
+    drawing.current = from;
+    setGhost({ id: 'ghost', kind: tool, ...lineBetween(from, from) });
+  };
+  const backgroundMove = (e) => {
+    if (drawing.current) setGhost({ id: 'ghost', kind: tool, ...lineBetween(drawing.current, cellAt(e)) });
+  };
+  const backgroundUp = (e) => {
+    if (!drawing.current) return;
+    const line = lineBetween(drawing.current, cellAt(e));
+    drawing.current = null;
+    setGhost(null);
+    const id = `n${++newId.current}`;
+    commit({ ...draft, elements: [...elements, { id, kind: tool, ...line }] });
+    setSelectedId(id);
+  };
+  const renderElement = (el, style) => {
+    const bad = conflicts.has(el.id), isSel = el.id === selectedId, isGhost = el.id === 'ghost';
+    return (
+      <div key={el.id} style={style} role="button" aria-label={ELEMENT_LABEL[el.kind]}
+        onPointerDown={e => { if (tool === 'select' && !isGhost) { e.stopPropagation(); setSelectedId(el.id); } }}
+        className={`box-border ${ELEMENT_CLASS[el.kind]} ${bad ? '!bg-red-500/60 !border-red-500' : ''} ${isGhost ? 'opacity-50 pointer-events-none' : tool === 'select' ? 'cursor-pointer' : 'pointer-events-none'}
+          ${isSel ? 'ring-2 ring-offset-1 ring-[var(--text-main)] z-10' : ''}`} />
+    );
+  };
 
   const renderTable = (t, style, cell) => {
     const bad = conflicts.has(t.id), isSel = t.id === selectedId;
@@ -133,7 +194,8 @@ const FloorEditor = ({ room, onClose, onSaved }) => {
     try {
       await fetchWithAuth(`/rooms/${room.id}/layout`, {
         method: 'PUT',
-        body: { grid_w: gridW, grid_h: gridH, tables: tables.map(({ id, x, y, w, h, shape }) => ({ id, x, y, w, h, shape })) },
+        body: { grid_w: gridW, grid_h: gridH, tables: tables.map(({ id, x, y, w, h, shape }) => ({ id, x, y, w, h, shape })),
+          elements: elements.map(({ kind, x, y, w, h }) => ({ kind, x, y, w, h })) },
       });
       showToast('Pianta salvata', 'success');
       await onSaved();
@@ -166,12 +228,17 @@ const FloorEditor = ({ room, onClose, onSaved }) => {
 
       <div className="flex-1 min-h-0 flex flex-col lg:flex-row gap-4 p-4 overflow-auto">
         <div className="flex-1 min-w-0 space-y-3">
-          <FloorCanvas gridW={gridW} gridH={gridH} tables={tables} showGrid renderTable={renderTable}
-            onBackgroundPointerDown={e => e.target === e.currentTarget && setSelectedId(null)} />
+          <div className={tool === 'select' ? '' : 'cursor-crosshair'}>
+            <FloorCanvas gridW={gridW} gridH={gridH} tables={tables} elements={ghost ? [...elements, ghost] : elements} showGrid
+              renderTable={renderTable} renderElement={renderElement} canvasRef={canvasRef}
+              onBackgroundPointerDown={backgroundDown} onBackgroundPointerMove={backgroundMove} onBackgroundPointerUp={backgroundUp} />
+          </div>
           <p className="text-xs text-[var(--text-muted)]">
-            Trascina i tavoli; la maniglia in basso a destra li ridimensiona. Frecce per spostare, Maiusc+frecce per ridimensionare, Canc per toglierli dalla pianta.
+            {tool === 'select'
+              ? 'Trascina i tavoli; la maniglia in basso a destra li ridimensiona. Frecce per spostare, Maiusc+frecce per ridimensionare, Canc per toglierli dalla pianta.'
+              : `Trascina sulla griglia per tracciare un ${ELEMENT_LABEL[tool].toLowerCase()}; un tocco ne mette una cella. Torna a «Seleziona» per spostare i tavoli.`}
           </p>
-          {conflicts.size > 0 && <p className="text-xs font-black uppercase tracking-widest text-red-500">Tavoli sovrapposti o fuori dalla sala (in rosso): sistemali per poter salvare.</p>}
+          {conflicts.size > 0 && <p className="text-xs font-black uppercase tracking-widest text-red-500">Elementi sovrapposti o fuori dalla sala (in rosso): sistemali per poter salvare.</p>}
         </div>
 
         <aside className="lg:w-72 shrink-0 space-y-4">
@@ -182,6 +249,22 @@ const FloorEditor = ({ room, onClose, onSaved }) => {
               <span>×</span>
               <input className={numInput} type="number" min={4} max={60} aria-label="Altezza della sala" value={gridH} onChange={e => setGrid('gridH', e.target.value)} />
             </div>
+          </section>
+
+          <section className="p-4 rounded-2xl border border-[var(--border)] bg-[var(--bg-card)] space-y-3">
+            <p className={label}>Strumento</p>
+            <div className="grid grid-cols-3 gap-2" role="group" aria-label="Strumento">
+              {TOOLS.map((t) => {
+                const Icon = t.icon;
+                return (
+                  <button key={t.id} aria-pressed={tool === t.id} onClick={() => setTool(t.id)}
+                    className={`${btn} flex-col justify-center gap-1 ${tool === t.id ? 'bg-[var(--accent)] !text-white border-transparent' : ''}`}><Icon size={14} />{t.name}</button>
+                );
+              })}
+            </div>
+            {selectedEl && (
+              <button className={`${btn} w-full justify-center hover:text-red-500`} onClick={() => removeElement(selectedEl.id)}><Eraser size={12} /> Elimina {ELEMENT_LABEL[selectedEl.kind].toLowerCase()}</button>
+            )}
           </section>
 
           <section className="p-4 rounded-2xl border border-[var(--border)] bg-[var(--bg-card)] space-y-3">

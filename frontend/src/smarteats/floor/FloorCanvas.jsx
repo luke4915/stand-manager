@@ -1,5 +1,6 @@
 import { useState, useLayoutEffect, useRef } from 'react';
 import { clamp, isPlaced } from './geometry';
+import { ELEMENT_CLASS } from './elementStyle';
 
 // Griglia di una sala con i suoi tavoli. Serve sia all'editor (tavoli trascinabili) sia alla Sala (tavoli con lo
 // stato dal vivo): cosa disegnare dentro a ogni tavolo lo decide `renderTable(table, style)`, che deve applicare
@@ -10,7 +11,7 @@ const MIN_CELL = 14;
 const MAX_CELL = 56;
 const MIN_FIT_CELL = 8;
 
-const FloorCanvas = ({ gridW, gridH, tables, renderTable, showGrid = false, fit = false, onBackgroundPointerDown, canvasRef }) => {
+const FloorCanvas = ({ gridW, gridH, tables, elements = [], renderTable, renderElement, showGrid = false, fit = false, onBackgroundPointerDown, onBackgroundPointerMove, onBackgroundPointerUp, canvasRef }) => {
   const box = useRef(null);
   const [cell, setCell] = useState(32);
 
@@ -30,7 +31,7 @@ const FloorCanvas = ({ gridW, gridH, tables, renderTable, showGrid = false, fit 
     <div ref={box} className={fit ? 'w-full h-full flex items-center justify-center overflow-hidden' : 'w-full overflow-x-auto no-scrollbar'}>
       <div
         ref={canvasRef}
-        onPointerDown={onBackgroundPointerDown}
+        onPointerDown={onBackgroundPointerDown} onPointerMove={onBackgroundPointerMove} onPointerUp={onBackgroundPointerUp} onPointerCancel={onBackgroundPointerUp}
         className="relative rounded-xl border border-[var(--border)] bg-[var(--bg-card-2)] select-none"
         style={{
           width: gridW * cell, height: gridH * cell,
@@ -39,6 +40,11 @@ const FloorCanvas = ({ gridW, gridH, tables, renderTable, showGrid = false, fit 
             backgroundSize: `${cell}px ${cell}px`,
           }),
         }}>
+        {elements.map(e => {
+          const style = { position: 'absolute', left: e.x * cell, top: e.y * cell, width: e.w * cell, height: e.h * cell };
+          return renderElement ? renderElement(e, style, cell)
+            : <div key={e.id} style={style} aria-hidden="true" className={`pointer-events-none box-border ${ELEMENT_CLASS[e.kind]}`} />;
+        })}
         {tables.filter(isPlaced).map(t => renderTable(t, {
           position: 'absolute', left: t.x * cell, top: t.y * cell, width: t.w * cell, height: t.h * cell,
         }, cell))}
