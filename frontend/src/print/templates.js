@@ -146,6 +146,7 @@ function renderItems(printer, ctx, items, layoutType = 'standard', bigFont = fal
         if (i === 0) printer.align('LT').text(rowThreeColumns(line, qty, rowTotal));
         else printer.align('LT').text(line);
       });
+      if (item.modifiers?.length) printer.align('LT').text(`  + ${item.modifiers.map(m => m.name).join(', ')}`);
       if (item.note) printer.align('LT').text(`  >> ${item.note}`);
     });
   } else {
@@ -161,6 +162,7 @@ function renderItems(printer, ctx, items, layoutType = 'standard', bigFont = fal
       if (bigFont) {
         const maxW = Math.floor((LINE_WIDTH - qty.length - 2) / 2);
         printer.align('LT').size(2, 2).style('B').text(`${qty}x ${item.name.toUpperCase().slice(0, maxW)}`).size(1, 1).style('NORMAL');
+        if (item.modifiers?.length) printer.align('LT').text(`  + ${item.modifiers.map(m => m.name).join(', ')}`);
         if (item.note) printer.align('LT').text(`  >> ${item.note}`);
         printer.align('CT').text(DIVIDER_THIN);
         return;
@@ -173,6 +175,7 @@ function renderItems(printer, ctx, items, layoutType = 'standard', bigFont = fal
           printer.align('LT').text('  ' + line);
         }
       });
+      if (item.modifiers?.length) printer.align('LT').text(`  + ${item.modifiers.map(m => m.name).join(', ')}`);
       if (item.note) printer.align('LT').text(`  >> ${item.note}`);
     });
   }

@@ -114,7 +114,10 @@ const DraftOrder = ({ detail, service, cart, setCart, products, courses, plan, s
                     <span className="w-6 text-center text-sm font-semibold tabular-nums text-[var(--text-main)]">{line.quantity}</span>
                     <button className={`${iconBtn} !p-1`} aria-label={`Una in più: ${line.name}`} onClick={() => increase(line)}><Plus size={14} /></button>
                   </div>
-                  <button className="flex-1 min-w-0 text-left text-sm text-[var(--text-main)] truncate cursor-pointer" onClick={() => setOpenLine(isOpen ? null : index)}>{line.name}</button>
+                  <button className="flex-1 min-w-0 text-left text-sm text-[var(--text-main)] cursor-pointer" onClick={() => setOpenLine(isOpen ? null : index)}>
+                    <span className="block truncate">{line.name}</span>
+                    {line.modifiers?.length > 0 && <span className="block text-xs text-[var(--text-muted)] truncate">{line.modifiers.map(m => m.name).join(', ')}</span>}
+                  </button>
                   <span className="text-sm tabular-nums text-[var(--text-muted)] shrink-0">{formatEuro(line.price * line.quantity)}</span>
                 </div>
                 {line.note && !isOpen && <p className="mt-1 ml-1 text-xs text-[var(--text-muted)]">{line.note}</p>}

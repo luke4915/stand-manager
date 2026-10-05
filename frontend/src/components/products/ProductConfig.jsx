@@ -59,7 +59,8 @@ const Combobox = ({ name, value, onChange, options, placeholder }) => {
 };
 
 // `courses` (solo ristoranti): le portate del locale; con la lista il prodotto ne sceglie una.
-const ProductConfig = ({ products, setProducts, courses = null }) => {
+// `modifierGroups` (solo ristoranti): i gruppi di modificatori; il prodotto sceglie quali chiedere. `onModifiersSaved` li rilegge.
+const ProductConfig = ({ products, setProducts, courses = null, modifierGroups = null, onModifiersSaved }) => {
   const { showToast } = useToast();
   const [editingProduct, setEditingProduct] = useState(null);
   const [formData, setFormData] = useState({ 
@@ -97,6 +98,7 @@ const ProductConfig = ({ products, setProducts, courses = null }) => {
       visible: true, 
       print_destination: 'both',
       ...(courses && { course_id: null }),
+      ...(modifierGroups && { modifier_group_ids: [] }),
       stock_enabled: false,
       stock: ''
     });
@@ -113,6 +115,7 @@ const ProductConfig = ({ products, setProducts, courses = null }) => {
       visible: p.visible ?? true,
       print_destination: p.print_destination || 'both',
       ...(courses && { course_id: p.course_id ?? null }),
+      ...(modifierGroups && { modifier_group_ids: modifierGroups.filter(g => g.product_ids.includes(p.id)).map(g => g.id) }),
       stock_enabled: p.stock_enabled ?? false,
       stock: p.stock !== undefined && p.stock !== null ? String(p.stock) : ''
     });
@@ -219,6 +222,15 @@ const ProductConfig = ({ products, setProducts, courses = null }) => {
           Object.assign(updatedProduct, { stock: stockData.stock, stock_enabled: stockData.stock_enabled });
         } catch (err) {
           showToast(`Prodotto salvato, ma errore nell'aggiornamento dello stock: ${err.message}`, 'error');
+        }
+      }
+
+      if (modifierGroups) {
+        try {
+          await fetchWithAuth(`/products/${updatedProduct.id}/modifier-groups`, { method: 'PUT', body: { group_ids: formData.modifier_group_ids ?? [] } });
+          onModifiersSaved?.();
+        } catch (err) {
+          showToast(`Prodotto salvato, ma errore nei modificatori: ${err.message}`, 'error');
         }
       }
 
@@ -595,6 +607,22 @@ const ProductConfig = ({ products, setProducts, courses = null }) => {
                     ))}
                   </div>
                 </div>
+
+                {modifierGroups && modifierGroups.length > 0 && (
+                  <div className="p-3 rounded-xl bg-[var(--bg-input)] border border-[var(--border)]">
+                    <span className="text-xs font-medium text-[var(--text-muted)] block mb-2">Opzioni da chiedere (cottura, aggiunte…)</span>
+                    <div className="flex flex-wrap gap-1.5">
+                      {modifierGroups.map(g => {
+                        const on = (formData.modifier_group_ids ?? []).includes(g.id);
+                        return (
+                          <button key={g.id} type="button" aria-pressed={on}
+                            onClick={() => setFormData(prev => ({ ...prev, modifier_group_ids: on ? prev.modifier_group_ids.filter(id => id !== g.id) : [...(prev.modifier_group_ids ?? []), g.id] }))}
+                            className={`h-8 px-3 rounded-full text-xs font-medium border transition cursor-pointer ${on ? 'border-[var(--accent)] bg-[var(--accent)]/10 text-[var(--accent)]' : 'border-[var(--border)] text-[var(--text-muted)] hover:text-[var(--text-main)]'}`}>{g.name}</button>
+                        );
+                      })}
+                    </div>
+                  </div>
+                )}
 
                 {courses && (
                   <div className="p-3 rounded-xl bg-[var(--bg-input)] border border-[var(--border)]">

@@ -53,3 +53,16 @@ test('stato del tavolo e formato euro', () => {
   assert.equal(tableState({ bill_requested_at: '2026-10-04T20:00:00Z' }), 'bill');
   assert.equal(formatEuro(4.5), '4,50 €');
 });
+
+test('le opzioni scelte entrano nel prezzo; righe uguali solo con le stesse opzioni', () => {
+  const steak = { id: 7, name: 'Tagliata', price: 18 };
+  const rare = [{ id: 1, name: 'Al sangue', price: 0 }], rucola = [{ id: 1, name: 'Al sangue', price: 0 }, { id: 2, name: 'Rucola', price: 1.5 }];
+  let { cart } = addToCart([], steak, 1, rucola);
+  assert.equal(cart[0].price, 19.5);
+  ({ cart } = addToCart(cart, steak, 1, [...rucola].reverse()));
+  assert.equal(cart.length, 1, 'stesse opzioni in ordine diverso: stessa riga');
+  assert.equal(cart[0].quantity, 2);
+  ({ cart } = addToCart(cart, steak, 1, rare));
+  assert.equal(cart.length, 2);
+  assert.equal(cartTotal(cart), 19.5 * 2 + 18);
+});

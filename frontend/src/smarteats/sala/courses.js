@@ -43,11 +43,11 @@ export function moveGroup(cart, courses, plan, key, direction) {
 
 export const toggleTogether = (plan, key) => ({ ...plan, together: { ...plan.together, [key]: !plan.together[key] } });
 
-// Cosa si manda al server: per ogni riga solo id, quantità, nota e destinazione di stampa (prezzi e nomi li legge il server).
+// Cosa si manda al server: per ogni riga solo id, quantità, nota, destinazione di stampa e id delle opzioni (prezzi e nomi li legge il server).
 export const toPayload = (groups) => groups.map(g => ({
   course_id: g.course_id,
   seq: g.seq,
-  items: g.lines.map(l => ({ id: l.id, name: l.name, quantity: l.quantity, note: l.note, print_destination: l.print_destination })),
+  items: g.lines.map(l => ({ id: l.id, name: l.name, quantity: l.quantity, note: l.note, print_destination: l.print_destination, modifiers: (l.modifiers ?? []).map(m => m.id) })),
 }));
 
 // Una riga del carrello con la portata del suo prodotto (se la portata esiste ancora e il locale ne usa).

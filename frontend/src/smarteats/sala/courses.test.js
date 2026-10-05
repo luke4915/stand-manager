@@ -44,11 +44,11 @@ test('una portata eliminata dal locale non rompe la comanda', () => {
   assert.deepEqual(groups.map(g => g.name), ['Antipasti', 'Portata']);
 });
 
-test('il payload porta solo id, quantità, nota e destinazione, con l\'ordine d\'uscita', () => {
+test('il payload porta solo id, quantità, nota, destinazione e id delle opzioni, con l\'ordine d\'uscita', () => {
   const groups = buildGroups([line(1, 10, 2), line(2, 20)], courses, toggleTogether(emptyPlan(), 20));
   assert.deepEqual(toPayload(groups), [
-    { course_id: 10, seq: 1, items: [{ id: 1, name: 'P1', quantity: 2, note: '', print_destination: 'both' }] },
-    { course_id: 20, seq: 1, items: [{ id: 2, name: 'P2', quantity: 1, note: '', print_destination: 'both' }] },
+    { course_id: 10, seq: 1, items: [{ id: 1, name: 'P1', quantity: 2, note: '', print_destination: 'both', modifiers: [] }] },
+    { course_id: 20, seq: 1, items: [{ id: 2, name: 'P2', quantity: 1, note: '', print_destination: 'both', modifiers: [] }] },
   ]);
 });
 

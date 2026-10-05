@@ -31,6 +31,7 @@ const Ticket = ({ order, onLines }) => {
                 <span className={`mt-0.5 w-5 h-5 shrink-0 rounded-full border flex items-center justify-center ${done ? 'bg-emerald-500 border-emerald-500 text-white' : 'border-[var(--border-hover)]'}`}>{done && <Check size={13} />}</span>
                 <span className={`min-w-0 text-base ${done ? 'text-[var(--text-muted)] line-through' : 'text-[var(--text-main)]'}`}>
                   <span className="font-semibold tabular-nums mr-2">{item.quantity}</span>{item.name}
+                  {item.modifiers?.length > 0 && <span className="block text-sm text-[var(--text-muted)]">{item.modifiers.map(m => m.name).join(', ')}</span>}
                   {item.note && <span className="block text-sm font-medium text-amber-500 no-underline">{item.note}</span>}
                 </span>
               </button>

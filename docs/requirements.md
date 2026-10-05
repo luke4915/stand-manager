@@ -77,6 +77,7 @@ Disegno completo e decisioni in `docs/design-tavoli.md`. Un passo alla volta; i 
 | 3-3 | Stato per riga (migrazione 041): in preparazione, pronta, servita; la comanda segue le righe. Monitor cucina (`smarteats/cucina/`) con postazioni Tutto/Cucina/Bar, riga toccabile e pulsante «Inizia»/«Pronta»; la Sala mostra sulla pianta quanti piatti sono pronti da servire, e sul conto «Pronti da servire → Servi». | `[x]` |
 | 3-4 | Comanda di cucina con tavolo, coperti e portata. | `[ ]` |
 | 3-5 | Ruolo `cameriere` (migrazione 042, `WAITER_ROLES`): prende ordini, manda e serve, non incassa né storna né sconta. Interfaccia per palmare: tavoli come schede con filtro (Tutti / Occupati / Da servire) sotto i 640 px, pannello a tutto schermo, comandi limitati al ruolo, nessun menu laterale. | `[x]` |
+| 3-6 | Modificatori dei piatti (migrazione 043): gruppi di opzioni con supplemento (cottura, aggiunte, senza…), minimo e massimo, collegati ai prodotti; scelta in comanda (`ModifierPicker`), gestione nella Carta (`ModifierSettings`), prezzo calcolato dal server, opzioni su cucina, conto, ricevuta e tagliando. | `[x]` |
 
 ## Fase 4: prenotazioni (P2)
 

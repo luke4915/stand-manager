@@ -17,6 +17,8 @@ import RoomsSettings from '../components/setup/RoomsSettings';
 import UsersSettings from '../components/setup/UsersSettings';
 import CoverSettings from './CoverSettings';
 import CourseSettings from './CourseSettings';
+import ModifierSettings from './ModifierSettings';
+import { useModifiers } from './sala/useModifiers';
 
 const CucinaPage = lazy(() => import('./cucina/CucinaPage'));
 const Statistics = lazy(() => import('../components/shared/Statistics'));
@@ -45,13 +47,19 @@ const CartaPage = () => {
   const { showToast } = useToast();
   const [products, setProducts] = useState(null);
   const [courses, setCourses] = useState(null);
+  const modifiers = useModifiers();
   useEffect(() => {
     Promise.all([fetchWithAuth('/products'), fetchWithAuth('/courses')])
       .then(([list, courseList]) => { setProducts(list.map(p => ({ ...p, price: parseFloat(p.price) }))); setCourses(courseList.filter(c => c.active)); })
       .catch(err => showToast(err.message || 'Errore caricamento carta', 'error'));
   }, [showToast]);
   if (!products || !courses) return <p className="text-[var(--text-muted)]">Caricamento carta…</p>;
-  return <ProductConfig products={products} setProducts={setProducts} courses={courses} />;
+  return (
+    <div className="space-y-6">
+      <ModifierSettings groups={modifiers.groups} onChanged={modifiers.reload} />
+      <ProductConfig products={products} setProducts={setProducts} courses={courses} modifierGroups={modifiers.groups} onModifiersSaved={modifiers.reload} />
+    </div>
+  );
 };
 
 const SettingsPage = ({ user }) => (

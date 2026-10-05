@@ -39,15 +39,20 @@ export function estimateSelection(lines, selection) {
 // Totale di un carrello (anteprima: il server ricalcola dal catalogo).
 export const cartTotal = (cart) => cart.reduce((sum, i) => sum + toCents(i.price) * i.quantity, 0) / 100;
 
-// Aggiunge un prodotto al carrello della comanda (stesso prodotto e stessa nota = stessa riga), rispettando lo stock.
-export function addToCart(cart, product, quantity = 1) {
+// Aggiunge un prodotto al carrello della comanda (stesso prodotto, stessa nota, stessa portata e stesse opzioni = stessa
+// riga), rispettando lo stock. `modifiers` = opzioni scelte `[{ id, name, price }]`: il prezzo della riga le comprende
+// (anteprima: il server ricalcola dal catalogo).
+const sameModifiers = (a = [], b = []) => a.length === b.length && a.every(m => b.some(n => n.id === m.id));
+
+export function addToCart(cart, product, quantity = 1, modifiers = []) {
   const inCart = cart.filter(i => i.id === product.id).reduce((s, i) => s + i.quantity, 0);
   if (product.stock_enabled && product.stock !== null && inCart + quantity > product.stock) return { cart, blocked: true };
   const courseId = product.course_id ?? null;
-  const existing = cart.find(i => i.id === product.id && !i.note && (i.course_id ?? null) === courseId);
+  const existing = cart.find(i => i.id === product.id && !i.note && (i.course_id ?? null) === courseId && sameModifiers(i.modifiers, modifiers));
+  const extra = modifiers.reduce((sum, m) => sum + toCents(m.price), 0) / 100;
   const next = existing
     ? cart.map(i => (i === existing ? { ...i, quantity: i.quantity + quantity } : i))
-    : [...cart, { id: product.id, name: product.name, price: Number(product.price), quantity, note: '', print_destination: product.print_destination || 'both', category: product.category || null, course_id: courseId }];
+    : [...cart, { id: product.id, name: product.name, price: Number(product.price) + extra, quantity, note: '', print_destination: product.print_destination || 'both', category: product.category || null, course_id: courseId, modifiers }];
   return { cart: next, blocked: false };
 }
 

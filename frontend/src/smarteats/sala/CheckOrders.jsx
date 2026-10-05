@@ -75,6 +75,7 @@ const CheckOrders = ({ detail, user, onChanged }) => {
                 </div>
                 <span className="font-semibold text-xs tabular-nums text-[var(--text-main)] shrink-0">{formatEuro(item.line_total)}</span>
               </div>
+              {item.modifiers?.length > 0 && <p className="mt-0.5 ml-7 text-xs text-[var(--text-muted)]">{item.modifiers.map(m => m.name).join(', ')}</p>}
               {item.note && <p className="mt-1 ml-7 text-[11px] text-[var(--text-muted)]">» {item.note}</p>}
             </div>
           );
