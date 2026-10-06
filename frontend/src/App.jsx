@@ -4,6 +4,7 @@ import { Routes, Route, Navigate, useNavigate } from 'react-router-dom';
 import { useAuth } from './context/useAuth';
 import { useToast } from './context/useToast';
 import { useIsMobile } from './hooks/useBreakpoint';
+import { ShoppingCart } from 'lucide-react';
 
 import Header from './components/layout/Header';
 import Sidebar from './components/layout/Sidebar';
@@ -464,7 +465,7 @@ const App = () => {
             ) : (
               <Suspense fallback={<PageLoading />}>
                 <Routes>
-                  <Route path="/dashboard" element={canView(user.role, 'dashboard', user.modules) ? <ProductList setProducts={setProducts} products={products} addToCart={addToCart} cart={cart} /> : <Navigate to={`/${home}`} replace />} />
+                  <Route path="/dashboard" element={canView(user.role, 'dashboard', user.modules) ? <ProductList setProducts={setProducts} products={products} addToCart={addToCart} removeLastItem={removeLastItem} cart={cart} /> : <Navigate to={`/${home}`} replace />} />
                   <Route path="/kitchen" element={canView(user.role, 'kitchen', user.modules) ? <OrdersKitchen /> : <Navigate to={`/${home}`} replace />} />
                   <Route path="/statistics" element={canView(user.role, 'statistics', user.modules) ? <Statistics /> : <Navigate to={`/${home}`} replace />} />
                   <Route path="/config" element={canView(user.role, 'config', user.modules) ? <ProductConfig products={products} setProducts={setProducts} /> : <Navigate to={`/${home}`} replace />} />
@@ -496,25 +497,18 @@ const App = () => {
       {/* ── Carrello Mobile overlay ──────────────────────────── */}
       {isMobile && view === 'dashboard' && user.role !== 'cucina' && (
         <>
-          {/* FAB */}
+          {/* Barra fissa in basso: quanti articoli e il totale, un tocco per andare in cassa */}
           {!isMobileCartOpen && (
             <button
               onClick={() => setIsMobileCartOpen(true)}
-              className="fixed bottom-6 right-5 z-[1400] flex items-center gap-3 px-5 py-4 bg-[var(--accent)] text-white rounded-xl font-black shadow-xl shadow-[var(--accent-shadow)] active:scale-95 transition-all"
+              className={`fixed inset-x-3 z-[1400] h-14 px-4 rounded-xl flex items-center justify-between font-medium active:scale-[0.98] transition ${cart.length > 0 ? 'bg-[var(--accent)] text-white shadow-lg' : 'bg-[var(--bg-card)] text-[var(--text-main)] border border-[var(--border)]'}`}
+              style={{ bottom: 'max(0.75rem, env(safe-area-inset-bottom))' }}
             >
-              <div className="relative">
-                <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={2.5} stroke="currentColor" className="w-6 h-6">
-                  <path strokeLinecap="round" strokeLinejoin="round" d="M2.25 3h1.386c.51 0 .955.343 1.087.835l.383 1.437M7.5 14.25a3 3 0 0 0-3 3h15.75m-12.75-3h11.218c1.121-2.3 2.1-4.684 2.924-7.138a60.114 60.114 0 0 0-16.536-1.84M7.5 14.25L5.106 5.272M6 20.25a.75.75 0 1 1-1.5 0 .75.75 0 0 1 1.5 0Zm12.75 0a.75.75 0 1 1-1.5 0 .75.75 0 0 1 1.5 0Z" />
-                </svg>
-                {cart.length > 0 && (
-                  <span className="absolute -top-2 -right-2 bg-white text-[var(--accent)] text-[10px] font-black rounded-full w-5 h-5 flex items-center justify-center">
-                    {cart.reduce((s, i) => s + i.quantity, 0)}
-                  </span>
-                )}
-              </div>
-              <span className="text-sm tracking-wide">
-                {cart.length > 0 ? `CASSA · ${total.toFixed(2)}€` : 'APRI CASSA'}
+              <span className="flex items-center gap-2.5 text-sm">
+                <ShoppingCart size={20} />
+                {cart.length > 0 ? `${cart.reduce((s, i) => s + i.quantity, 0)} ${cart.reduce((s, i) => s + i.quantity, 0) === 1 ? 'articolo' : 'articoli'}` : 'Apri la cassa'}
               </span>
+              {cart.length > 0 && <span className="text-base font-semibold tabular-nums">{total.toFixed(2)} €</span>}
             </button>
           )}
 
@@ -525,7 +519,7 @@ const App = () => {
           >
             <Cart {...cartProps} onClose={() => setIsMobileCartOpen(false)}>
               <button onClick={() => { setShowReversePopup(true); setIsMobileCartOpen(false); }}
-                className="py-3 bg-purple-600/10 text-purple-600 border border-purple-100 dark:border-purple-900/30 rounded-xl font-bold text-xs uppercase tracking-widest hover:bg-purple-600 hover:text-white transition-all">
+                className="text-purple-600 !border-purple-500/30 active:bg-purple-500/10 transition">
                 Storno ordini
               </button>
             </Cart>

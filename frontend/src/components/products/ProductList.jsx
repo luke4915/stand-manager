@@ -1,10 +1,15 @@
 import React, { useState, useMemo, useRef, useCallback } from 'react';
 import QuickEditProductModal from './modals/QuickEditProductModal';
+import { useIsMobile } from '../../hooks/useBreakpoint';
+import { Minus } from 'lucide-react';
 
 const LONG_PRESS_MS = 1500;
 const VISIBLE_THRESHOLD_PCT = 10; // sotto questa soglia il bordo resta invisibile: evita il "flash" su un click veloce
 
-const ProductList = ({ products, addToCart, cart, lowStockThreshold = 15, setProducts }) => {
+// Su telefono (sotto 768 px): categorie a chip scorrevoli (un tocco, niente menu a tendina), tessere compatte con la
+// quantità in carrello e un «−» per toglierne una senza aprire il carrello. Da 768 px in su resta come prima.
+const ProductList = ({ products, addToCart, removeLastItem, cart, lowStockThreshold = 15, setProducts }) => {
+  const phone = useIsMobile();
   const [activeCategory, setActiveCategory] = useState('Tutti');
   const [searchTerm, setSearchTerm] = useState('');
   const [progressById, setProgressById] = useState({});
@@ -95,7 +100,7 @@ const ProductList = ({ products, addToCart, cart, lowStockThreshold = 15, setPro
       {/* Barra Filtri: Dropdown Categoria + Search Bar */}
       <div className="flex gap-2 pb-3 shrink-0">
         {/* Dropdown Categoria */}
-        <div className="relative shrink-0 w-40 sm:w-48">
+        {!phone && <div className="relative shrink-0 w-40 sm:w-48">
           <select
             value={activeCategory}
             onChange={(e) => setActiveCategory(e.target.value)}
@@ -113,7 +118,7 @@ const ProductList = ({ products, addToCart, cart, lowStockThreshold = 15, setPro
               <path d="M5.293 7.293a1 1 0 011.414 0L10 10.586l3.293-3.293a1 1 0 111.414 1.414l-4 4a1 1 0 01-1.414 0l-4-4a1 1 0 010-1.414z"/>
             </svg>
           </div>
-        </div>
+        </div>}
 
         {/* Input Ricerca Rapida */}
         <div className="relative flex-1">
@@ -147,14 +152,23 @@ const ProductList = ({ products, addToCart, cart, lowStockThreshold = 15, setPro
         </div>
       </div>
 
+      {phone && (
+        <div className="flex gap-2 overflow-x-auto no-scrollbar pb-3 shrink-0 -mx-1 px-1" role="tablist" aria-label="Categorie">
+          {categories.map(cat => (
+            <button key={cat} role="tab" aria-selected={activeCategory === cat} onClick={() => setActiveCategory(cat)}
+              className={`shrink-0 h-9 px-4 rounded-full text-sm font-medium border transition-colors cursor-pointer ${activeCategory === cat ? 'bg-[var(--accent)] border-[var(--accent)] text-white' : 'border-[var(--border)] text-[var(--text-muted)]'}`}>{cat}</button>
+          ))}
+        </div>
+      )}
+
       {/* Griglia prodotti */}
-      <div className="flex-1 overflow-y-auto no-scrollbar">
+      <div className={`flex-1 overflow-y-auto no-scrollbar ${phone ? 'pb-24' : ''}`}>
         {filteredProducts.length === 0 ? (
           <div className="flex items-center justify-center h-40 text-[var(--text-muted)]">
             <p className="font-semibold text-xs">Nessun prodotto disponibile</p>
           </div>
         ) : (
-          <div className="grid grid-cols-2 sm:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-5 gap-3">
+          <div className={`grid grid-cols-2 sm:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-5 ${phone ? 'gap-2.5' : 'gap-3'}`}>
             {filteredProducts.map(product => {
               const nameLen = product.name.length;
               const nameSizeClass = nameLen > 14 ? 'text-sm' : nameLen > 9 ? 'text-base' : 'text-lg';
@@ -216,6 +230,18 @@ const ProductList = ({ products, addToCart, cart, lowStockThreshold = 15, setPro
                         }
                       </span>
                     </div>
+                  )}
+
+                  {phone && cartQty > 0 && (
+                    <>
+                      <span className="absolute top-2 right-2 min-w-6 h-6 px-1.5 rounded-full bg-[var(--accent)] text-white text-xs font-semibold flex items-center justify-center tabular-nums z-10">{cartQty}</span>
+                      <span role="button" aria-label={`Una in meno: ${product.name}`} tabIndex={-1}
+                        onClick={(e) => { e.stopPropagation(); removeLastItem?.([...(cart ?? [])].reverse().find(i => i.id === product.id)); }}
+                        onTouchStart={(e) => e.stopPropagation()} onMouseDown={(e) => e.stopPropagation()}
+                        className="absolute bottom-1.5 right-1.5 w-9 h-9 rounded-full border border-[var(--border)] bg-[var(--bg-card)] text-[var(--text-main)] flex items-center justify-center z-10 active:scale-90 transition">
+                        <Minus size={16} />
+                      </span>
+                    </>
                   )}
 
                   <h3 className={`${nameSizeClass} font-semibold text-[var(--text-main)] mb-2 leading-tight pr-14`}>

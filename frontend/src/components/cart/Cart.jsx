@@ -188,7 +188,9 @@ const Cart = ({ products, cart, setCart, total, addToCart, removeFromCart, remov
     derivedOrderPercent,
     isTakeaway,
     setIsTakeaway,
-    setShowReversePopup
+    setShowReversePopup,
+    addToCart,
+    removeLastItem
   };
 
   return (
