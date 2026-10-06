@@ -37,7 +37,7 @@ const CheckSide = ({ checkId, user, service, event, ordering, cart, setCart, pro
 
   if (!detail) return null;
   if (ordering) return <DraftOrder detail={detail} service={service} cart={cart} setCart={setCart} products={products} courses={courses} plan={plan} setPlan={setPlan} onBack={onDraftBack} onSent={() => { onSent(); refresh(); }} />;
-  if (view === 'pay') return <PayView detail={detail} onBack={() => setView('check')} onPaid={refresh} onPrint={print} />;
+  if (view === 'pay') return <PayView detail={detail} onBack={() => setView('check')} onClosed={onBack} onPaid={refresh} onPrint={print} />;
   if (view === 'adjust') return <AdjustView detail={detail} onBack={() => setView('check')} onDone={refresh} />;
   if (view === 'covers') return <CoversView detail={detail} onBack={() => setView('check')} onDone={refresh} />;
   if (view === 'move') {

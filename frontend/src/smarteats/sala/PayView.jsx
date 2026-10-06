@@ -10,7 +10,9 @@ const METHODS = [['cash', 'Contanti', Banknote], ['card', 'Carta', CreditCard], 
 
 // Incasso, nel pannello del conto. «Per voce» (conti separati, anche a pezzi) oppure «A importo» (alla romana, acconto).
 // L'importo vero lo calcola il server; qui c'è l'anteprima.
-const PayView = ({ detail, onBack, onPaid, onPrint }) => {
+// Dopo il pagamento: senza resto da mostrare si torna da soli (al conto, o alla sala se il conto si è chiuso, così il
+// tavolo si libera); con il resto da dare resta la schermata «Incassato», con la ricevuta, finché si preme «Fatto».
+const PayView = ({ detail, onBack, onClosed, onPaid, onPrint }) => {
   const { showToast } = useToast();
   const lines = useMemo(() => payableLines(detail), [detail]);
   const [mode, setMode] = useState(lines.length ? 'items' : 'amount');
@@ -41,7 +43,10 @@ const PayView = ({ detail, onBack, onPaid, onPrint }) => {
       if (mode === 'items') body.items = lines.filter(l => selection[l.line_id] > 0).map(l => ({ order_item_id: l.line_id, quantity: selection[l.line_id] }));
       else body.amount = Number(amountValue.toFixed(2));
       if (method === 'cash' && tenderedValue !== null) body.tendered = tenderedValue;
-      setDone(await fetchWithAuth(`/checks/${detail.id}/payments`, { method: 'POST', body }));
+      const res = await fetchWithAuth(`/checks/${detail.id}/payments`, { method: 'POST', body });
+      if (res.change > 0) setDone(res);
+      else if (res.check.status === 'paid') { showToast(`Conto chiuso · ${formatEuro(res.payment.amount)} incassati`, 'success'); onClosed(); }
+      else { showToast(`Incassati ${formatEuro(res.payment.amount)} · restano ${formatEuro(res.check.due)}`, 'success'); onBack(); }
     } catch (err) { showToast(err.message, 'error'); }
     finally { setBusy(false); onPaid(); } // il conto può essere cambiato nel frattempo: lo si rilegge
   };
@@ -53,7 +58,7 @@ const PayView = ({ detail, onBack, onPaid, onPrint }) => {
         footer={
           <div className="grid grid-cols-2 gap-2">
             <button className={btn} onClick={() => onPrint(done.payment.id)}><Printer size={16} /> Ricevuta</button>
-            <button className={btnPrimary} onClick={onBack}>Fatto</button>
+            <button className={btnPrimary} onClick={closed ? onClosed : onBack}>Fatto</button>
           </div>
         }>
         <div className="h-full flex flex-col items-center justify-center gap-3 py-8 text-center">

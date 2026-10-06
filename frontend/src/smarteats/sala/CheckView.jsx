@@ -50,6 +50,16 @@ const CheckView = ({ detail, user, service, onBack, onOrder, onPay, onAdjust, on
     await printFired(res.orders, res.fired, detail, service, showToast);
     showToast('Portata mandata in cucina', 'success');
   });
+  // Chiudere un conto già saldato libera il tavolo: il pannello torna alla sala
+  const closeCheck = async () => {
+    setBusy(true);
+    try {
+      await fetchWithAuth(`/checks/${detail.id}/close`, { method: 'POST', body: {} });
+      showToast('Conto chiuso', 'success');
+      onDeleted();
+    } catch (err) { showToast(err.message, 'error'); await onChanged(); }
+    finally { setBusy(false); }
+  };
   const deleteCheck = async () => {
     setBusy(true);
     try {
@@ -90,7 +100,7 @@ const CheckView = ({ detail, user, service, onBack, onOrder, onPay, onAdjust, on
               <button className={cash ? btn : btnPrimary} disabled={busy || !service} title={service ? undefined : 'Il servizio è chiuso'} onClick={onOrder}><Plus size={16} /> Aggiungi</button>
               {cash ? (detail.due > 0
                 ? <button className={btnPrimary} disabled={busy} onClick={onPay}><Wallet size={16} /> Incassa</button>
-                : <button className={btnPrimary} disabled={busy || !activeOrders.length} onClick={() => run(() => fetchWithAuth(`/checks/${detail.id}/close`, { method: 'POST', body: {} }))}><Lock size={16} /> Chiudi</button>)
+                : <button className={btnPrimary} disabled={busy || !activeOrders.length} onClick={closeCheck}><Lock size={16} /> Chiudi</button>)
                 // Il cameriere non incassa: chiede il conto alla cassa
                 : <button className={btn} disabled={busy} onClick={() => run(() => fetchWithAuth(`/checks/${detail.id}/bill-request`, { method: 'POST', body: { requested: !detail.bill_requested_at } }))}>
                   {billRequested ? <BellOff size={16} /> : <BellRing size={16} />} {billRequested ? 'Annulla conto' : 'Chiedi il conto'}</button>}
