@@ -53,7 +53,7 @@ const App = () => {
   const { user, loading, login, logout, refreshSession } = useAuth();
   const { showToast } = useToast();
   const navigate = useNavigate();
-  const isMobile = useIsMobile(); // breakpoint 1280px
+  const isMobile = useIsMobile(); // telefono: sotto 768 px. Da 768 in su (tablet, PC) menu e carrello stanno in pagina
 
   const [products, setProducts] = useState([]);
   const [cart, setCart] = useState(() => {
@@ -416,7 +416,7 @@ const App = () => {
 
       {/* ── Sidebar ─────────────────────────────────────────── */}
       {/* Desktop: sempre presente nel flow */}
-      <div className="hidden xl:block shrink-0 h-full">
+      <div className="hidden md:block shrink-0 h-full">
         <Sidebar
           view={view} setView={handleSetView}
           isOpen={isSidebarOpen} toggleSidebar={() => setIsSidebarOpen(!isSidebarOpen)}
@@ -486,7 +486,7 @@ const App = () => {
 
           {/* ── Carrello Desktop ──────────────────────────── */}
           {view === 'dashboard' && user.role !== 'cucina' && (
-            <div className="w-[420px] hidden xl:flex flex-col shrink-0">
+            <div className="w-[340px] xl:w-[420px] hidden md:flex flex-col shrink-0">
               <Cart {...cartProps} />
             </div>
           )}

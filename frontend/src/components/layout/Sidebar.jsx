@@ -75,7 +75,7 @@ const Sidebar = ({ view, setView, isOpen, toggleSidebar, currentUser, sessionAct
     {/* Toggle — solo desktop */}
     <button
       onClick={toggleSidebar}
-      className="xl:flex hidden mt-2 p-3 text-[var(--text-muted)] hover:text-[var(--accent)] transition-colors shrink-0 cursor-pointer"
+      className="md:flex hidden mt-2 p-3 text-[var(--text-muted)] hover:text-[var(--accent)] transition-colors shrink-0 cursor-pointer"
     >
       <div className="pointer-events-none">
         {isOpen ? <ChevronLeft size={22} /> : <ChevronRight size={22} />}

@@ -16,7 +16,7 @@ const Header = ({ toggleSidebar, currentUser, onLogoutClick, onProfileClick, ses
       <div className="flex items-center gap-4">
         <button
           onClick={toggleSidebar}
-          className="xl:hidden h-10 w-10 flex items-center justify-center border border-[var(--border)] text-[var(--text-main)] rounded-lg cursor-pointer hover:enabled:bg-[var(--bg-card-2)] enabled:active:scale-95 transition"
+          className="md:hidden h-10 w-10 flex items-center justify-center border border-[var(--border)] text-[var(--text-main)] rounded-lg cursor-pointer hover:enabled:bg-[var(--bg-card-2)] enabled:active:scale-95 transition"
           aria-label="Menu"
         >
           <Menu size={20} className="pointer-events-none" />
