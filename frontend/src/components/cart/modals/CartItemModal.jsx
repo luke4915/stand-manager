@@ -27,13 +27,13 @@ const CartItemModal = ({ item, onClose, onAdd, onRemove, onDelete, onNoteChange,
                 {/* Header Modale */}
                 <div className="flex items-start justify-between px-5 pt-5 pb-4 border-b border-[var(--border)]">
                     <div className="flex-1 min-w-0 pr-3">
-                        <h3 className="font-black text-base uppercase tracking-tight text-[var(--text-main)] leading-tight">{item.name}</h3>
+                        <h3 className="font-semibold text-base tracking-tight text-[var(--text-main)] leading-tight">{item.name}</h3>
                         {item.type === 'sale' ? (
-                            <p className="text-[var(--accent)] font-black text-sm tabular-nums mt-0.5">{(item.price * item.quantity).toFixed(2)} €</p>
+                            <p className="text-[var(--accent)] font-semibold text-sm tabular-nums mt-0.5">{(item.price * item.quantity).toFixed(2)} €</p>
                         ) : (
                             <div className="flex items-baseline gap-1.5 mt-0.5">
                                 <p className="text-[var(--text-muted)] font-bold text-xs tabular-nums line-through">{(item.price * item.quantity).toFixed(2)} €</p>
-                                <p className={`font-black text-sm tabular-nums ${item.type === 'gift' ? 'text-purple-500' : 'text-orange-500'}`}>{lineTotal.toFixed(2)} €</p>
+                                <p className={`font-semibold text-sm tabular-nums ${item.type === 'gift' ? 'text-purple-500' : 'text-orange-500'}`}>{lineTotal.toFixed(2)} €</p>
                             </div>
                         )}
                     </div>
@@ -42,14 +42,14 @@ const CartItemModal = ({ item, onClose, onAdd, onRemove, onDelete, onNoteChange,
 
                 {/* Gestione Quantità */}
                 <div className="px-5 py-4 border-b border-[var(--border)]">
-                    <p className="text-[10px] font-black uppercase tracking-widest text-[var(--text-muted)] mb-3">Quantità</p>
+                    <p className="text-xs font-semibold text-[var(--text-muted)] mb-3">Quantità</p>
                     <div className="flex items-center justify-between gap-3">
                         {/* Tasto MINUS */}
                         <button onClick={() => onRemove(item)} className="flex-1 py-3 rounded-xl bg-[var(--bg-card-2)] border border-[var(--border)] flex justify-center text-[var(--text-main)] hover:border-[var(--accent)] hover:text-[var(--accent)] cursor-pointer transition-all active:scale-95">
                             <Minus size={16} />
                         </button>
 
-                        <span className="text-3xl font-black tabular-nums text-[var(--text-main)] w-12 text-center">{item.quantity}</span>
+                        <span className="text-3xl font-semibold tabular-nums text-[var(--text-main)] w-12 text-center">{item.quantity}</span>
 
                         {/* Tasto PLUS allineato (aggiunta classe "border") */}
                         <button
@@ -65,7 +65,7 @@ const CartItemModal = ({ item, onClose, onAdd, onRemove, onDelete, onNoteChange,
                     </div>
                     {/* Opzionale: piccolo alert sotto i bottoni per spiegare il blocco */}
                     {isMaxStockReached && (
-                        <p className="text-[9px] text-orange-500 text-center mt-2 font-bold uppercase tracking-wider">
+                        <p className="text-[11px] text-orange-500 text-center mt-2 font-bold">
                             Scorte terminate per questo articolo
                         </p>
                     )}
@@ -76,19 +76,19 @@ const CartItemModal = ({ item, onClose, onAdd, onRemove, onDelete, onNoteChange,
                     <div className="px-5 py-4 border-b border-[var(--border)]">
                         <div className="flex items-center gap-2 mb-3">
                             <Percent size={11} className="text-[var(--text-muted)]" />
-                            <p className="text-[10px] font-black uppercase tracking-widest text-[var(--text-muted)]">Sconto su questo prodotto</p>
+                            <p className="text-xs font-semibold text-[var(--text-muted)]">Sconto su questo prodotto</p>
                         </div>
                         <div className="grid grid-cols-3 gap-2">
                             <button onClick={() => onTypeChange(item, 'sale')}
-                                className={`py-2 rounded-xl border text-[10px] font-black uppercase tracking-wider cursor-pointer transition-all ${item.type === 'sale' ? 'bg-[var(--accent)] border-[var(--accent)] text-white' : 'border-[var(--border)] text-[var(--text-muted)] hover:border-[var(--accent)]/50'}`}>
+                                className={`py-2 rounded-xl border text-xs font-semibold cursor-pointer transition-all ${item.type === 'sale' ? 'bg-[var(--accent)] border-[var(--accent)] text-white' : 'border-[var(--border)] text-[var(--text-muted)] hover:border-[var(--accent)]/50'}`}>
                                 Normale
                             </button>
                             <button onClick={() => onTypeChange(item, 'discount', discountMode, discountValue || 10)}
-                                className={`py-2 rounded-xl border text-[10px] font-black uppercase tracking-wider cursor-pointer transition-all ${item.type === 'discount' ? 'bg-orange-500 border-orange-500 text-white' : 'border-[var(--border)] text-[var(--text-muted)] hover:border-orange-500/50'}`}>
+                                className={`py-2 rounded-xl border text-xs font-semibold cursor-pointer transition-all ${item.type === 'discount' ? 'bg-orange-500 border-orange-500 text-white' : 'border-[var(--border)] text-[var(--text-muted)] hover:border-orange-500/50'}`}>
                                 Sconto
                             </button>
                             <button onClick={() => onTypeChange(item, 'gift')}
-                                className={`py-2 rounded-xl border text-[10px] font-black uppercase tracking-wider cursor-pointer transition-all flex items-center justify-center gap-1 ${item.type === 'gift' ? 'bg-purple-500 border-purple-500 text-white' : 'border-[var(--border)] text-[var(--text-muted)] hover:border-purple-500/50'}`}>
+                                className={`py-2 rounded-xl border text-xs font-semibold cursor-pointer transition-all flex items-center justify-center gap-1 ${item.type === 'gift' ? 'bg-purple-500 border-purple-500 text-white' : 'border-[var(--border)] text-[var(--text-muted)] hover:border-purple-500/50'}`}>
                                 <Gift size={11} /> Omaggio
                             </button>
                         </div>
@@ -119,7 +119,7 @@ const CartItemModal = ({ item, onClose, onAdd, onRemove, onDelete, onNoteChange,
                 <div className="px-5 py-4 border-b border-[var(--border)]">
                     <div className="flex items-center gap-2 mb-2">
                         <MessageSquare size={11} className="text-[var(--text-muted)]" />
-                        <p className="text-[10px] font-black uppercase tracking-widest text-[var(--text-muted)]">Note cucina</p>
+                        <p className="text-xs font-semibold text-[var(--text-muted)]">Note cucina</p>
                     </div>
                     <textarea rows={2} placeholder="Es: senza cipolla, ben cotto..."
                         value={note} onChange={e => setNote(e.target.value.toUpperCase())}
@@ -129,12 +129,12 @@ const CartItemModal = ({ item, onClose, onAdd, onRemove, onDelete, onNoteChange,
                 {/* Bottoni Affiancati (Rimuovi e Conferma) */}
                 <div className="px-5 py-4 flex gap-3">
                     <button onClick={() => { onDelete(item); onClose(); }}
-                        className="flex-1 py-3 rounded-xl bg-red-500/10 border border-red-500/30 text-red-500 font-black text-xs uppercase tracking-widest hover:bg-red-500 cursor-pointer hover:text-white transition-all flex items-center justify-center gap-2 shadow-sm">
+                        className="flex-1 py-3 rounded-xl bg-red-500/10 border border-red-500/30 text-red-500 font-semibold text-xs hover:bg-red-500 cursor-pointer hover:text-white transition-all flex items-center justify-center gap-2 shadow-sm">
                         <Trash2 size={13} /> Rimuovi
                     </button>
 
                     <button onClick={handleClose}
-                        className="flex-1 py-3 bg-[var(--accent)] hover:bg-[var(--accent-hover)] cursor-pointer text-white rounded-xl font-black text-xs uppercase tracking-widest transition-all flex items-center justify-center gap-2 shadow-sm">
+                        className="flex-1 py-3 bg-[var(--accent)] hover:bg-[var(--accent-hover)] cursor-pointer text-white rounded-xl font-semibold text-xs transition-all flex items-center justify-center gap-2 shadow-sm">
                         <Check size={14} /> Conferma
                     </button>
                 </div>

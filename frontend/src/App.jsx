@@ -500,7 +500,7 @@ const App = () => {
           {!isMobileCartOpen && (
             <button
               onClick={() => setIsMobileCartOpen(true)}
-              className="fixed bottom-6 right-5 z-[1400] flex items-center gap-3 px-5 py-4 bg-[var(--accent)] text-white rounded-2xl font-black shadow-xl shadow-[var(--accent-shadow)] active:scale-95 transition-all"
+              className="fixed bottom-6 right-5 z-[1400] flex items-center gap-3 px-5 py-4 bg-[var(--accent)] text-white rounded-xl font-black shadow-xl shadow-[var(--accent-shadow)] active:scale-95 transition-all"
             >
               <div className="relative">
                 <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={2.5} stroke="currentColor" className="w-6 h-6">
@@ -525,8 +525,8 @@ const App = () => {
           >
             <Cart {...cartProps} onClose={() => setIsMobileCartOpen(false)}>
               <button onClick={() => { setShowReversePopup(true); setIsMobileCartOpen(false); }}
-                className="py-3 bg-purple-600/10 text-purple-600 border border-purple-100 dark:border-purple-900/30 rounded-2xl font-bold text-xs uppercase tracking-widest hover:bg-purple-600 hover:text-white transition-all">
-                Storno Ordini
+                className="py-3 bg-purple-600/10 text-purple-600 border border-purple-100 dark:border-purple-900/30 rounded-xl font-bold text-xs uppercase tracking-widest hover:bg-purple-600 hover:text-white transition-all">
+                Storno ordini
               </button>
             </Cart>
           </div>
@@ -536,11 +536,11 @@ const App = () => {
       {/* ── Modali globali ───────────────────────────────────── */}
       {showLogoutConfirm && (
         <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex justify-center items-center z-[2000] px-4">
-          <div className="bg-[var(--bg-card)] p-8 rounded-3xl shadow-2xl w-full max-w-sm text-center border border-[var(--border)]">
+          <div className="bg-[var(--bg-card)] p-8 rounded-xl shadow-2xl w-full max-w-sm text-center border border-[var(--border)]">
             <h2 className="text-2xl font-black mb-6 text-[var(--text-main)]">Sei sicuro?</h2>
             <div className="flex gap-4">
-              <button onClick={performLogout} className="flex-1 py-3 bg-red-500 text-white rounded-2xl font-bold">LOGOUT</button>
-              <button onClick={() => setShowLogoutConfirm(false)} className="flex-1 py-3 bg-[var(--bg-card-2)] border border-[var(--border)] text-[var(--text-main)] rounded-2xl font-bold">ANNULLA</button>
+              <button onClick={performLogout} className="flex-1 h-11 bg-red-500 text-white rounded-lg font-medium">Esci</button>
+              <button onClick={() => setShowLogoutConfirm(false)} className="flex-1 h-11 border border-[var(--border)] text-[var(--text-main)] rounded-lg font-medium">Annulla</button>
             </div>
           </div>
         </div>
@@ -548,19 +548,19 @@ const App = () => {
 
       {showStartSessionModal && (
         <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex justify-center items-end sm:items-center z-[2000] px-4 pb-4 sm:pb-0">
-          <form onSubmit={handleStartSessionSubmit} className="bg-[var(--bg-card)] p-6 sm:p-8 rounded-3xl shadow-2xl w-full max-w-md border border-[var(--border)] space-y-5">
+          <form onSubmit={handleStartSessionSubmit} className="bg-[var(--bg-card)] p-6 sm:p-8 rounded-xl shadow-2xl w-full max-w-md border border-[var(--border)] space-y-5">
             <div className="text-center">
-              <h2 className="text-xl font-black text-[var(--text-main)]">Apri Nuova Sessione</h2>
+              <h2 className="text-xl font-black text-[var(--text-main)]">Apri una nuova sessione</h2>
               <p className="text-sm text-gray-400 mt-1">Assegna un nome al turno attuale</p>
             </div>
-            <input type="text" autoFocus placeholder="Es. Turno Sera Sabato..."
+            <input type="text" autoFocus placeholder="Es. Sabato sera"
               value={inputSessionName} onChange={e => setInputSessionName(e.target.value)}
-              className="w-full px-4 py-3.5 rounded-2xl bg-[var(--bg-input)] border border-[var(--border)] text-[var(--text-main)] placeholder-gray-500 font-medium focus:outline-none focus:border-emerald-500 transition-all" />
+              className="w-full px-4 h-12 rounded-lg bg-[var(--bg-input)] border border-[var(--border)] text-[var(--text-main)] placeholder-gray-500 font-medium focus:outline-none focus:border-emerald-500 transition-all" />
             <div className="flex gap-3">
               <button type="button" onClick={() => setShowStartSessionModal(false)}
-                className="flex-1 py-3 border border-[var(--border)] text-[var(--text-main)] rounded-2xl font-bold hover:bg-gray-500/10 transition-all">ANNULLA</button>
+                className="flex-1 h-11 border border-[var(--border)] text-[var(--text-main)] rounded-lg font-medium hover:bg-gray-500/10 transition-colors">Annulla</button>
               <button type="submit"
-                className="flex-1 py-3 bg-emerald-500 text-white rounded-2xl font-bold hover:bg-emerald-600 transition-all">AVVIA</button>
+                className="flex-1 h-11 bg-emerald-500 text-white rounded-lg font-medium hover:bg-emerald-600 transition-colors">Avvia</button>
             </div>
           </form>
         </div>

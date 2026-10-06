@@ -54,12 +54,12 @@ const CartMobileView = ({
             <div className="px-4 py-3 flex justify-between items-center border-b border-[var(--border)] bg-[var(--bg-card)] shrink-0">
                 <div>
                     <div className="flex items-center gap-2">
-                        <h2 className="text-lg font-black tracking-tight uppercase">Carrello</h2>
-                        <span className="bg-[var(--accent)]/10 text-[var(--accent)] text-xs font-black px-2 py-0.5 rounded-full">
+                        <h2 className="text-lg font-semibold tracking-tight">Carrello</h2>
+                        <span className="bg-[var(--accent)]/10 text-[var(--accent)] text-xs font-semibold px-2 py-0.5 rounded-full">
                             {cart.length} pezzi
                         </span>
                     </div>
-                    <span className={`text-[10px] font-bold uppercase tracking-wider ${sessionActive ? 'text-green-500' : 'text-red-400'}`}>
+                    <span className={`text-xs font-bold ${sessionActive ? 'text-green-500' : 'text-red-400'}`}>
                         {sessionActive ? '● Sessione attiva' : '● Non attiva'}
                     </span>
                 </div>
@@ -105,7 +105,7 @@ const CartMobileView = ({
                 {mergedCart.length === 0 ? (
                     <div className="h-full flex flex-col items-center justify-center text-[var(--text-muted)] opacity-25">
                         <ShoppingCart size={48} />
-                        <p className="text-xs font-black uppercase tracking-widest mt-3">Il carrello è vuoto</p>
+                        <p className="text-xs font-semibold mt-3">Il carrello è vuoto</p>
                     </div>
                 ) : (
                     mergedCart.map(item => {
@@ -119,23 +119,23 @@ const CartMobileView = ({
                             >
                                 <div className="flex justify-between items-center gap-3">
                                     <div className="flex items-center gap-3 min-w-0 flex-1">
-                                        <span className="bg-[var(--accent)] text-white text-xs font-black min-w-[24px] h-6 px-1.5 flex items-center justify-center rounded-lg shrink-0">
+                                        <span className="bg-[var(--accent)] text-white text-xs font-semibold min-w-[24px] h-6 px-1.5 flex items-center justify-center rounded-lg shrink-0">
                                             {item.quantity}
                                         </span>
-                                        <span className="font-bold text-sm uppercase leading-snug truncate">
+                                        <span className="font-bold text-sm leading-snug truncate">
                                             {item.name}
                                         </span>
                                         {adjLabel && (
-                                            <span className={`shrink-0 text-[9px] font-black px-1.5 py-0.5 rounded-full ${item.type === 'gift' ? 'bg-purple-500/10 text-purple-500' : 'bg-orange-500/10 text-orange-500'}`}>{adjLabel}</span>
+                                            <span className={`shrink-0 text-[11px] font-semibold px-1.5 py-0.5 rounded-full ${item.type === 'gift' ? 'bg-purple-500/10 text-purple-500' : 'bg-orange-500/10 text-orange-500'}`}>{adjLabel}</span>
                                         )}
                                     </div>
                                     {adjLabel ? (
                                         <span className="flex items-baseline gap-1.5 shrink-0">
-                                            <span className="text-[10px] font-bold tabular-nums text-[var(--text-muted)] line-through">{(item.price * item.quantity).toFixed(2)}€</span>
-                                            <span className={`font-black text-sm tabular-nums ${item.type === 'gift' ? 'text-purple-500' : 'text-orange-500'}`}>{effTotal.toFixed(2)}€</span>
+                                            <span className="text-xs font-bold tabular-nums text-[var(--text-muted)] line-through">{(item.price * item.quantity).toFixed(2)}€</span>
+                                            <span className={`font-semibold text-sm tabular-nums ${item.type === 'gift' ? 'text-purple-500' : 'text-orange-500'}`}>{effTotal.toFixed(2)}€</span>
                                         </span>
                                     ) : (
-                                        <span className="font-black text-sm tabular-nums shrink-0">
+                                        <span className="font-semibold text-sm tabular-nums shrink-0">
                                             {(item.price * item.quantity).toFixed(2)}€
                                         </span>
                                     )}
@@ -144,7 +144,7 @@ const CartMobileView = ({
                                 {item.note && (
                                     <div className="flex items-center gap-2 bg-yellow-500/10 border border-yellow-500/20 rounded-xl px-3 py-1.5 self-start max-w-full">
                                         <MessageSquare size={12} className="text-yellow-500 shrink-0" />
-                                        <span className="text-xs font-bold uppercase tracking-wide text-yellow-500 truncate">
+                                        <span className="text-xs font-bold tracking-wide text-yellow-500 truncate">
                                             {item.note}
                                         </span>
                                     </div>
@@ -162,7 +162,7 @@ const CartMobileView = ({
                 <div className="space-y-2">
                     <div className="grid grid-cols-2 gap-2.5">
                         <div className="bg-[var(--bg-card)] px-3 py-2 rounded-xl border border-[var(--border)] flex flex-col justify-center">
-                            <span className="text-[10px] font-black text-[var(--text-muted)] uppercase tracking-wider">Ricevuti</span>
+                            <span className="text-xs font-semibold text-[var(--text-muted)]">Ricevuti</span>
                             <input
                                 type="text"
                                 inputMode="decimal"
@@ -174,12 +174,12 @@ const CartMobileView = ({
                                     }
                                 }}
                                 placeholder="0.00"
-                                className="w-full bg-transparent outline-none font-black text-lg tabular-nums text-right text-[var(--text-main)]"
+                                className="w-full bg-transparent outline-none font-semibold text-lg tabular-nums text-right text-[var(--text-main)]"
                             />
                         </div>
                         <div className="bg-[var(--bg-card)] px-3 py-2 rounded-xl border border-[var(--border)] flex flex-col justify-center">
-                            <span className="text-[10px] font-black text-[var(--text-muted)] uppercase tracking-wider">Resto</span>
-                            <span className={`text-lg font-black tabular-nums text-right block ${change < 0 ? 'text-red-500' : 'text-green-500'}`}>
+                            <span className="text-xs font-semibold text-[var(--text-muted)]">Resto</span>
+                            <span className={`text-lg font-semibold tabular-nums text-right block ${change < 0 ? 'text-red-500' : 'text-green-500'}`}>
                                 {change >= 0 ? change.toFixed(2) : '0.00'} €
                             </span>
                         </div>
@@ -190,16 +190,16 @@ const CartMobileView = ({
                         <button
                             onClick={handleExactCash}
                             disabled={cart.length === 0}
-                            className="px-3 h-8 bg-[var(--bg-card)] border border-[var(--border)] text-[var(--text-main)] font-black text-[11px] uppercase tracking-wider rounded-lg shrink-0 active:bg-[var(--accent)] active:text-white disabled:opacity-40"
+                            className="px-3 h-8 bg-[var(--bg-card)] border border-[var(--border)] text-[var(--text-main)] font-semibold text-[11px] rounded-lg shrink-0 active:bg-[var(--accent)] active:text-white disabled:opacity-40"
                         >
-                            Importo Esatto
+                            Importo esatto
                         </button>
                         {quickCashOptions.map(amount => (
                             <button
                                 key={amount}
                                 onClick={() => handleQuickCash(amount)}
                                 disabled={cart.length === 0}
-                                className="px-3.5 h-8 bg-[var(--bg-card)] border border-[var(--border)] text-[var(--text-main)] font-black text-xs tabular-nums rounded-lg shrink-0 active:bg-[var(--accent)] active:text-white disabled:opacity-40"
+                                className="px-3.5 h-8 bg-[var(--bg-card)] border border-[var(--border)] text-[var(--text-main)] font-semibold text-xs tabular-nums rounded-lg shrink-0 active:bg-[var(--accent)] active:text-white disabled:opacity-40"
                             >
                                 €{amount}
                             </button>
@@ -210,27 +210,27 @@ const CartMobileView = ({
                 {/* Totale Economico con gestione Omaggio */}
                 <div className="flex justify-between items-center px-1">
                     <div className="flex items-center gap-2">
-                        <span className="text-xs font-black uppercase tracking-widest text-[var(--text-muted)]">Totale Comanda</span>
-                        {isAllGift && <span className="text-[9px] font-black uppercase tracking-widest bg-purple-500/10 text-purple-500 border border-purple-500/30 px-2 py-0.5 rounded-full">Omaggio</span>}
-                        {!isAllGift && hasAnyDiscount && <span className="text-[9px] font-black uppercase tracking-widest bg-orange-500/10 text-orange-500 border border-orange-500/30 px-2 py-0.5 rounded-full">Scontato</span>}
+                        <span className="text-xs font-semibold text-[var(--text-muted)]">Totale comanda</span>
+                        {isAllGift && <span className="text-[11px] font-semibold bg-purple-500/10 text-purple-500 border border-purple-500/30 px-2 py-0.5 rounded-full">Omaggio</span>}
+                        {!isAllGift && hasAnyDiscount && <span className="text-[11px] font-semibold bg-orange-500/10 text-orange-500 border border-orange-500/30 px-2 py-0.5 rounded-full">Scontato</span>}
                     </div>
                     {hasAnyDiscount ? (
                         <div className="flex items-baseline gap-2">
-                            <span className="text-sm font-black line-through text-[var(--text-muted)] tabular-nums">{fullTotal.toFixed(2)} €</span>
-                            <span className={`text-3xl font-black tracking-tight tabular-nums ${isAllGift ? 'text-purple-500' : 'text-orange-500'}`}>{total.toFixed(2)} €</span>
+                            <span className="text-sm font-semibold line-through text-[var(--text-muted)] tabular-nums">{fullTotal.toFixed(2)} €</span>
+                            <span className={`text-3xl font-semibold tracking-tight tabular-nums ${isAllGift ? 'text-purple-500' : 'text-orange-500'}`}>{total.toFixed(2)} €</span>
                         </div>
                     ) : (
-                        <span className="text-3xl font-black tracking-tight text-[var(--accent)] tabular-nums">{total.toFixed(2)} €</span>
+                        <span className="text-3xl font-semibold tracking-tight text-[var(--accent)] tabular-nums">{total.toFixed(2)} €</span>
                     )}
                 </div>
 
-                {/* ACTION BUTTON GIGANTE (Invia Ordine) */}
+                {/* ACTION BUTTON GIGANTE (Invia ordine) */}
                 <button
                     onClick={handleSendOrder}
                     disabled={cart.length === 0 || !sessionActive || sending}
-                    className="w-full h-14 bg-[var(--accent)] hover:bg-[var(--accent-hover)] disabled:bg-[var(--bg-input)] disabled:text-[var(--text-muted)] text-white rounded-2xl font-black text-sm uppercase tracking-widest active:scale-[0.97] transition-all flex items-center justify-center gap-2.5 shadow-lg shadow-[var(--accent)]/20"
+                    className="w-full h-14 bg-[var(--accent)] hover:bg-[var(--accent-hover)] disabled:bg-[var(--bg-input)] disabled:text-[var(--text-muted)] text-white rounded-xl font-semibold text-sm active:scale-[0.97] transition-all flex items-center justify-center gap-2.5/20"
                 >
-                    <Check size={18} /> Invia Ordine
+                    <Check size={18} /> Invia ordine
                 </button>
 
                 {/* Pulsanti ausiliari inferiori */}
@@ -238,13 +238,13 @@ const CartMobileView = ({
                     <button
                         onClick={() => cart.length > 0 && setIsClearModalOpen(true)}
                         disabled={cart.length === 0}
-                        className="h-10 border border-red-200 dark:border-red-900/30 text-red-500 active:bg-red-50 active:text-red-600 rounded-xl font-black text-[10px] uppercase tracking-widest transition-all disabled:opacity-20 flex items-center justify-center gap-1.5"
+                        className="h-10 border border-red-200 dark:border-red-900/30 text-red-500 active:bg-red-50 active:text-red-600 rounded-xl font-semibold text-xs transition-all disabled:opacity-20 flex items-center justify-center gap-1.5"
                     >
                         <Trash2 size={12} /> Svuota
                     </button>
 
                     {children && (
-                        <div className="[&>*]:w-full [&>*]:h-10 [&>*]:rounded-xl [&>*]:font-black [&>*]:text-[10px] [&>*]:uppercase [&>*]:tracking-widest [&>*]:transition-all [&>*]:flex [&>*]:items-center [&>*]:justify-center [&>*]:gap-1.5 [&>*]:border [&>*]:border-[var(--border)] [&>*]:bg-[var(--bg-card)]">
+                        <div className="[&>*]:w-full [&>*]:h-10 [&>*]:rounded-xl [&>*]:font-semibold [&>*]:text-xs [&>*]:uppercase [&>*]:tracking-widest [&>*]:transition-all [&>*]:flex [&>*]:items-center [&>*]:justify-center [&>*]:gap-1.5 [&>*]:border [&>*]:border-[var(--border)] [&>*]:bg-[var(--bg-card)]">
                             {children}
                         </div>
                     )}

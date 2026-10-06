@@ -5,7 +5,7 @@ const LONG_PRESS_MS = 1500;
 const VISIBLE_THRESHOLD_PCT = 10; // sotto questa soglia il bordo resta invisibile: evita il "flash" su un click veloce
 
 const ProductList = ({ products, addToCart, cart, lowStockThreshold = 15, setProducts }) => {
-  const [activeCategory, setActiveCategory] = useState('TUTTI');
+  const [activeCategory, setActiveCategory] = useState('Tutti');
   const [searchTerm, setSearchTerm] = useState('');
   const [progressById, setProgressById] = useState({});
   const [editingProduct, setEditingProduct] = useState(null);
@@ -14,13 +14,13 @@ const ProductList = ({ products, addToCart, cart, lowStockThreshold = 15, setPro
 
   const categories = useMemo(() => {
     const visible = products.filter(p => p.visible !== false);
-    return ['TUTTI', ...new Set(visible.map(p => p.category || 'Generico'))];
+    return ['Tutti', ...new Set(visible.map(p => p.category || 'Generico'))];
   }, [products]);
 
   const filteredProducts = useMemo(() => {
     const visible = products.filter(p => p.visible !== false);
     
-    if (!searchTerm.trim() && activeCategory === 'TUTTI') {
+    if (!searchTerm.trim() && activeCategory === 'Tutti') {
       return visible;
     }
 
@@ -35,7 +35,7 @@ const ProductList = ({ products, addToCart, cart, lowStockThreshold = 15, setPro
 
     return visible.filter(p => {
       // 1. Filtro Categoria Dropdown
-      const matchesCategory = activeCategory === 'TUTTI' || (p.category || 'Generico') === activeCategory;
+      const matchesCategory = activeCategory === 'Tutti' || (p.category || 'Generico') === activeCategory;
       if (!matchesCategory) return false;
 
       // Se l'input di ricerca è vuoto, basta il filtro categoria
@@ -99,7 +99,7 @@ const ProductList = ({ products, addToCart, cart, lowStockThreshold = 15, setPro
           <select
             value={activeCategory}
             onChange={(e) => setActiveCategory(e.target.value)}
-            className="w-full h-10 pl-3 pr-8 rounded-xl bg-[var(--bg-card-2)] border border-[var(--border)] text-[var(--text-main)] font-black text-xs uppercase tracking-wider appearance-none cursor-pointer focus:outline-none focus:border-[var(--accent)] transition-colors"
+            className="w-full h-10 pl-3 pr-8 rounded-xl bg-[var(--bg-card-2)] border border-[var(--border)] text-[var(--text-main)] font-semibold text-xs appearance-none cursor-pointer focus:outline-none focus:border-[var(--accent)] transition-colors"
           >
             {categories.map(cat => (
               <option key={cat} value={cat} className="bg-[var(--bg-card-2)] text-[var(--text-main)] font-bold">
@@ -151,7 +151,7 @@ const ProductList = ({ products, addToCart, cart, lowStockThreshold = 15, setPro
       <div className="flex-1 overflow-y-auto no-scrollbar">
         {filteredProducts.length === 0 ? (
           <div className="flex items-center justify-center h-40 text-[var(--text-muted)]">
-            <p className="font-black uppercase tracking-widest text-xs">Nessun prodotto disponibile</p>
+            <p className="font-semibold text-xs">Nessun prodotto disponibile</p>
           </div>
         ) : (
           <div className="grid grid-cols-2 sm:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-5 gap-3">
@@ -207,7 +207,7 @@ const ProductList = ({ products, addToCart, cart, lowStockThreshold = 15, setPro
                       {remainingStock > 0 && (
                         <span className="w-1.5 h-1.5 rounded-full bg-white animate-pulse shadow-[0_0_4px_rgba(255,255,255,0.8)]"></span>
                       )}
-                      <span className="text-[9px] font-black uppercase tracking-widest mt-px">
+                      <span className="text-[11px] font-semibold mt-px">
                         {remainingStock === 0
                           ? 'Esaurito'
                           : remainingStock === 1
@@ -218,15 +218,15 @@ const ProductList = ({ products, addToCart, cart, lowStockThreshold = 15, setPro
                     </div>
                   )}
 
-                  <h3 className={`${nameSizeClass} font-black text-[var(--text-main)] uppercase tracking-tighter mb-2 leading-tight pr-14`}>
+                  <h3 className={`${nameSizeClass} font-semibold text-[var(--text-main)] mb-2 leading-tight pr-14`}>
                     {product.name}
                   </h3>
 
                   <div className="w-full mt-auto pt-1 border-t border-[var(--border)] flex justify-between items-center">
-                    <span className="text-[9px] font-bold text-[var(--text-muted)] uppercase leading-none">
+                    <span className="text-[11px] font-bold text-[var(--text-muted)] leading-none">
                       Prezzo
                     </span>
-                    <span className="text-sm font-black tabular-nums leading-none" style={{ color }}>
+                    <span className="text-sm font-semibold tabular-nums leading-none" style={{ color }}>
                       {product.price.toFixed(2)}€
                     </span>
                   </div>

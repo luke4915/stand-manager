@@ -35,14 +35,14 @@ const CartDesktopView = ({
             {/* Header */}
             <div className="px-5 py-3 flex justify-between items-center border-b border-[var(--border)]">
                 <div>
-                    <h2 className="text-xl font-black tracking-tighter uppercase text-[var(--text-main)]">Carrello</h2>
-                    <span className={`text-[11px] font-black uppercase tracking-widest ${sessionActive ? 'text-green-500' : 'text-red-400'}`}>
+                    <h2 className="text-xl font-semibold text-[var(--text-main)]">Carrello</h2>
+                    <span className={`text-[11px] font-semibold ${sessionActive ? 'text-green-500' : 'text-red-400'}`}>
                         {sessionActive ? '● Sessione attiva' : '● Sessione non attiva'}
                     </span>
                 </div>
                 <div className="flex items-center gap-2">
 
-                    {/* Pulsante Storno Ordini */}
+                    {/* Pulsante Storno ordini */}
                     <button
                         disabled={!sessionActive}
                         onClick={() => setShowReversePopup(true)}
@@ -94,7 +94,7 @@ const CartDesktopView = ({
                 {mergedCart.length === 0 ? (
                     <div className="h-full flex flex-col items-center justify-center text-[var(--text-muted)] opacity-30">
                         <ShoppingCart size={32} />
-                        <p className="text-sm text-center font-black uppercase tracking-widest mt-2">Vuoto</p>
+                        <p className="text-sm text-center font-semibold mt-2">Vuoto</p>
                     </div>
                 ) : mergedCart.map(item => {
                     const adjLabel = getAdjustmentLabel(item);
@@ -104,25 +104,25 @@ const CartDesktopView = ({
                             className="px-3 py-2 rounded-xl cursor-pointer border border-gray-300 dark:border-[var(--border)] bg-[var(--bg-card-2)] hover:border-[var(--accent)]/60 active:scale-[0.99] transition-all">
                             <div className="flex justify-between items-center gap-2">
                                 <div className="flex items-center gap-2.5 min-w-0 flex-1">
-                                    <span className="bg-[var(--accent)] text-white text-[10px] font-black w-5 h-5 flex items-center justify-center rounded shrink-0">{item.quantity}</span>
-                                    <span className="font-bold text-xs uppercase text-[var(--text-main)] leading-tight truncate">{item.name}</span>
+                                    <span className="bg-[var(--accent)] text-white text-xs font-semibold w-5 h-5 flex items-center justify-center rounded shrink-0">{item.quantity}</span>
+                                    <span className="font-bold text-xs text-[var(--text-main)] leading-tight truncate">{item.name}</span>
                                     {adjLabel && (
-                                        <span className={`shrink-0 text-[9px] font-black px-1.5 py-0.5 rounded-full ${item.type === 'gift' ? 'bg-purple-500/10 text-purple-500' : 'bg-orange-500/10 text-orange-500'}`}>{adjLabel}</span>
+                                        <span className={`shrink-0 text-[11px] font-semibold px-1.5 py-0.5 rounded-full ${item.type === 'gift' ? 'bg-purple-500/10 text-purple-500' : 'bg-orange-500/10 text-orange-500'}`}>{adjLabel}</span>
                                     )}
                                 </div>
                                 {adjLabel ? (
                                     <span className="flex items-baseline gap-1.5 shrink-0">
-                                        <span className="text-[10px] font-bold tabular-nums text-[var(--text-muted)] line-through">{(item.price * item.quantity).toFixed(2)}€</span>
-                                        <span className={`font-black text-xs tabular-nums ${item.type === 'gift' ? 'text-purple-500' : 'text-orange-500'}`}>{effTotal.toFixed(2)}€</span>
+                                        <span className="text-xs font-bold tabular-nums text-[var(--text-muted)] line-through">{(item.price * item.quantity).toFixed(2)}€</span>
+                                        <span className={`font-semibold text-xs tabular-nums ${item.type === 'gift' ? 'text-purple-500' : 'text-orange-500'}`}>{effTotal.toFixed(2)}€</span>
                                     </span>
                                 ) : (
-                                    <span className="font-black text-xs tabular-nums text-[var(--text-main)] shrink-0">{(item.price * item.quantity).toFixed(2)}€</span>
+                                    <span className="font-semibold text-xs tabular-nums text-[var(--text-main)] shrink-0">{(item.price * item.quantity).toFixed(2)}€</span>
                                 )}
                             </div>
                             {item.note && (
                                 <div className="ml-7 mt-1.5 flex items-center gap-1.5 bg-yellow-500/10 border border-yellow-500/30 rounded-lg px-2 py-1">
                                     <MessageSquare size={9} className="text-yellow-500 shrink-0" />
-                                    <span className="text-[10px] font-black uppercase tracking-wide text-yellow-500 truncate">{item.note}</span>
+                                    <span className="text-xs font-semibold tracking-wide text-yellow-500 truncate">{item.note}</span>
                                 </div>
                             )}
                         </div>
@@ -134,8 +134,8 @@ const CartDesktopView = ({
             <div className="px-4 py-3 border-t border-[var(--border)] space-y-2 bg-[var(--bg-card-2)]">
                 <div className="grid grid-cols-2 gap-2">
                     <div className="bg-[var(--bg-card)] px-3 py-1 rounded-xl border border-[var(--border)]">
-                        <span className="text-[13px] font-black text-[var(--text-muted)] uppercase tracking-wider block">Ricevuti</span>
-                        <div className="flex items-center justify-end w-full gap-1 font-black text-xl text-[var(--text-main)] tabular-nums">
+                        <span className="text-[13px] font-semibold text-[var(--text-muted)] block">Ricevuti</span>
+                        <div className="flex items-center justify-end w-full gap-1 font-semibold text-xl text-[var(--text-main)] tabular-nums">
                             <input
                                 type="text"
                                 inputMode="decimal"
@@ -157,8 +157,8 @@ const CartDesktopView = ({
                         </div>
                     </div>
                     <div className="bg-[var(--bg-card)] px-3 py-1 rounded-xl border border-[var(--border)]">
-                        <span className="text-[13px] font-black text-[var(--text-muted)] uppercase tracking-wider block">Resto</span>
-                        <span className={`text-xl font-black tabular-nums block text-right transition-colors duration-150 ${!amountReceived
+                        <span className="text-[13px] font-semibold text-[var(--text-muted)] block">Resto</span>
+                        <span className={`text-xl font-semibold tabular-nums block text-right transition-colors duration-150 ${!amountReceived
                             ? 'text-[var(--text-muted)]'
                             : change < 0
                                 ? 'text-red-500'
@@ -171,36 +171,36 @@ const CartDesktopView = ({
 
                 <div className="flex justify-between items-center">
                     <div className="flex items-center gap-2">
-                        <span className="text-xl font-black text-[var(--text-main)] uppercase">Totale</span>
-                        {isAllGift && <span className="text-[9px] font-black uppercase bg-purple-500/10 text-purple-500 border border-purple-500/30 px-2 py-0.5 rounded-full">Omaggio</span>}
-                        {!isAllGift && hasAnyDiscount && <span className="text-[9px] font-black uppercase bg-orange-500/10 text-orange-500 border border-orange-500/30 px-2 py-0.5 rounded-full">Scontato</span>}
+                        <span className="text-xl font-semibold text-[var(--text-main)]">Totale</span>
+                        {isAllGift && <span className="text-[11px] font-semibold bg-purple-500/10 text-purple-500 border border-purple-500/30 px-2 py-0.5 rounded-full">Omaggio</span>}
+                        {!isAllGift && hasAnyDiscount && <span className="text-[11px] font-semibold bg-orange-500/10 text-orange-500 border border-orange-500/30 px-2 py-0.5 rounded-full">Scontato</span>}
                     </div>
                     {hasAnyDiscount ? (
                         <div className="flex items-baseline gap-2">
-                            <span className="text-base font-black line-through text-[var(--text-muted)] tabular-nums">{fullTotal.toFixed(2)} €</span>
-                            <span className={`text-2xl font-black tracking-tighter tabular-nums ${isAllGift ? 'text-purple-500' : 'text-orange-500'}`}>{total.toFixed(2)} €</span>
+                            <span className="text-base font-semibold line-through text-[var(--text-muted)] tabular-nums">{fullTotal.toFixed(2)} €</span>
+                            <span className={`text-2xl font-semibold tabular-nums ${isAllGift ? 'text-purple-500' : 'text-orange-500'}`}>{total.toFixed(2)} €</span>
                         </div>
                     ) : (
-                        <span className="text-2xl font-black tracking-tighter text-[var(--text-main)] tabular-nums">{total.toFixed(2)} €</span>
+                        <span className="text-2xl font-semibold text-[var(--text-main)] tabular-nums">{total.toFixed(2)} €</span>
                     )}
                 </div>
 
                 <div className="flex gap-2 w-full">
-                    {/* Bottone Invia Ordine */}
+                    {/* Bottone Invia ordine */}
                     <button
                         onClick={handleSendOrder}
                         disabled={cart.length === 0 || !sessionActive || sending}
-                        className="flex-1 h-11 px-2 bg-[var(--accent)] hover:enabled:bg-[var(--accent-hover)] cursor-pointer disabled:cursor-not-allowed disabled:opacity-30 disabled:text-[var(--text-muted)] text-white rounded-xl font-black text-xs sm:text-sm uppercase tracking-wider active:enabled:scale-[0.99] transition-all flex items-center justify-center gap-1.5"
+                        className="flex-1 h-11 px-2 bg-[var(--accent)] hover:enabled:bg-[var(--accent-hover)] cursor-pointer disabled:cursor-not-allowed disabled:opacity-30 disabled:text-[var(--text-muted)] text-white rounded-xl font-semibold text-xs sm:text-sm active:enabled:scale-[0.99] transition-all flex items-center justify-center gap-1.5"
                     >
                         <Send size={16} />
-                        <span>Invia Ordine</span>
+                        <span>Invia ordine</span>
                     </button>
 
                     {/* Bottone Svuota Carrello */}
                     <button
                         onClick={() => cart.length > 0 && setIsClearModalOpen(true)}
                         disabled={cart.length === 0}
-                        className="flex-1 h-11 px-2 bg-[var(--error)] hover:enabled:bg-[var(--error-hover)] cursor-pointer disabled:cursor-not-allowed disabled:opacity-30 disabled:text-[var(--text-muted)] text-white dark:border-red-900/40 rounded-xl font-black text-xs sm:text-sm uppercase tracking-wider active:enabled:scale-[0.99] transition-all flex items-center justify-center gap-1.5"
+                        className="flex-1 h-11 px-2 bg-[var(--error)] hover:enabled:bg-[var(--error-hover)] cursor-pointer disabled:cursor-not-allowed disabled:opacity-30 disabled:text-[var(--text-muted)] text-white dark:border-red-900/40 rounded-xl font-semibold text-xs sm:text-sm active:enabled:scale-[0.99] transition-all flex items-center justify-center gap-1.5"
                     >
                         <Trash size={16} />
                         <span>Svuota</span>
