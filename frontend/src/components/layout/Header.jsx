@@ -16,12 +16,12 @@ const Header = ({ toggleSidebar, currentUser, onLogoutClick, onProfileClick, ses
       <div className="flex items-center gap-4">
         <button
           onClick={toggleSidebar}
-          className="xl:hidden p-2.5 bg-[var(--bg-card)] border border-[var(--border)] text-[var(--text-main)] rounded-2xl cursor-pointer hover:enabled:bg-[var(--bg-card-2)] enabled:active:scale-95 transition-all"
+          className="xl:hidden h-10 w-10 flex items-center justify-center border border-[var(--border)] text-[var(--text-main)] rounded-lg cursor-pointer hover:enabled:bg-[var(--bg-card-2)] enabled:active:scale-95 transition"
           aria-label="Menu"
         >
           <Menu size={20} className="pointer-events-none" />
         </button>
-        <div className="flex flex-col gap-1">
+        <div className="flex flex-col gap-0.5">
           <div className="flex items-center gap-1.5 text-xs text-[var(--text-muted)]">
             <span className="hidden sm:inline">{"Stand Manager"}</span>
             <span className="hidden sm:inline">/</span>
@@ -29,7 +29,7 @@ const Header = ({ toggleSidebar, currentUser, onLogoutClick, onProfileClick, ses
               {sessionName || "Dashboard"}
             </span>
           </div>
-          <h1 className="text-lg sm:text-2xl font-black tracking-tight text-[var(--text-main)] leading-tight">
+          <h1 className="text-lg sm:text-xl font-semibold tracking-tight text-[var(--text-main)] leading-tight">
             {currentUser?.tenantName || "Stand Manager"}
           </h1>
         </div>
@@ -37,7 +37,7 @@ const Header = ({ toggleSidebar, currentUser, onLogoutClick, onProfileClick, ses
 
       {/* Destra: profilo compatto */}
       {currentUser && (
-        <div className="flex items-center gap-1.5 bg-[var(--bg-card)] px-2 py-1.5 rounded-2xl border border-[var(--border)] shadow-sm">
+        <div className="flex items-center gap-1.5">
           {(!online || pending > 0) && (
             <button
               onClick={syncNow}
@@ -49,7 +49,7 @@ const Header = ({ toggleSidebar, currentUser, onLogoutClick, onProfileClick, ses
               ) : (
                 <CloudOff size={13} />
               )}
-              {pending > 0 && <span className="text-[10px] font-black">{pending}</span>}
+              {pending > 0 && <span className="text-xs font-semibold">{pending}</span>}
             </button>
           )}
           {printPending > 0 && (
@@ -59,7 +59,7 @@ const Header = ({ toggleSidebar, currentUser, onLogoutClick, onProfileClick, ses
               className="flex items-center gap-1.5 px-2.5 py-1 bg-amber-500/10 border border-amber-500/30 text-amber-500 rounded-full cursor-pointer hover:bg-amber-500/20 active:scale-95 transition-all"
             >
               <Printer size={13} />
-              <span className="text-[10px] font-black">{printPending}</span>
+              <span className="text-xs font-semibold">{printPending}</span>
             </button>
           )}
           {failed > 0 && (
@@ -69,14 +69,14 @@ const Header = ({ toggleSidebar, currentUser, onLogoutClick, onProfileClick, ses
               className="flex items-center gap-1.5 px-2.5 py-1 bg-red-500/10 border border-red-500/30 text-red-500 rounded-full cursor-pointer hover:bg-red-500/20 active:scale-95 transition-all"
             >
               <AlertTriangle size={13} />
-              <span className="text-[10px] font-black">{failed}</span>
+              <span className="text-xs font-semibold">{failed}</span>
             </button>
           )}
-          <div className="flex items-center gap-1.5 px-2 py-1 bg-[var(--bg-card-2)] rounded-full">
-            <div className="w-6 h-6 rounded-full bg-[var(--accent)] flex items-center justify-center text-[10px] text-white font-bold shrink-0">
+          <div className="flex items-center gap-2 h-9 px-2 rounded-lg">
+            <div className="w-7 h-7 rounded-full bg-[var(--accent)] flex items-center justify-center text-xs text-white font-semibold shrink-0">
               {currentUser.username[0].toUpperCase()}
             </div>
-            <span className="hidden sm:block text-sm font-semibold text-[var(--text-main)]">
+            <span className="hidden sm:block text-sm font-medium text-[var(--text-main)]">
               {currentUser.username}
             </span>
             <span
@@ -86,13 +86,13 @@ const Header = ({ toggleSidebar, currentUser, onLogoutClick, onProfileClick, ses
           </div>
           <button
             onClick={onProfileClick}
-            className="p-2 hover:bg-[var(--bg-card-2)] rounded-full transition-all text-[var(--text-muted)] hover:text-[var(--text-main)] min-w-[36px] min-h-[36px] flex items-center justify-center cursor-pointer enabled:active:scale-95"
+            className="p-2 hover:bg-[var(--bg-card-2)] rounded-lg transition-colors text-[var(--text-muted)] hover:text-[var(--text-main)] min-w-[36px] min-h-[36px] flex items-center justify-center cursor-pointer enabled:active:scale-95"
           >
             <Settings size={18} className="pointer-events-none" />
           </button>
           <button
             onClick={onLogoutClick}
-            className="p-2 hover:bg-red-500/10 text-red-500 rounded-full transition-all min-w-[36px] min-h-[36px] flex items-center justify-center cursor-pointer enabled:active:scale-95"
+            className="p-2 hover:bg-red-500/10 text-red-500 rounded-lg transition-colors min-w-[36px] min-h-[36px] flex items-center justify-center cursor-pointer enabled:active:scale-95"
           >
             <LogOut size={18} className="pointer-events-none" />
           </button>

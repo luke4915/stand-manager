@@ -3,28 +3,28 @@ import { canView } from './viewRoles';
 import { LayoutDashboard, UtensilsCrossed, BarChart3, Settings, Database, ChevronLeft, ChevronRight, Power } from 'lucide-react';
 
 const menuItems = [
-  { id: 'dashboard', icon: <LayoutDashboard size={22} />, label: 'Cassa' },
-  { id: 'kitchen', icon: <UtensilsCrossed size={22} />, label: 'Cucina' },
-  { id: 'statistics', icon: <BarChart3 size={22} />, label: 'Stats' },
-  { id: 'config', icon: <Database size={22} />, label: 'Menu' },
-  { id: 'setup', icon: <Settings size={22} />, label: 'Sistema' },
+  { id: 'dashboard', icon: <LayoutDashboard size={20} />, label: 'Cassa' },
+  { id: 'kitchen', icon: <UtensilsCrossed size={20} />, label: 'Cucina' },
+  { id: 'statistics', icon: <BarChart3 size={20} />, label: 'Statistiche' },
+  { id: 'config', icon: <Database size={20} />, label: 'Menu' },
+  { id: 'setup', icon: <Settings size={20} />, label: 'Sistema' },
 ];
 
 const Sidebar = ({ view, setView, isOpen, toggleSidebar, currentUser, sessionActive, setSessionActive }) => (
   <aside className={`
     h-full bg-[var(--bg-card)] border-r border-[var(--border)]
     transition-[width,background-color,border-color] duration-300 ease-in-out
-    flex flex-col items-center py-6
+    flex flex-col items-center py-5
     ${isOpen ? 'w-64' : 'w-20'}
   `}>
 
     {/* Logo */}
-    <div className="w-11 h-11 bg-[var(--accent)] rounded-2xl flex items-center justify-center text-white font-black text-xl shadow-lg shadow-[var(--accent-shadow)] mb-8 shrink-0 select-none">
+    <div className="w-9 h-9 bg-[var(--accent)] rounded-lg flex items-center justify-center text-white font-semibold text-lg mb-8 shrink-0 select-none">
       S
     </div>
 
     {/* Nav */}
-    <nav className="flex-1 w-full px-3 space-y-2 overflow-y-auto no-scrollbar">
+    <nav className="flex-1 w-full px-3 space-y-1 overflow-y-auto no-scrollbar">
       {menuItems
         .filter(item => canView(currentUser?.role, item.id, currentUser?.modules))
         .map(item => (
@@ -32,16 +32,16 @@ const Sidebar = ({ view, setView, isOpen, toggleSidebar, currentUser, sessionAct
             key={item.id}
             onClick={() => setView(item.id)}
             className={`
-              w-full flex items-center p-3.5 rounded-2xl transition-all duration-200 cursor-pointer
+              w-full flex items-center px-3 py-2.5 rounded-lg transition-colors cursor-pointer
               ${!isOpen ? 'justify-center' : ''}
               ${view === item.id
-                ? 'bg-[var(--accent)] text-white shadow-md shadow-[var(--accent-shadow)]'
-                : 'text-[var(--text-muted)] hover:bg-[var(--bg-card-2)] hover:text-[var(--text-main)] active:scale-95'}
+                ? 'bg-[var(--bg-card-2)] text-[var(--text-main)] [&_svg]:text-[var(--accent)]'
+                : 'text-[var(--text-muted)] hover:bg-[var(--bg-card-2)] hover:text-[var(--text-main)]'}
             `}
           >
             <div className="shrink-0 pointer-events-none">{item.icon}</div>
             {isOpen && (
-              <span className="ml-3 font-black uppercase text-xs tracking-widest whitespace-nowrap pointer-events-none">
+              <span className="ml-3 text-sm font-medium whitespace-nowrap pointer-events-none">
                 {item.label}
               </span>
             )}
@@ -55,7 +55,7 @@ const Sidebar = ({ view, setView, isOpen, toggleSidebar, currentUser, sessionAct
         <button
           onClick={() => setSessionActive(!sessionActive)}
           className={`
-            w-full flex items-center p-3.5 rounded-2xl border transition-all duration-200 cursor-pointer
+            w-full flex items-center px-3 py-2.5 rounded-lg border transition-colors cursor-pointer
             ${!isOpen ? 'justify-center' : ''}
             ${sessionActive
               ? 'bg-green-500/10 border-green-500/30 text-green-500 enabled:hover:bg-green-500/20'
@@ -64,8 +64,8 @@ const Sidebar = ({ view, setView, isOpen, toggleSidebar, currentUser, sessionAct
         >
           <div className="shrink-0 pointer-events-none"><Power size={20} /></div>
           {isOpen && (
-            <span className="ml-3 font-black uppercase text-xs tracking-widest whitespace-nowrap pointer-events-none">
-              {sessionActive ? 'Chiudi Sessione' : 'Apri Sessione'}
+            <span className="ml-3 text-sm font-medium whitespace-nowrap pointer-events-none">
+              {sessionActive ? 'Chiudi sessione' : 'Apri sessione'}
             </span>
           )}
         </button>
