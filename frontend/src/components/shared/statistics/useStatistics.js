@@ -20,7 +20,6 @@ const empty = {
   ordiniPerFasciaOraria: [], prezzoMedioPerFasciaOraria: [],
   topProdotti: [], andamentoFatturato: [],
   tempiCompletamento: [], tempoMedioCompletamento: 0,
-  confrontoSerate: [],
   unrealizedGiftRevenue: 0, topGiftProducts: [],
   canceledCount: 0, totaleStornato: 0,
 };

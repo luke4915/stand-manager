@@ -7,7 +7,7 @@ import { statsQuerySchema, sharedProductsQuerySchema, headToHeadQuerySchema } fr
 import { requireModule } from '../utils/tenantModules.js';
 import { COMPLETED_ITEMS, LINE_REVENUE } from '../utils/statsSql.js';
 import { isRevenue, isKitchenOrder } from '../utils/revenue.js';
-import { buildStats, buildSessionComparison } from '../utils/stats.js';
+import { buildStats } from '../utils/stats.js';
 import { buildRestaurantStats } from '../utils/restaurantStats.js';
 
 const router = express.Router();
@@ -21,7 +21,7 @@ router.get('/', authenticate, requireModule('stats'), authorizeStats, validate({
   const sessionFilter = sessions?.length ? sessions : null;
   const inSessions = 'AND ($1::int[] IS NULL OR o.session_id = ANY($1))';
   try {
-    const [totals, canceled, byHour, products, comparison] = await Promise.all([
+    const [totals, canceled, byHour, products] = await Promise.all([
       req.db.query(
         `SELECT COUNT(*) FILTER (WHERE ${isKitchenOrder('o')})::int AS n, COALESCE(SUM(o.total), 0) AS total,
                 COUNT(*) FILTER (WHERE o.is_takeaway)::int AS takeaway,
@@ -50,15 +50,8 @@ router.get('/', authenticate, requireModule('stats'), authorizeStats, validate({
                          THEN COALESCE(i.original_price, p.price, 0) * i.quantity ELSE 0 END) AS missed
          ${COMPLETED_ITEMS} ${inSessions}
          GROUP BY i.product_id, p.name`, [sessionFilter]),
-      req.db.query(
-        `SELECT s.id, s.name, s.start_time, COUNT(o.id) FILTER (WHERE ${isKitchenOrder('o')})::int AS n, COALESCE(SUM(o.total), 0) AS total
-         FROM sessions s LEFT JOIN orders o ON o.session_id = s.id AND ${isRevenue('o')}
-         GROUP BY s.id ORDER BY s.start_time DESC`),
     ]);
-    res.json({
-      ...buildStats({ totals: totals.rows[0], canceled: canceled.rows[0], byHour: byHour.rows, products: products.rows }),
-      confrontoSerate: buildSessionComparison(comparison.rows),
-    });
+    res.json(buildStats({ totals: totals.rows[0], canceled: canceled.rows[0], byHour: byHour.rows, products: products.rows }));
   } catch (err) {
     logger.error({ err }, 'Errore GET /api/stats');
     res.status(500).json({ error: 'Errore nel calcolo delle statistiche' });

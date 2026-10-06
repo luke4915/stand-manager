@@ -79,13 +79,3 @@ export function buildStats({ totals, canceled, byHour, products }) {
     pctTakeaway: ((totals.takeaway / totals.n) * 100).toFixed(1),
   };
 }
-
-export function buildSessionComparison(rows) {
-  return rows.map((r) => ({
-    id: r.id,
-    name: r.name || new Date(r.start_time).toLocaleDateString('it-IT'),
-    totale: round2(r.total),
-    numero: r.n,
-    medio: r.n > 0 ? round2(Number(r.total) / r.n) : 0,
-  }));
-}

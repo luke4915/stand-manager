@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { buildStats, buildSessionComparison } from '../utils/stats.js';
+import { buildStats } from '../utils/stats.js';
 
 const base = {
   totals: { n: 4, total: '40.00', takeaway: 1, avg_minutes: 5.5 },
@@ -53,14 +53,4 @@ test('nessun ordine completato: solo gli annullati', () => {
   assert.equal(s.numeroTotaleOrdini, 0);
   assert.equal(s.canceledCount, 2);
   assert.equal(s.totaleStornato, 9);
-});
-
-test('confronto tra serate', () => {
-  const [a, b] = buildSessionComparison([
-    { id: 1, name: 'Venerdì', start_time: '2026-10-02', n: 4, total: '40' },
-    { id: 2, name: null, start_time: '2026-10-03T12:00:00Z', n: 0, total: '0' },
-  ]);
-  assert.deepEqual(a, { id: 1, name: 'Venerdì', totale: 40, numero: 4, medio: 10 });
-  assert.equal(b.medio, 0);
-  assert.ok(b.name);
 });

@@ -87,8 +87,7 @@ describe('statistiche e paginazione', () => {
     assert.equal(panino.revenue, 25);
     assert.equal(s.topProdotti.filter(p => p.productId === t.productId).length, 1);
     assert.deepEqual(s.incassoPerCategoria, [{ categoria: 'Cibo', totale: 25 }, { categoria: 'Bevande', totale: 12 }, { categoria: 'Altro', totale: 2 }]);
-    assert.equal(s.confrontoSerate.length, 2);
-    assert.deepEqual(s.confrontoSerate.find(x => x.id === s2), { id: s2, name: 'Sabato', totale: 17, numero: 2, medio: 8.5 });
+    assert.ok(!('confrontoSerate' in s), 'il confronto tra serate non si calcola più');
   });
 
   it('confronto tra due serate', async () => {
