@@ -41,6 +41,12 @@ const SalaPage = ({ user, service, event }) => {
   }, [showToast]);
 
   useEffect(() => { load(); }, [load, service?.id]);
+  // La cucina segna pronta una portata: lo si dice a chi è in sala, così la porta al tavolo (niente da confermare)
+  useEffect(() => {
+    const o = event?.type === 'order_updated' ? event.order : null;
+    if (o?.status === 'completed' && o.check_id && o.order_type !== 'cover')
+      showToast(`${o.table_name ? `Tavolo ${o.table_name}` : 'Conto'}: ${o.course_name ?? 'piatti'} pronti`, 'success');
+  }, [event, showToast]);
   // Un conto cambia su un altro dispositivo
   useEffect(() => { if (event?.type === 'check_updated') load(); }, [event, load]);
 

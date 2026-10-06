@@ -25,15 +25,17 @@ export function boardOrders(orders, station = 'all', now = Date.now()) {
     .sort((a, b) => new Date(a.fired_at ?? a.created_at) - new Date(b.fired_at ?? b.created_at) || a.id - b.id);
 }
 
-// Cosa fa il pulsante di una comanda sulle sue righe da fare: se nessuna è partita «Inizia», altrimenti «Pronta».
+// Il pulsante della comanda: segna pronte tutte le righe ancora da fare. Un solo gesto: la cucina non gestisce stati
+// intermedi (l'unica cosa che interessa a sala e cassa è «pronta»).
 export function ticketAction(order) {
-  const open = order.items.filter(i => !isDone(i));
-  const started = open.some(i => i.prep_status === 'preparing');
-  return { label: started ? 'Pronta' : 'Inizia', status: started ? 'ready' : 'preparing', lineIds: open.map(i => i.line_id) };
+  return { label: 'Pronta', status: 'ready', lineIds: order.items.filter(i => !isDone(i)).map(i => i.line_id) };
 }
 
-// Un tocco sulla singola riga: da fare → pronta; già pronta → di nuovo in preparazione (correzione).
-export const toggleLineStatus = (item) => (isDone(item) ? 'preparing' : 'ready');
+// Un tocco sulla singola riga: da fare → pronta; già pronta → di nuovo da fare (correzione di un tocco sbagliato).
+export const toggleLineStatus = (item) => (isDone(item) ? 'new' : 'ready');
+
+// I tab Cucina/Bar servono solo se c'è del lavoro per il bar; altrimenti non si mostrano.
+export const hasBarWork = (orders) => orders.some(o => o.status !== 'scheduled' && o.items.some(i => stationOf(i) === 'bar' && !isDone(i)));
 
 // Portate già sul conto ma non ancora mandate, raggruppate per tavolo, per far vedere alla cucina cosa sta per arrivare.
 export function upcomingByTable(orders) {

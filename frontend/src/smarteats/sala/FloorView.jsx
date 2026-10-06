@@ -30,7 +30,7 @@ const TableCard = ({ table, check, selected, onSelect }) => {
       <div className="text-xs">
         <p className="font-semibold">{table.active ? STATE_LABEL[state] : 'Non in uso'}</p>
         {check && <p className="mt-0.5 flex items-center gap-1.5 text-[var(--text-muted)]"><Receipt size={12} /> {formatEuro(check.total)} · {minutesSince(check.opened_at)} min</p>}
-        {check?.ready_items > 0 && <p className="mt-0.5 font-semibold text-emerald-500">{check.ready_items} da servire</p>}
+        {check?.ready_items > 0 && <p className="mt-0.5 font-semibold text-emerald-500">{check.ready_items} {check.ready_items === 1 ? "pronto" : "pronti"}</p>}
       </div>
     </button>
   );
@@ -46,7 +46,7 @@ const mapTable = (checkOf, selectedId, onSelect) => (table, style, cell) => {
       className={`flex flex-col items-center justify-center border box-border overflow-hidden text-center ${table.shape === 'round' ? 'rounded-full' : 'rounded-lg'} ${STATE_STYLE[state]} ${table.active ? interactive : 'opacity-40'} ${table.id === selectedId ? `${ring} z-10` : ''}`}>
       <span className="font-semibold leading-none text-[var(--text-main)] truncate max-w-full px-1" style={{ fontSize: Math.max(10, Math.min(cell * 0.45, 18)) }}>{table.name}</span>
       {check?.ready_items > 0 && (
-        <span title={`${check.ready_items} da servire`} className="absolute top-0.5 right-0.5 min-w-4 h-4 px-1 rounded-full bg-emerald-500 text-white text-[11px] font-semibold leading-none flex items-center justify-center">{check.ready_items}</span>
+        <span title={`${check.ready_items} ${check.ready_items === 1 ? 'pronto' : 'pronti'}`} className="absolute top-0.5 right-0.5 min-w-4 h-4 px-1 rounded-full bg-emerald-500 text-white text-[11px] font-semibold leading-none flex items-center justify-center">{check.ready_items}</span>
       )}
       {cell >= 24 && table.h > 1 && (
         <span className="leading-none mt-0.5 text-[var(--text-muted)]" style={{ fontSize: Math.max(9, cell * 0.3) }}>
@@ -59,7 +59,7 @@ const mapTable = (checkOf, selectedId, onSelect) => (table, style, cell) => {
 
 // Le sale con i tavoli: un selettore in alto sceglie la sala, la pianta disegnata dall'admin occupa tutta l'area
 // (scalata per starci intera) e mostra lo stato dal vivo. I tavoli non ancora piazzati restano schede sotto la pianta.
-const FILTERS = [{ id: 'all', label: 'Tutti' }, { id: 'busy', label: 'Occupati' }, { id: 'ready', label: 'Da servire' }];
+const FILTERS = [{ id: 'all', label: 'Tutti' }, { id: 'busy', label: 'Occupati' }, { id: 'ready', label: 'Pronti' }];
 
 const FloorView = ({ rooms, checks, service, selectedTableId, onSelect }) => {
   const phone = useIsMobile(640);                 // sul telefono i tavoli sono schede, non la pianta

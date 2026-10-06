@@ -1,7 +1,7 @@
 import { useState, useEffect, useMemo } from 'react';
 import { ChefHat, Clock, Check } from 'lucide-react';
 import { useKitchenOrders } from './useKitchenOrders';
-import { boardOrders, upcomingByTable, urgency, ticketAction, toggleLineStatus, isDone, STATIONS } from './board';
+import { boardOrders, upcomingByTable, urgency, ticketAction, toggleLineStatus, isDone, hasBarWork, STATIONS } from './board';
 import { segment, segmentBox } from '../sala/ui';
 
 const BAR = { ok: 'bg-emerald-500', warn: 'bg-amber-500', late: 'bg-red-500' };
@@ -40,7 +40,7 @@ const Ticket = ({ order, onLines }) => {
         })}
       </ul>
       <button onClick={() => onLines(order, action.lineIds, action.status)}
-        className={`h-12 text-sm font-semibold transition cursor-pointer active:scale-[0.99] ${action.status === 'ready' ? 'bg-[var(--accent)] text-white hover:bg-[var(--accent-hover)]' : 'border-t border-[var(--border)] text-[var(--text-main)] hover:bg-[var(--bg-card-2)]'}`}>
+        className="h-12 text-sm font-semibold transition cursor-pointer active:scale-[0.99] bg-[var(--accent)] text-white hover:bg-[var(--accent-hover)]">
         {action.label}
       </button>
     </article>
@@ -55,9 +55,9 @@ const CucinaPage = ({ event }) => {
   const [now, setNow] = useState(() => Date.now());
   useEffect(() => { const t = setInterval(() => setNow(Date.now()), 30000); return () => clearInterval(t); }, []);
 
-  const active = useMemo(() => boardOrders(orders ?? [], station, now), [orders, station, now]);
+  const showStations = hasBarWork(orders ?? []);
+  const active = useMemo(() => boardOrders(orders ?? [], showStations ? station : 'all', now), [orders, station, showStations, now]);
   const upcoming = useMemo(() => upcomingByTable(orders ?? []), [orders]);
-  const preparing = active.filter(o => o.items.some(i => i.prep_status === 'preparing')).length;
 
   if (!orders) return <p className="text-[var(--text-muted)]">Caricamento…</p>;
   return (
@@ -65,11 +65,13 @@ const CucinaPage = ({ event }) => {
       <header className="shrink-0 flex flex-wrap items-end justify-between gap-3">
         <div>
           <h2 className="text-2xl font-semibold tracking-tight text-[var(--text-main)]">Cucina</h2>
-          <p className="text-sm text-[var(--text-muted)]">{active.length === 0 ? 'Nessuna comanda' : `${active.length - preparing} da preparare · ${preparing} in preparazione`}</p>
+          <p className="text-sm text-[var(--text-muted)]">{active.length === 0 ? 'Nessuna comanda' : `${active.length} ${active.length === 1 ? 'comanda' : 'comande'} da preparare`}</p>
         </div>
-        <div className={`${segmentBox} w-64`} role="tablist" aria-label="Postazione">
-          {STATIONS.map(s => <button key={s.id} role="tab" aria-selected={station === s.id} className={segment(station === s.id)} onClick={() => setStation(s.id)}>{s.label}</button>)}
-        </div>
+        {showStations && (
+          <div className={`${segmentBox} w-64`} role="tablist" aria-label="Postazione">
+            {STATIONS.map(s => <button key={s.id} role="tab" aria-selected={station === s.id} className={segment(station === s.id)} onClick={() => setStation(s.id)}>{s.label}</button>)}
+          </div>
+        )}
       </header>
 
       <div className="flex-1 overflow-y-auto no-scrollbar">

@@ -13,7 +13,7 @@ const SUMMARY_SQL = `
          (SELECT COUNT(*) FROM orders o WHERE o.check_id = c.id AND o.status <> 'canceled')::int AS orders_count,
          COALESCE((SELECT SUM(p.amount) FROM payments p WHERE p.check_id = c.id), 0) AS paid_total,
          (SELECT COUNT(*) FROM order_items oi JOIN orders o ON o.id = oi.order_id
-           WHERE o.check_id = c.id AND o.status <> 'canceled' AND oi.prep_status = 'ready')::int AS ready_items
+           WHERE o.check_id = c.id AND o.status <> 'canceled' AND oi.prep_status = 'ready' AND oi.ready_at > now() - interval '15 minutes')::int AS ready_items
   FROM checks c
   LEFT JOIN dining_tables t ON t.id = c.table_id
   LEFT JOIN rooms r ON r.id = t.room_id

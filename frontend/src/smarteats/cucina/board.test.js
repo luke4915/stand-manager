@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { minutesSince, urgency, boardOrders, ticketAction, toggleLineStatus, upcomingByTable, withLineStatus, stationOf } from './board.js';
+import { minutesSince, urgency, boardOrders, ticketAction, toggleLineStatus, upcomingByTable, withLineStatus, stationOf, hasBarWork } from './board.js';
 
 const NOW = new Date('2026-10-05T20:00:00Z').getTime();
 const ago = (min) => new Date(NOW - min * 60000).toISOString();
@@ -38,14 +38,21 @@ test('ogni postazione vede solo le sue righe, e la comanda esce quando ha finito
   assert.equal(boardOrders([barDone], 'all', NOW).length, 1);
 });
 
-test('il pulsante: «Inizia» se nulla è partito, «Pronta» appena una riga è in preparazione; solo le righe da fare', () => {
-  assert.deepEqual(ticketAction(order(1, 'pending', 1, [item(11, 'kitchen'), item(12, 'kitchen')])), { label: 'Inizia', status: 'preparing', lineIds: [11, 12] });
-  assert.deepEqual(ticketAction(order(1, 'preparing', 1, [item(11, 'kitchen', 'preparing'), item(12, 'kitchen')])), { label: 'Pronta', status: 'ready', lineIds: [11, 12] });
+test('il pulsante segna pronte solo le righe ancora da fare', () => {
+  assert.deepEqual(ticketAction(order(1, 'pending', 1, [item(11, 'kitchen'), item(12, 'kitchen')])), { label: 'Pronta', status: 'ready', lineIds: [11, 12] });
   assert.deepEqual(ticketAction(order(1, 'preparing', 1, [item(11, 'kitchen', 'ready'), item(12, 'kitchen', 'preparing')])), { label: 'Pronta', status: 'ready', lineIds: [12] });
 });
 
-test('un tocco sulla riga la segna pronta, o la riporta in preparazione se già pronta', () => {
-  assert.deepEqual(['new', 'preparing', 'ready', 'served'].map(s => toggleLineStatus({ prep_status: s })), ['ready', 'ready', 'preparing', 'preparing']);
+test('un tocco sulla riga la segna pronta, o la riporta da fare se già pronta', () => {
+  assert.deepEqual(['new', 'preparing', 'ready', 'served'].map(s => toggleLineStatus({ prep_status: s })), ['ready', 'ready', 'new', 'new']);
+});
+
+test('i tab del bar compaiono solo se c\'è lavoro per il bar', () => {
+  const kitchenOnly = [order(1, 'pending', 1, [item(11, 'kitchen'), item(12, 'both')])];
+  assert.equal(hasBarWork(kitchenOnly), false);
+  assert.equal(hasBarWork([order(2, 'pending', 1, [item(21, 'bar')])]), true);
+  assert.equal(hasBarWork([order(3, 'pending', 1, [item(31, 'bar', 'ready')])]), false, 'già pronto');
+  assert.equal(hasBarWork([order(4, 'scheduled', 1, [item(41, 'bar')])]), false, 'non ancora mandato');
 });
 
 test('le portate in arrivo si raggruppano per tavolo, nell\'ordine d\'uscita', () => {
