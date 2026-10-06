@@ -74,10 +74,10 @@ const QuickEditProductModal = ({ product, onClose, onSaved }) => {
   return (
     <div className="fixed inset-0 z-[70] flex items-center justify-center p-4" onClick={onClose}>
       <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" />
-      <div className="relative w-full max-w-sm bg-[var(--bg-card)] rounded-2xl border border-[var(--border)] shadow-2xl p-6" onClick={e => e.stopPropagation()}>
-        <h3 className="text-base font-black uppercase tracking-tight text-[var(--text-main)] mb-4">{product.name}</h3>
+      <div className="relative w-full max-w-sm bg-[var(--bg-card)] rounded-xl border border-[var(--border)] shadow-2xl p-6" onClick={e => e.stopPropagation()}>
+        <h3 className="text-base font-semibold tracking-tight text-[var(--text-main)] mb-4">{product.name}</h3>
 
-        <label className="text-[10px] font-black uppercase tracking-widest text-[var(--text-muted)] block mb-1.5">Prezzo</label>
+        <label className="text-xs font-semibold text-[var(--text-muted)] block mb-1.5">Prezzo</label>
         <input
           type="text"
           inputMode="decimal"
@@ -113,14 +113,14 @@ const QuickEditProductModal = ({ product, onClose, onSaved }) => {
         <div className="flex gap-3 mt-5">
           <button
             onClick={onClose}
-            className="flex-1 h-11 rounded-xl border border-red-500/30 text-red-500 font-black text-xs uppercase tracking-widest hover:bg-red-500/10 transition-all cursor-pointer"
+            className="flex-1 h-11 rounded-xl border border-red-500/30 text-red-500 font-semibold text-xs hover:bg-red-500/10 transition-all cursor-pointer"
           >
             Annulla
           </button>
           <button
             onClick={handleSave}
             disabled={isSaveDisabled}
-            className="flex-1 h-11 rounded-xl bg-[var(--accent)] hover:bg-[var(--accent-hover)] text-white font-black text-xs uppercase tracking-widest transition-all cursor-pointer flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
+            className="flex-1 h-11 rounded-xl bg-[var(--accent)] hover:bg-[var(--accent-hover)] text-white font-semibold text-xs transition-all cursor-pointer flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
           >
             <Check size={16} /> {saving ? 'Salvataggio...' : 'Salva'}
           </button>

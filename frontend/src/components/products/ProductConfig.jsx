@@ -334,8 +334,8 @@ const ProductConfig = ({ products, setProducts, courses = null, modifierGroups =
     <div className="max-w-5xl mx-auto space-y-5 relative">
       {/* Header Titolo */}
       <div>
-        <h2 className="text-4xl font-black tracking-tighter text-[var(--text-main)]">MENU</h2>
-        <p className="text-[10px] font-black uppercase tracking-widest text-gray-400 mt-1">Gestione prodotti</p>
+        <h2 className="text-2xl font-semibold tracking-tight text-[var(--text-main)]">Menu</h2>
+        <p className="text-xs font-semibold text-gray-400 mt-1">Gestione prodotti</p>
       </div>
 
       {/* Top Bar Unificata */}
@@ -347,7 +347,7 @@ const ProductConfig = ({ products, setProducts, courses = null, modifierGroups =
             <select
               value={filterCategory}
               onChange={(e) => setFilterCategory(e.target.value)}
-              className="w-full h-10 pl-3.5 pr-8 rounded-xl bg-[var(--bg-card-2)] border border-[var(--border)] text-[var(--text-main)] font-black text-xs uppercase tracking-wider appearance-none cursor-pointer focus:outline-none focus:border-[var(--accent)] transition-colors"
+              className="w-full h-10 pl-3.5 pr-8 rounded-xl bg-[var(--bg-card-2)] border border-[var(--border)] text-[var(--text-main)] font-semibold text-xs appearance-none cursor-pointer focus:outline-none focus:border-[var(--accent)] transition-colors"
             >
               <option value="all">Tutte le categorie</option>
               {categories.map(c => <option key={c} value={c}>{c}</option>)}
@@ -385,7 +385,7 @@ const ProductConfig = ({ products, setProducts, courses = null, modifierGroups =
           <button
             onClick={() => setShowOnlyVisible(!showOnlyVisible)}
             title={showOnlyVisible ? "Mostra anche i prodotti nascosti" : "Mostra solo i prodotti visibili"}
-            className={`flex items-center gap-1.5 h-10 px-3.5 rounded-xl font-black text-[10px] uppercase tracking-widest transition-all border cursor-pointer ${
+            className={`flex items-center gap-1.5 h-10 px-3.5 rounded-xl font-semibold text-xs transition-all border cursor-pointer ${
               showOnlyVisible
                 ? 'bg-green-600/10 border-green-500/30 text-green-400 hover:bg-green-600/20'
                 : 'bg-[var(--bg-card-2)] border-[var(--border)] text-[var(--text-muted)] hover:text-[var(--text-main)] hover:border-gray-400'
@@ -397,7 +397,7 @@ const ProductConfig = ({ products, setProducts, courses = null, modifierGroups =
 
           <button
             onClick={() => { setIsBulkMode(!isBulkMode); setSelectedIds([]); }}
-            className={`flex items-center gap-1.5 h-10 px-3.5 rounded-xl font-black text-[10px] uppercase tracking-widest transition-all border cursor-pointer ${
+            className={`flex items-center gap-1.5 h-10 px-3.5 rounded-xl font-semibold text-xs transition-all border cursor-pointer ${
               isBulkMode
                 ? 'bg-blue-600 border-blue-500 text-white hover:bg-blue-700 shadow-sm'
                 : 'bg-[var(--bg-card-2)] border-[var(--border)] text-[var(--text-muted)] hover:text-[var(--text-main)]'
@@ -409,7 +409,7 @@ const ProductConfig = ({ products, setProducts, courses = null, modifierGroups =
 
           <button
             onClick={openAddForm}
-            className="flex items-center gap-1.5 h-10 px-4 bg-[var(--accent)] hover:bg-[var(--accent-hover)] text-white rounded-xl font-black text-[10px] uppercase tracking-widest transition-all shadow-md shadow-[var(--accent-shadow)] cursor-pointer"
+            className="flex items-center gap-1.5 h-10 px-4 bg-[var(--accent)] hover:bg-[var(--accent-hover)] text-white rounded-xl font-semibold text-xs transition-all cursor-pointer"
           >
             <Plus size={15} />
             <span>Aggiungi</span>
@@ -419,20 +419,20 @@ const ProductConfig = ({ products, setProducts, courses = null, modifierGroups =
 
       {/* Banner Selezione Multipla */}
       {isBulkMode && (
-        <div className="flex items-center justify-between p-4 bg-blue-950/40 border border-blue-500/30 rounded-2xl animate-in fade-in slide-in-from-top-2">
-          <span className="text-xs font-bold text-blue-300 uppercase tracking-wider">{selectedIds.length} Prodotti Selezionati</span>
+        <div className="flex items-center justify-between p-4 bg-blue-950/40 border border-blue-500/30 rounded-xl animate-in fade-in slide-in-from-top-2">
+          <span className="text-xs font-bold text-blue-300">{selectedIds.length} Prodotti Selezionati</span>
           <div className="flex gap-2">
             <button
               onClick={() => handleBulkVisibilityChange(true)}
               disabled={selectedIds.length === 0}
-              className="flex items-center gap-1.5 px-4 py-2 bg-green-600 disabled:opacity-40 hover:bg-green-700 text-white font-black text-[10px] uppercase tracking-widest rounded-xl transition-all cursor-pointer disabled:cursor-not-allowed"
+              className="flex items-center gap-1.5 px-4 py-2 bg-green-600 disabled:opacity-40 hover:bg-green-700 text-white font-semibold text-xs rounded-xl transition-all cursor-pointer disabled:cursor-not-allowed"
             >
               <Eye size={14} /> Mostra nel Listino
             </button>
             <button
               onClick={() => handleBulkVisibilityChange(false)}
               disabled={selectedIds.length === 0}
-              className="flex items-center gap-1.5 px-4 py-2 bg-red-600 disabled:opacity-40 hover:bg-red-700 text-white font-black text-[10px] uppercase tracking-widest rounded-xl transition-all cursor-pointer disabled:cursor-not-allowed"
+              className="flex items-center gap-1.5 px-4 py-2 bg-red-600 disabled:opacity-40 hover:bg-red-700 text-white font-semibold text-xs rounded-xl transition-all cursor-pointer disabled:cursor-not-allowed"
             >
               <EyeOff size={14} /> Nascondi nel Listino
             </button>
@@ -444,13 +444,13 @@ const ProductConfig = ({ products, setProducts, courses = null, modifierGroups =
       <div className="space-y-6">
         {filteredGroups.map(group => (
           <div key={group.category}>
-            <p className="text-[10px] font-black uppercase tracking-widest text-gray-400 mb-3">{group.category}</p>
+            <p className="text-xs font-semibold text-gray-400 mb-3">{group.category}</p>
             <div className="space-y-2">
               {group.items.map(product => (
                 <div
                   key={product.id}
                   onClick={() => isBulkMode && handleSelectProduct(product.id)}
-                  className={`flex justify-between items-center p-4 bg-[var(--bg-card)] rounded-2xl border-l-4 border border-[var(--border)] transition-all ${isBulkMode ? 'cursor-pointer select-none hover:bg-[var(--bg-card-2)]' : ''} ${product.visible === false ? 'opacity-50' : ''}`}
+                  className={`flex justify-between items-center p-4 bg-[var(--bg-card)] rounded-xl border-l-4 border border-[var(--border)] transition-all ${isBulkMode ? 'cursor-pointer select-none hover:bg-[var(--bg-card-2)]' : ''} ${product.visible === false ? 'opacity-50' : ''}`}
                   style={{ borderLeftColor: product.color || '#3b82f6' }}
                 >
                   <div className="flex items-center gap-4">
@@ -461,10 +461,10 @@ const ProductConfig = ({ products, setProducts, courses = null, modifierGroups =
                     )}
                     <div>
                       <div className="flex items-center gap-2 flex-wrap">
-                        <p className="font-black text-sm uppercase tracking-tight text-[var(--text-main)]">{product.name}</p>
-                        {product.visible === false && <span className="bg-red-500/20 text-red-400 font-bold px-1.5 py-0.5 rounded text-[8px] uppercase tracking-wider border border-red-500/20">Nascosto</span>}
-                        {product.print_destination === 'bar' && <span className="bg-blue-500/10 text-blue-400 font-bold px-1.5 py-0.5 rounded text-[8px] uppercase tracking-wider border border-blue-500/20">Bar</span>}
-                        {product.print_destination === 'kitchen' && <span className="bg-green-500/10 text-green-400 font-bold px-1.5 py-0.5 rounded text-[8px] uppercase tracking-wider border border-green-500/20">Cucina</span>}
+                        <p className="font-semibold text-sm tracking-tight text-[var(--text-main)]">{product.name}</p>
+                        {product.visible === false && <span className="bg-red-500/20 text-red-400 font-bold px-1.5 py-0.5 rounded text-[11px] border border-red-500/20">Nascosto</span>}
+                        {product.print_destination === 'bar' && <span className="bg-blue-500/10 text-blue-400 font-bold px-1.5 py-0.5 rounded text-[11px] border border-blue-500/20">Bar</span>}
+                        {product.print_destination === 'kitchen' && <span className="bg-green-500/10 text-green-400 font-bold px-1.5 py-0.5 rounded text-[11px] border border-green-500/20">Cucina</span>}
                       </div>
                       <p className="text-xs font-bold" style={{ color: product.color || '#3b82f6' }}>{(product.price || 0).toFixed(2)} €</p>
                     </div>
@@ -496,15 +496,15 @@ const ProductConfig = ({ products, setProducts, courses = null, modifierGroups =
       {/* Modal Aggiungi/Modifica */}
       {showForm && (
         <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50 p-4">
-          <div className={`bg-[var(--bg-card)] rounded-2xl shadow-2xl w-full max-w-2xl border border-[var(--border)] transform transition-all duration-300 ${popupVisible ? 'opacity-100 scale-100' : 'opacity-0 scale-95'} overflow-hidden`}>
+          <div className={`bg-[var(--bg-card)] rounded-xl shadow-2xl w-full max-w-2xl border border-[var(--border)] transform transition-all duration-300 ${popupVisible ? 'opacity-100 scale-100' : 'opacity-0 scale-95'} overflow-hidden`}>
             <div className="flex justify-between items-center px-6 py-4 border-b border-[var(--border)]">
-              <h3 className="text-base font-black tracking-tight uppercase text-[var(--text-main)]">{editingProduct ? 'Modifica prodotto' : 'Nuovo prodotto'}</h3>
+              <h3 className="text-base font-semibold tracking-tight text-[var(--text-main)]">{editingProduct ? 'Modifica prodotto' : 'Nuovo prodotto'}</h3>
               <button onClick={() => setShowForm(false)} className="p-1.5 rounded-xl hover:bg-[var(--bg-card-2)] transition-colors cursor-pointer"><X size={16} className="text-[var(--text-muted)]" /></button>
             </div>
             <form onSubmit={handleSubmit} className="p-6">
               <div className="grid grid-cols-2 gap-3 mb-3">
                 <div className="col-span-2 p-3 rounded-xl bg-[var(--bg-input)] border border-[var(--border)] space-y-1.5">
-                  <label className="text-[10px] font-black uppercase tracking-widest text-[var(--text-muted)] block">
+                  <label className="text-xs font-semibold text-[var(--text-muted)] block">
                     Categoria
                   </label>
                   <Combobox
@@ -517,7 +517,7 @@ const ProductConfig = ({ products, setProducts, courses = null, modifierGroups =
                 </div>
 
                 <div className="col-span-2 p-3 rounded-xl bg-[var(--bg-input)] border border-[var(--border)] space-y-1.5">
-                  <label className="text-[10px] font-black uppercase tracking-widest text-[var(--text-muted)] block">
+                  <label className="text-xs font-semibold text-[var(--text-muted)] block">
                     Nome Prodotto
                   </label>
                   <Combobox
@@ -530,7 +530,7 @@ const ProductConfig = ({ products, setProducts, courses = null, modifierGroups =
                 </div>
 
                 <div className="col-span-2 p-3 rounded-xl bg-[var(--bg-input)] border border-[var(--border)] space-y-1.5">
-                  <label className="text-[10px] font-black uppercase tracking-widest text-[var(--text-muted)] block">
+                  <label className="text-xs font-semibold text-[var(--text-muted)] block">
                     Prezzo (€)
                   </label>
                   <input
@@ -549,7 +549,7 @@ const ProductConfig = ({ products, setProducts, courses = null, modifierGroups =
               <div className="grid grid-cols-2 gap-3">
                 <div className="p-3 rounded-xl bg-[var(--bg-input)] border border-[var(--border)] flex flex-col justify-between space-y-2">
                   <div className="flex items-center justify-between">
-                    <label className="text-[10px] font-black text-[var(--text-muted)] uppercase tracking-widest">
+                    <label className="text-xs font-semibold text-[var(--text-muted)]">
                       Colore Categoria
                     </label>
                     <input 
@@ -583,7 +583,7 @@ const ProductConfig = ({ products, setProducts, courses = null, modifierGroups =
                 </div>
 
                 <div className="p-3 rounded-xl bg-[var(--bg-input)] border border-[var(--border)]">
-                  <span className="text-[10px] font-black uppercase tracking-widest text-[var(--text-muted)] block mb-2">
+                  <span className="text-xs font-semibold text-[var(--text-muted)] block mb-2">
                     Stampa
                   </span>
                   <div className="flex gap-1.5">
@@ -596,13 +596,13 @@ const ProductConfig = ({ products, setProducts, courses = null, modifierGroups =
                         key={opt.value}
                         type="button"
                         onClick={() => setFormData(prev => ({ ...prev, print_destination: opt.value }))}
-                        className={`flex-1 py-2 rounded-xl border text-xs font-black transition-all cursor-pointer ${formData.print_destination === opt.value
+                        className={`flex-1 py-2 rounded-xl border text-xs font-semibold transition-all cursor-pointer ${formData.print_destination === opt.value
                           ? 'bg-[var(--accent)] border-[var(--accent)] text-white'
                           : 'bg-[var(--bg-card)] border-[var(--border)] text-[var(--text-muted)] hover:border-[var(--accent)]'
                           }`}
                       >
                         <div>{opt.label}</div>
-                        <div className="text-[9px] font-medium opacity-70 mt-0.5">{opt.desc}</div>
+                        <div className="text-[11px] font-medium opacity-70 mt-0.5">{opt.desc}</div>
                       </button>
                     ))}
                   </div>
@@ -658,7 +658,7 @@ const ProductConfig = ({ products, setProducts, courses = null, modifierGroups =
               <button 
                 type="submit" 
                 disabled={isFormSubmitDisabled}
-                className="w-full mt-4 py-2.5 rounded-xl bg-[var(--accent)] hover:bg-[var(--accent-hover)] text-white font-black text-sm uppercase tracking-widest transition-all cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
+                className="w-full mt-4 py-2.5 rounded-xl bg-[var(--accent)] hover:bg-[var(--accent-hover)] text-white font-semibold text-sm transition-all cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
               >
                 {editingProduct ? 'Salva modifiche' : 'Aggiungi prodotto'}
               </button>
@@ -672,7 +672,7 @@ const ProductConfig = ({ products, setProducts, courses = null, modifierGroups =
         <div className="fixed inset-0 z-[60] flex items-center justify-center p-4" onClick={() => setDuplicateConflict(null)}>
           <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" />
           <div className="relative w-full max-w-sm bg-[var(--bg-card)] rounded-xl border border-[var(--border)] shadow-2xl p-6" onClick={e => e.stopPropagation()}>
-            <p className="font-black text-[var(--text-main)] mb-2 text-center">Prodotto già esistente</p>
+            <p className="font-semibold text-[var(--text-main)] mb-2 text-center">Prodotto già esistente</p>
             {duplicateConflict.sameCategory ? (
               <p className="text-xs text-[var(--text-muted)] mb-4 text-center">
                 <b>"{duplicateConflict.product.name}"</b> esiste già in <b>"{duplicateConflict.product.category}"</b>.
@@ -686,11 +686,11 @@ const ProductConfig = ({ products, setProducts, courses = null, modifierGroups =
             )}
             <div className="flex flex-col gap-2">
               {!duplicateConflict.sameCategory && (
-                <button onClick={useExistingCategory} className="w-full h-10 rounded-xl bg-[var(--accent)] hover:bg-[var(--accent-hover)] text-white font-black text-xs uppercase tracking-widest transition-all cursor-pointer">
+                <button onClick={useExistingCategory} className="w-full h-10 rounded-xl bg-[var(--accent)] hover:bg-[var(--accent-hover)] text-white font-semibold text-xs transition-all cursor-pointer">
                   Usa quella categoria
                 </button>
               )}
-              <button onClick={() => setDuplicateConflict(null)} className="w-full h-10 rounded-xl border border-[var(--border)] text-[var(--text-main)] font-black text-xs uppercase tracking-widest hover:bg-[var(--bg-card-2)] transition-all cursor-pointer">
+              <button onClick={() => setDuplicateConflict(null)} className="w-full h-10 rounded-xl border border-[var(--border)] text-[var(--text-main)] font-semibold text-xs hover:bg-[var(--bg-card-2)] transition-all cursor-pointer">
                 {duplicateConflict.sameCategory ? 'Ho capito' : 'Annulla'}
               </button>
             </div>
@@ -703,13 +703,13 @@ const ProductConfig = ({ products, setProducts, courses = null, modifierGroups =
         <div className="fixed inset-0 z-[60] flex items-center justify-center p-4" onClick={() => setDeleteTarget(null)}>
           <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" />
           <div className="relative w-full max-w-sm bg-[var(--bg-card)] rounded-xl border border-[var(--border)] shadow-2xl p-6" onClick={e => e.stopPropagation()}>
-            <p className="font-black text-[var(--text-main)] mb-2 text-center">Eliminare il prodotto "{deleteTarget.name}"?</p>
+            <p className="font-semibold text-[var(--text-main)] mb-2 text-center">Eliminare il prodotto "{deleteTarget.name}"?</p>
             <p className="text-xs text-[var(--text-muted)] mb-4 text-center">L'azione è irreversibile!</p>
             <div className="flex gap-3">
-              <button onClick={() => setDeleteTarget(null)} className="flex-1 h-10 rounded-xl border border-[var(--border)] text-[var(--text-main)] font-black text-xs uppercase tracking-widest hover:bg-[var(--bg-card-2)] transition-all cursor-pointer">
+              <button onClick={() => setDeleteTarget(null)} className="flex-1 h-10 rounded-xl border border-[var(--border)] text-[var(--text-main)] font-semibold text-xs hover:bg-[var(--bg-card-2)] transition-all cursor-pointer">
                 Annulla
               </button>
-              <button onClick={confirmDelete} className="flex-1 h-10 rounded-xl bg-red-500 hover:bg-red-600 text-white font-black text-xs uppercase tracking-widest transition-all cursor-pointer">
+              <button onClick={confirmDelete} className="flex-1 h-10 rounded-xl bg-red-500 hover:bg-red-600 text-white font-semibold text-xs transition-all cursor-pointer">
                 Elimina
               </button>
             </div>
