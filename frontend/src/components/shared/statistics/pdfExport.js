@@ -53,15 +53,5 @@ export function exportStatsPdf(stats, sessions, selectedSessionIds, terms) {
     });
   }
 
-  if (stats.confrontoSerate.length > 1) {
-    autoTable(doc, {
-      startY: doc.lastAutoTable.finalY + 10,
-      head: [[terms?.column ?? 'Sessione', 'Totale', 'Ordini', 'Medio']],
-      body: stats.confrontoSerate.map(s => [s.name, formatEuro(s.totale), s.numero, formatEuro(s.medio)]),
-      theme: 'striped',
-      headStyles: { fillColor: [37, 99, 235] },
-    });
-  }
-
   doc.save(`report_statistiche_${new Date().toISOString().slice(0, 10)}.pdf`);
 }

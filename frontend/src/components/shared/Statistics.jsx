@@ -1,12 +1,12 @@
 import React, { useState } from 'react';
-import { BarChart, Bar, XAxis, YAxis, Tooltip, Legend, ResponsiveContainer, LineChart, Line } from 'recharts';
-import { Download, X, CheckSquare, Square, FileText } from 'lucide-react';
+import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, LineChart, Line } from 'recharts';
+import { Download, X, Check, FileText } from 'lucide-react';
 
 import { fetchWithAuth } from '../../utils/apiClient';
 import { useToast } from '../../context/useToast';
 import StatCard from './statistics/StatCard';
 import ChartCard from './statistics/ChartCard';
-import { tooltipStyle } from './statistics/chartStyles';
+import { tooltipStyle, axis, grid, cursor } from './statistics/chartStyles';
 import { useStatistics, formatEuro, formatMin, activeHours, reorderHours } from './statistics/useStatistics';
 import { exportStatsPdf } from './statistics/pdfExport';
 import { useAuth } from '../../context/useAuth';
@@ -46,13 +46,13 @@ const Statistics = () => {
 
   if (loading) return (
     <div className="flex items-center justify-center h-64 text-[var(--text-muted)]">
-      <p className="font-black uppercase tracking-widest text-xs">Caricamento...</p>
+      <p className="text-sm">Caricamento…</p>
     </div>
   );
 
   if (error) return (
     <div className="flex items-center justify-center h-64 text-red-500">
-      <p className="font-black uppercase tracking-widest text-xs">{error}</p>
+      <p className="text-sm">{error}</p>
     </div>
   );
 
@@ -60,21 +60,21 @@ const Statistics = () => {
 
   return (
     <div className="max-w-5xl mx-auto space-y-6 pb-8">
-      <div className="flex items-center justify-between">
+      <div className="flex flex-wrap items-end justify-between gap-3">
         <div>
-          <h2 className="text-4xl font-black tracking-tighter text-[var(--text-main)]">STATISTICHE</h2>
-          <p className="text-[10px] font-black uppercase tracking-widest text-[var(--text-muted)] mt-1">
-            {selectedSessionIds.length > 0 ? `${selectedSessionIds.length} sessioni selezionate` : 'Tutte le sessioni'}
+          <h2 className="text-2xl font-semibold tracking-tight text-[var(--text-main)]">Statistiche</h2>
+          <p className="text-sm text-[var(--text-muted)]">
+            {selectedSessionIds.length > 0 ? `${selectedSessionIds.length} ${selectedSessionIds.length === 1 ? 'sessione selezionata' : 'sessioni selezionate'}` : 'Tutte le sessioni'}
           </p>
         </div>
         <div className="flex gap-2">
           <button onClick={() => setIsExportModalOpen(true)}
-            className="flex items-center gap-2 px-4 py-2.5 bg-[var(--accent)] hover:bg-[var(--accent-hover)] cursor-pointer text-white text-xs font-black uppercase tracking-wider rounded-xl transition-all">
-            <Download size={14} /> Esporta CSV
+            className="inline-flex items-center gap-2 h-10 px-4 rounded-lg border border-[var(--border)] text-sm font-medium text-[var(--text-main)] hover:bg-[var(--bg-card-2)] cursor-pointer transition-colors">
+            <Download size={15} /> Esporta CSV
           </button>
           <button onClick={() => exportStatsPdf(stats, sessions, selectedSessionIds, terms)}
-            className="flex items-center gap-2 px-4 py-2.5 bg-[var(--accent)] hover:bg-[var(--accent-hover)] cursor-pointer text-white text-xs font-black uppercase tracking-wider rounded-xl transition-all">
-            <FileText size={14} /> Esporta PDF
+            className="inline-flex items-center gap-2 h-10 px-4 rounded-lg border border-[var(--border)] text-sm font-medium text-[var(--text-main)] hover:bg-[var(--bg-card-2)] cursor-pointer transition-colors">
+            <FileText size={15} /> Esporta PDF
           </button>
         </div>
       </div>
@@ -86,19 +86,20 @@ const Statistics = () => {
               const selected = selectedSessionIds.includes(String(s.id));
               return (
                 <button key={s.id} onClick={() => toggleSession(s.id)}
-                  className={`flex items-center gap-2 px-3 py-2 rounded-xl border text-xs font-bold transition-all ${selected
-                    ? 'bg-[var(--accent)] border-[var(--accent)] text-white'
-                    : 'bg-[var(--bg-card-2)] border-[var(--border)] text-[var(--text-muted)] hover:border-[var(--accent)]/50'
+                  aria-pressed={selected}
+                  className={`flex items-center gap-1.5 h-9 px-3 rounded-lg border text-sm font-medium transition-colors cursor-pointer ${selected
+                    ? 'bg-[var(--accent)]/10 border-[var(--accent)] text-[var(--accent)]'
+                    : 'border-[var(--border)] text-[var(--text-muted)] hover:text-[var(--text-main)]'
                     }`}>
-                  {selected ? <CheckSquare size={13} /> : <Square size={13} />}
+                  {selected && <Check size={14} />}
                   {s.name || new Date(s.start_time).toLocaleDateString('it-IT')}
-                  {!s.end_time && <span className="text-[9px] opacity-70">(in corso)</span>}
+                  {!s.end_time && <span className="text-xs opacity-70">in corso</span>}
                 </button>
               );
             })}
             {selectedSessionIds.length > 0 && (
               <button onClick={() => setSelectedSessionIds([])}
-                className="px-3 py-2 rounded-xl border border-[var(--border)] text-xs text-[var(--text-muted)] hover:text-red-500 hover:border-red-500/30 transition-all">
+                className="h-9 px-3 rounded-lg text-sm text-[var(--text-muted)] hover:text-red-500 transition-colors cursor-pointer">
                 Rimuovi filtri
               </button>
             )}
@@ -106,33 +107,33 @@ const Statistics = () => {
         </ChartCard>
       )}
 
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+      <div className="grid grid-cols-2 lg:grid-cols-3 xl:grid-cols-5 gap-3">
         <StatCard label={terms.total} value={formatEuro(stats.totaleSerata)} />
         <StatCard label="Importo medio" value={formatEuro(stats.importoMedio)} />
         <StatCard label="Totale ordini" value={stats.numeroTotaleOrdini} />
         <StatCard label="Top prodotto" value={stats.prodottoPiuVenduto || '—'} />
-        <StatCard label="Guadagno non realizzato (omaggi)" value={formatEuro(stats.unrealizedGiftRevenue)} sub="Prodotti regalati a prezzo di listino" />
+        <StatCard label="Omaggi" value={formatEuro(stats.unrealizedGiftRevenue)} sub="Valore a listino dei prodotti regalati" />
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-        <div className="bg-[var(--bg-card)] rounded-xl p-4 border border-[var(--border)] flex items-center justify-between">
+        <div className="bg-[var(--bg-card)] rounded-xl p-4 border border-[var(--border)] flex items-center justify-between gap-3">
           <div>
-            <p className="text-[10px] font-black uppercase tracking-widest text-[var(--text-muted)]">Ripartizione Ordini</p>
-            <p className="text-xl font-black text-[var(--text-main)] mt-1">
+            <p className="text-xs text-[var(--text-muted)]">Ripartizione ordini</p>
+            <p className="text-xl font-semibold text-[var(--text-main)] mt-1">
               {stats.pctTakeaway}% Asporto <span className="text-xs font-normal text-[var(--text-muted)]">({stats.takeawayCount} ordini)</span>
             </p>
           </div>
-          <div className="text-right text-xs font-bold text-[var(--text-muted)]">
+          <div className="text-right text-sm text-[var(--text-muted)]">
             In loco: <span className="text-[var(--text-main)]">{stats.eatInCount}</span>
           </div>
         </div>
 
-        <div className="bg-[var(--bg-card)] rounded-xl p-4 border border-[var(--border)] flex items-center justify-between">
+        <div className="bg-[var(--bg-card)] rounded-xl p-4 border border-[var(--border)] flex items-center justify-between gap-3">
           <div>
-            <p className="text-[10px] font-black uppercase tracking-widest text-[var(--text-muted)]">Ordini Annullati / Storni</p>
-            <p className="text-xl font-black text-red-500 mt-1">{formatEuro(stats.totaleStornato)}</p>
+            <p className="text-xs text-[var(--text-muted)]">Ordini annullati e storni</p>
+            <p className="text-xl font-semibold tabular-nums text-red-500 mt-1">{formatEuro(stats.totaleStornato)}</p>
           </div>
-          <div className="text-right text-xs font-bold text-[var(--text-muted)]">
+          <div className="text-right text-sm text-[var(--text-muted)]">
             Conteggio: <span className="text-[var(--text-main)]">{stats.canceledCount} ordini</span>
           </div>
         </div>
@@ -140,7 +141,7 @@ const Statistics = () => {
 
       {stats.numeroTotaleOrdini === 0 ? (
         <div className="flex items-center justify-center h-48 text-[var(--text-muted)]">
-          <p className="font-black uppercase tracking-widest text-xs">Nessun dato disponibile</p>
+          <p className="text-sm">Nessun dato disponibile.</p>
         </div>
       ) : (
         <>
@@ -148,10 +149,11 @@ const Statistics = () => {
             <ChartCard title="Incasso per categoria">
               <ResponsiveContainer width="100%" height={200}>
                 <BarChart data={stats.incassoPerCategoria}>
-                  <XAxis dataKey="categoria" tick={{ fontSize: 11 }} />
-                  <YAxis tick={{ fontSize: 11 }} />
-                  <Tooltip contentStyle={tooltipStyle} formatter={(v) => formatEuro(v)} />
-                  <Bar dataKey="totale" fill="var(--accent)" name="Incasso" radius={[4, 4, 0, 0]} />
+                  <CartesianGrid {...grid} />
+                  <XAxis dataKey="categoria" {...axis} />
+                  <YAxis {...axis} />
+                  <Tooltip cursor={cursor} contentStyle={tooltipStyle} formatter={(v) => formatEuro(v)} />
+                  <Bar maxBarSize={28} dataKey="totale" fill="var(--accent)" name="Incasso" radius={[4, 4, 0, 0]} />
                 </BarChart>
               </ResponsiveContainer>
             </ChartCard>
@@ -160,10 +162,11 @@ const Statistics = () => {
           <ChartCard title="Ordini per fascia oraria">
             <ResponsiveContainer width="100%" height={200}>
               <BarChart data={activeHours(reorderHours(stats.ordiniPerFasciaOraria), 'count')}>
-                <XAxis dataKey="ora" tick={{ fontSize: 11 }} />
-                <YAxis tick={{ fontSize: 11 }} />
-                <Tooltip contentStyle={tooltipStyle} />
-                <Bar dataKey="count" fill="var(--accent)" name="Ordini" radius={[4, 4, 0, 0]} />
+                  <CartesianGrid {...grid} />
+                <XAxis dataKey="ora" {...axis} />
+                <YAxis {...axis} />
+                <Tooltip cursor={cursor} contentStyle={tooltipStyle} />
+                <Bar maxBarSize={28} dataKey="count" fill="var(--accent)" name="Ordini" radius={[4, 4, 0, 0]} />
               </BarChart>
             </ResponsiveContainer>
           </ChartCard>
@@ -171,24 +174,20 @@ const Statistics = () => {
           <ChartCard
             title="Top 10 prodotti"
             action={
-              <div className="flex bg-[var(--bg-card-2)] p-1 rounded-lg border border-[var(--border)]">
-                <button onClick={() => setTopProductsMetric('count')}
-                  className={`px-2.5 py-1 rounded-md text-[10px] font-black uppercase tracking-wider transition-all ${topProductsMetric === 'count' ? 'bg-[var(--accent)] text-white shadow-sm' : 'text-[var(--text-muted)] hover:text-[var(--text-main)]'}`}>
-                  Quantità
-                </button>
-                <button onClick={() => setTopProductsMetric('revenue')}
-                  className={`px-2.5 py-1 rounded-md text-[10px] font-black uppercase tracking-wider transition-all ${topProductsMetric === 'revenue' ? 'bg-[var(--accent)] text-white shadow-sm' : 'text-[var(--text-muted)] hover:text-[var(--text-main)]'}`}>
-                  Incasso (€)
-                </button>
+              <div className="flex gap-1 p-1 rounded-lg bg-[var(--bg-main)] border border-[var(--border)]" role="tablist" aria-label="Metrica">
+                {[['count', 'Quantità'], ['revenue', 'Incasso']].map(([id, name]) => (
+                  <button key={id} role="tab" aria-selected={topProductsMetric === id} onClick={() => setTopProductsMetric(id)}
+                    className={`h-8 px-3 rounded-md text-sm font-medium transition cursor-pointer ${topProductsMetric === id ? 'bg-[var(--bg-card)] text-[var(--text-main)] shadow-sm' : 'text-[var(--text-muted)] hover:text-[var(--text-main)]'}`}>{name}</button>
+                ))}
               </div>
             }
           >
             <ResponsiveContainer width="100%" height={450}>
               <BarChart data={sortedTopProdotti} layout="vertical">
-                <XAxis type="number" tick={{ fontSize: 11 }} />
-                <YAxis type="category" dataKey="prodotto" tick={{ fontSize: 11 }} width={180} />
-                <Tooltip contentStyle={tooltipStyle} formatter={(v) => (topProductsMetric === 'revenue' ? formatEuro(v) : v)} />
-                <Bar dataKey={topProductsMetric} fill="var(--accent)" name={topProductsMetric === 'revenue' ? 'Incasso' : 'Quantità'} radius={[0, 4, 4, 0]} />
+                <XAxis type="number" {...axis} />
+                <YAxis type="category" dataKey="prodotto" {...axis} width={180} />
+                <Tooltip cursor={cursor} contentStyle={tooltipStyle} formatter={(v) => (topProductsMetric === 'revenue' ? formatEuro(v) : v)} />
+                <Bar maxBarSize={28} dataKey={topProductsMetric} fill="var(--accent)" name={topProductsMetric === 'revenue' ? 'Incasso' : 'Quantità'} radius={[0, 4, 4, 0]} />
               </BarChart>
             </ResponsiveContainer>
           </ChartCard>
@@ -197,17 +196,17 @@ const Statistics = () => {
             <ChartCard title={terms.h2h}>
               <div className="flex flex-wrap gap-2 mb-4">
                 <select value={h2hSessionA} onChange={e => setH2hSessionA(e.target.value)}
-                  className="px-3 py-2 rounded-xl border border-[var(--border)] bg-[var(--bg-card-2)] text-xs font-bold text-[var(--text-main)]">
+                  className="h-10 px-3 rounded-lg border border-[var(--border)] bg-[var(--bg-card-2)] text-sm text-[var(--text-main)]">
                   <option value="">{terms.pickA}</option>
                   {sessions.map(s => <option key={s.id} value={s.id}>{s.name || new Date(s.start_time).toLocaleDateString('it-IT')}</option>)}
                 </select>
                 <select value={h2hSessionB} onChange={e => setH2hSessionB(e.target.value)}
-                  className="px-3 py-2 rounded-xl border border-[var(--border)] bg-[var(--bg-card-2)] text-xs font-bold text-[var(--text-main)]">
+                  className="h-10 px-3 rounded-lg border border-[var(--border)] bg-[var(--bg-card-2)] text-sm text-[var(--text-main)]">
                   <option value="">{terms.pickB}</option>
                   {sessions.map(s => <option key={s.id} value={s.id}>{s.name || new Date(s.start_time).toLocaleDateString('it-IT')}</option>)}
                 </select>
                 <select value={h2hProduct} onChange={e => setH2hProduct(e.target.value)}
-                  className="px-3 py-2 rounded-xl border border-[var(--border)] bg-[var(--bg-card-2)] text-xs font-bold text-[var(--text-main)]">
+                  className="h-10 px-3 rounded-lg border border-[var(--border)] bg-[var(--bg-card-2)] text-sm text-[var(--text-main)]">
                   <option value="">Seleziona prodotto…</option>
                   {availableProducts.map(p => <option key={p.id} value={String(p.id)}>{p.name}</option>)}
                 </select>
@@ -216,12 +215,13 @@ const Statistics = () => {
               {h2hData ? (
                 <ResponsiveContainer width="100%" height={220}>
                   <BarChart data={h2hData}>
-                    <XAxis dataKey="metric" tick={{ fontSize: 11 }} />
-                    <YAxis tick={{ fontSize: 11 }} />
-                    <Tooltip contentStyle={tooltipStyle} />
-                    <Legend wrapperStyle={{ fontSize: 11 }} />
-                    <Bar dataKey="A" name={sessionAName} fill="var(--accent)" radius={[4, 4, 0, 0]} />
-                    <Bar dataKey="B" name={sessionBName} fill="var(--text-muted)" radius={[4, 4, 0, 0]} />
+                  <CartesianGrid {...grid} />
+                    <XAxis dataKey="metric" {...axis} />
+                    <YAxis {...axis} />
+                    <Tooltip cursor={cursor} contentStyle={tooltipStyle} />
+                    <Legend wrapperStyle={{ fontSize: 12 }} />
+                    <Bar maxBarSize={28} dataKey="A" name={sessionAName} fill="var(--accent)" radius={[4, 4, 0, 0]} />
+                    <Bar maxBarSize={28} dataKey="B" name={sessionBName} fill="var(--text-muted)" radius={[4, 4, 0, 0]} />
                   </BarChart>
                 </ResponsiveContainer>
               ) : (
@@ -233,10 +233,11 @@ const Statistics = () => {
           <ChartCard title="Prezzo medio ordine per fascia oraria">
             <ResponsiveContainer width="100%" height={200}>
               <BarChart data={activeHours(reorderHours(stats.prezzoMedioPerFasciaOraria), 'prezzoMedio')}>
-                <XAxis dataKey="ora" tick={{ fontSize: 11 }} />
-                <YAxis tick={{ fontSize: 11 }} />
-                <Tooltip contentStyle={tooltipStyle} formatter={(v) => formatEuro(v)} />
-                <Bar dataKey="prezzoMedio" fill="var(--accent)" name="Prezzo medio" radius={[4, 4, 0, 0]} />
+                  <CartesianGrid {...grid} />
+                <XAxis dataKey="ora" {...axis} />
+                <YAxis {...axis} />
+                <Tooltip cursor={cursor} contentStyle={tooltipStyle} formatter={(v) => formatEuro(v)} />
+                <Bar maxBarSize={28} dataKey="prezzoMedio" fill="var(--accent)" name="Prezzo medio" radius={[4, 4, 0, 0]} />
               </BarChart>
             </ResponsiveContainer>
           </ChartCard>
@@ -244,9 +245,10 @@ const Statistics = () => {
           <ChartCard title="Andamento fatturato cumulativo">
             <ResponsiveContainer width="100%" height={220}>
               <LineChart data={activeHours(reorderHours(stats.andamentoFatturato), 'totale')}>
-                <XAxis dataKey="ora" tick={{ fontSize: 11 }} />
-                <YAxis tick={{ fontSize: 11 }} />
-                <Tooltip contentStyle={tooltipStyle} formatter={(v) => formatEuro(v)} />
+                  <CartesianGrid {...grid} />
+                <XAxis dataKey="ora" {...axis} />
+                <YAxis {...axis} />
+                <Tooltip cursor={cursor} contentStyle={tooltipStyle} formatter={(v) => formatEuro(v)} />
                 <Line type="monotone" dataKey="totale" stroke="var(--accent)" name="Fatturato" dot={false} strokeWidth={2} />
               </LineChart>
             </ResponsiveContainer>
@@ -256,10 +258,10 @@ const Statistics = () => {
             <ChartCard title="Mancato incasso per omaggi (per prodotto)">
               <ResponsiveContainer width="100%" height={220}>
                 <BarChart data={stats.topGiftProducts} layout="vertical">
-                  <XAxis type="number" tick={{ fontSize: 11 }} />
-                  <YAxis type="category" dataKey="product" tick={{ fontSize: 11 }} width={120} />
-                  <Tooltip contentStyle={tooltipStyle} formatter={(v) => formatEuro(v)} />
-                  <Bar dataKey="missedRevenue" fill="var(--accent)" name="Mancato incasso" radius={[0, 4, 4, 0]} />
+                  <XAxis type="number" {...axis} />
+                  <YAxis type="category" dataKey="product" {...axis} width={120} />
+                  <Tooltip cursor={cursor} contentStyle={tooltipStyle} formatter={(v) => formatEuro(v)} />
+                  <Bar maxBarSize={28} dataKey="missedRevenue" fill="var(--accent)" name="Mancato incasso" radius={[0, 4, 4, 0]} />
                 </BarChart>
               </ResponsiveContainer>
             </ChartCard>
@@ -273,38 +275,16 @@ const Statistics = () => {
             ) : (
               <ResponsiveContainer width="100%" height={200}>
                 <BarChart data={activeHours(reorderHours(stats.tempiCompletamento), 'media')}>
-                  <XAxis dataKey="ora" tick={{ fontSize: 11 }} />
-                  <YAxis tick={{ fontSize: 11 }} />
-                  <Tooltip contentStyle={tooltipStyle} formatter={(v) => formatMin(v)} />
-                  <Bar dataKey="media" fill="var(--accent)" name="Tempo medio (min)" radius={[4, 4, 0, 0]} />
+                  <CartesianGrid {...grid} />
+                  <XAxis dataKey="ora" {...axis} />
+                  <YAxis {...axis} />
+                  <Tooltip cursor={cursor} contentStyle={tooltipStyle} formatter={(v) => formatMin(v)} />
+                  <Bar maxBarSize={28} dataKey="media" fill="var(--accent)" name="Tempo medio (min)" radius={[4, 4, 0, 0]} />
                 </BarChart>
               </ResponsiveContainer>
             )}
           </ChartCard>
 
-          {stats.confrontoSerate.length > 1 && (
-            <ChartCard title={terms.compare}>
-              <table className="w-full text-sm">
-                <thead>
-                  <tr className="border-b border-[var(--border)]">
-                    {[terms.column, 'Totale', 'Ordini', 'Medio'].map(h => (
-                      <th key={h} className="text-left p-2 text-[10px] font-black uppercase tracking-widest text-[var(--text-muted)]">{h}</th>
-                    ))}
-                  </tr>
-                </thead>
-                <tbody>
-                  {stats.confrontoSerate.map(s => (
-                    <tr key={s.id} className="border-b border-[var(--border)] hover:bg-[var(--bg-card-2)] transition-colors">
-                      <td className="p-2 font-bold text-[var(--text-main)]">{s.name}</td>
-                      <td className="p-2 font-black text-[var(--accent)]">{formatEuro(s.totale)}</td>
-                      <td className="p-2 text-[var(--text-muted)]">{s.numero}</td>
-                      <td className="p-2 text-[var(--text-muted)]">{formatEuro(s.medio)}</td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </ChartCard>
-          )}
         </>
       )}
 
@@ -313,8 +293,8 @@ const Statistics = () => {
           <div className="bg-[var(--bg-card)] border border-[var(--border)] rounded-xl w-full max-w-md shadow-2xl overflow-hidden">
             <div className="flex items-center justify-between p-4 border-b border-[var(--border)]">
               <div>
-                <h3 className="text-sm font-black text-[var(--text-main)] uppercase tracking-tight">Esporta Report CSV</h3>
-                <p className="text-[9px] font-bold text-[var(--text-muted)] uppercase tracking-wider mt-0.5">Solo sessioni concluse</p>
+                <h3 className="text-base font-semibold text-[var(--text-main)]">Esporta report CSV</h3>
+                <p className="text-xs text-[var(--text-muted)] mt-0.5">Solo sessioni concluse</p>
               </div>
               <button onClick={() => setIsExportModalOpen(false)} className="p-1.5 text-[var(--text-muted)] hover:text-[var(--text-main)] rounded-lg hover:bg-[var(--bg-input)] transition-colors">
                 <X size={18} />
@@ -322,12 +302,12 @@ const Statistics = () => {
             </div>
             <div className="p-4 max-h-72 overflow-y-auto space-y-2 no-scrollbar">
               {closedSessions.length === 0 ? (
-                <p className="text-xs text-center text-[var(--text-muted)] py-6 italic">{terms.none}</p>
+                <p className="text-sm text-center text-[var(--text-muted)] py-6">{terms.none}</p>
               ) : closedSessions.map(s => (
-                <div key={s.id} className="flex items-center justify-between p-3 rounded-xl bg-[var(--bg-card-2)] border border-[var(--border)] hover:border-[var(--accent)]/40 transition-all">
+                <div key={s.id} className="flex items-center justify-between p-3 rounded-lg bg-[var(--bg-card-2)] border border-[var(--border)] hover:border-[var(--border-hover)] transition-colors">
                   <div className="min-w-0 flex-1 pr-2">
-                    <p className="text-sm font-bold text-[var(--text-main)] truncate">{s.name || `${terms.column} ${s.id}`}</p>
-                    <p className="text-[10px] text-[var(--text-muted)]">
+                    <p className="text-sm font-medium text-[var(--text-main)] truncate">{s.name || `${terms.column} ${s.id}`}</p>
+                    <p className="text-xs text-[var(--text-muted)]">
                       Chiusa il {new Date(s.end_time).toLocaleDateString('it-IT')} alle {new Date(s.end_time).toLocaleTimeString('it-IT', { hour: '2-digit', minute: '2-digit' })}
                     </p>
                   </div>
