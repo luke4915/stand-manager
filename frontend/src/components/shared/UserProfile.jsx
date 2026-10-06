@@ -10,14 +10,14 @@ import { roleLabel } from './roles';
 const MIN_PASSWORD = 8;
 
 const inputClass = 'w-full p-3 rounded-xl bg-[var(--bg-input)] border border-[var(--border)] text-[var(--text-main)] text-sm outline-none focus:ring-2 focus:ring-[var(--accent)] placeholder:text-[var(--text-muted)]';
-const labelClass = 'block text-[10px] font-black uppercase tracking-widest text-[var(--text-muted)] mb-1.5';
-const primaryBtn = 'w-full py-2.5 bg-[var(--accent)] hover:bg-[var(--accent-hover)] text-white rounded-xl font-black text-xs uppercase tracking-widest transition-all disabled:opacity-40 disabled:cursor-not-allowed';
+const labelClass = 'block text-xs font-semibold text-[var(--text-muted)] mb-1.5';
+const primaryBtn = 'w-full py-2.5 bg-[var(--accent)] hover:bg-[var(--accent-hover)] text-white rounded-xl font-semibold text-xs transition-all disabled:opacity-40 disabled:cursor-not-allowed';
 
 const Card = ({ icon, title, children }) => {
   const Icon = icon;
   return (
-    <section className="rounded-2xl border border-[var(--border)] bg-[var(--bg-card-2)] p-4">
-      <h3 className="flex items-center gap-2 text-xs font-black uppercase tracking-widest text-[var(--text-main)] mb-3"><Icon size={14} className="text-[var(--accent)]" /> {title}</h3>
+    <section className="rounded-xl border border-[var(--border)] bg-[var(--bg-card-2)] p-4">
+      <h3 className="flex items-center gap-2 text-xs font-semibold text-[var(--text-main)] mb-3"><Icon size={14} className="text-[var(--accent)]" /> {title}</h3>
       {children}
     </section>
   );
@@ -87,15 +87,15 @@ const UserProfile = ({ onClose }) => {
 
   return (
     <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex justify-center items-end sm:items-center z-50" onClick={onClose}>
-      <div className="bg-[var(--bg-card)] w-full sm:max-w-3xl max-h-[92vh] overflow-y-auto rounded-t-3xl sm:rounded-3xl shadow-2xl border border-[var(--border)]" onClick={e => e.stopPropagation()}>
+      <div className="bg-[var(--bg-card)] w-full sm:max-w-3xl max-h-[92vh] overflow-y-auto rounded-t-3xl sm:rounded-xl shadow-2xl border border-[var(--border)]" onClick={e => e.stopPropagation()}>
         <div className="flex items-center gap-4 p-6 pb-4">
-          <div className="w-14 h-14 rounded-2xl bg-[var(--accent)] text-white text-2xl font-black flex items-center justify-center shrink-0 shadow-lg shadow-[var(--accent-shadow)]">
+          <div className="w-14 h-14 rounded-xl bg-[var(--accent)] text-white text-2xl font-semibold flex items-center justify-center shrink-0">
             {user.username[0].toUpperCase()}
           </div>
           <div className="min-w-0 flex-1">
-            <h2 className="text-xl font-black tracking-tight text-[var(--text-main)] truncate">{user.username}</h2>
+            <h2 className="text-xl font-semibold tracking-tight text-[var(--text-main)] truncate">{user.username}</h2>
             <div className="flex flex-wrap items-center gap-x-3 gap-y-1 mt-0.5">
-              <span className="px-2 py-0.5 rounded-full bg-[var(--accent)]/10 text-[var(--accent)] text-[10px] font-black uppercase tracking-widest">{roleLabel(user.role)}</span>
+              <span className="px-2 py-0.5 rounded-full bg-[var(--accent)]/10 text-[var(--accent)] text-xs font-semibold">{roleLabel(user.role)}</span>
               {user.tenantName && <span className="flex items-center gap-1 text-xs text-[var(--text-muted)] truncate"><Building2 size={12} /> {user.tenantName}</span>}
             </div>
           </div>

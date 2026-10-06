@@ -8,10 +8,10 @@ import TempPasswordField from './TempPasswordField';
 // `api` nasconde da dove arrivano i dati: { list, create, update, remove, resetPassword }.
 // `currentUserId` (solo admin del tenant) impedisce di eliminarsi o cambiarsi il ruolo.
 const inputClass = 'w-full p-2.5 rounded-xl bg-[var(--bg-input)] border border-[var(--border)] text-[var(--text-main)] text-sm outline-none focus:ring-2 focus:ring-[var(--accent)] placeholder:text-[var(--text-muted)]';
-const labelClass = 'block text-[10px] font-black uppercase tracking-widest text-[var(--text-muted)] mb-1';
-const btnClass = 'flex items-center gap-1.5 px-3 py-2 rounded-xl border border-[var(--border)] text-[var(--text-main)] font-black text-[10px] uppercase tracking-widest hover:bg-[var(--bg-card-2)] transition-all disabled:opacity-50';
-const dangerBtnClass = 'flex items-center gap-1.5 px-3 py-2 rounded-xl border border-red-500/30 text-red-500 font-black text-[10px] uppercase tracking-widest hover:bg-red-500/10 transition-all disabled:opacity-50';
-const primaryBtnClass = 'flex items-center justify-center gap-1.5 px-4 py-2.5 bg-[var(--accent)] hover:bg-[var(--accent-hover)] text-white rounded-xl font-black text-xs uppercase tracking-widest transition-all disabled:opacity-50';
+const labelClass = 'block text-xs font-semibold text-[var(--text-muted)] mb-1';
+const btnClass = 'flex items-center gap-1.5 px-3 py-2 rounded-xl border border-[var(--border)] text-[var(--text-main)] font-semibold text-xs hover:bg-[var(--bg-card-2)] transition-all disabled:opacity-50';
+const dangerBtnClass = 'flex items-center gap-1.5 px-3 py-2 rounded-xl border border-red-500/30 text-red-500 font-semibold text-xs hover:bg-red-500/10 transition-all disabled:opacity-50';
+const primaryBtnClass = 'flex items-center justify-center gap-1.5 px-4 py-2.5 bg-[var(--accent)] hover:bg-[var(--accent-hover)] text-white rounded-xl font-semibold text-xs transition-all disabled:opacity-50';
 
 const EMPTY_NEW = { username: '', role: 'cassa', password: '' };
 
@@ -81,7 +81,7 @@ const UsersPanel = ({ api, currentUserId = null }) => {
 
   return (
     <div className="space-y-3">
-      {error && <p className="text-red-500 text-xs font-black uppercase tracking-widest">{error}</p>}
+      {error && <p className="text-red-500 text-xs font-semibold">{error}</p>}
 
       <ul className="space-y-2">
         {users.map(u => {
@@ -113,13 +113,13 @@ const UsersPanel = ({ api, currentUserId = null }) => {
               ) : (
                 <div className="flex flex-wrap items-center gap-x-3 gap-y-2">
                   <div className="min-w-0 flex-1">
-                    <p className="font-black text-sm text-[var(--text-main)] truncate">
-                      {u.username}{isSelf && <span className="ml-2 text-[10px] font-black uppercase tracking-widest text-[var(--accent)]">tu</span>}
+                    <p className="font-semibold text-sm text-[var(--text-main)] truncate">
+                      {u.username}{isSelf && <span className="ml-2 text-xs font-semibold text-[var(--accent)]">tu</span>}
                     </p>
                     <p className="text-[11px] text-[var(--text-muted)]">
                       {roleLabel(u.role)}
-                      {!u.has_password && <span className="ml-2 text-orange-500 font-black">· senza password</span>}
-                      {u.has_password && u.must_change_password && <span className="ml-2 text-orange-500 font-black">· password temporanea</span>}
+                      {!u.has_password && <span className="ml-2 text-orange-500 font-semibold">· senza password</span>}
+                      {u.has_password && u.must_change_password && <span className="ml-2 text-orange-500 font-semibold">· password temporanea</span>}
                     </p>
                   </div>
                   <div className="flex flex-wrap gap-2">
@@ -174,11 +174,11 @@ const UsersPanel = ({ api, currentUserId = null }) => {
           <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" />
           <div className="relative w-full max-w-sm bg-[var(--bg-card)] rounded-xl border border-[var(--border)] shadow-2xl p-6" onClick={e => e.stopPropagation()}>
             <ShieldAlert size={28} className="text-red-500 mx-auto mb-2" />
-            <p className="font-black text-[var(--text-main)] mb-1 text-center">Eliminare "{deleting.username}"?</p>
+            <p className="font-semibold text-[var(--text-main)] mb-1 text-center">Eliminare "{deleting.username}"?</p>
             <p className="text-xs text-[var(--text-muted)] mb-4 text-center">Perderà subito l'accesso. Gli ordini già registrati restano.</p>
             <div className="flex gap-3">
-              <button onClick={() => setDeleting(null)} className="flex-1 h-10 rounded-xl border border-[var(--border)] text-[var(--text-main)] font-black text-xs uppercase tracking-widest hover:bg-[var(--bg-card-2)]">Annulla</button>
-              <button onClick={handleDelete} disabled={busy} className="flex-1 h-10 rounded-xl bg-red-500 hover:bg-red-600 disabled:opacity-50 text-white font-black text-xs uppercase tracking-widest">Elimina</button>
+              <button onClick={() => setDeleting(null)} className="flex-1 h-10 rounded-xl border border-[var(--border)] text-[var(--text-main)] font-semibold text-xs hover:bg-[var(--bg-card-2)]">Annulla</button>
+              <button onClick={handleDelete} disabled={busy} className="flex-1 h-10 rounded-xl bg-red-500 hover:bg-red-600 disabled:opacity-50 text-white font-semibold text-xs">Elimina</button>
             </div>
           </div>
         </div>

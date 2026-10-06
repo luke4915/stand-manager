@@ -6,9 +6,9 @@ const OrderSettings = ({ orderMode, setOrderMode }) => {
     setOrderMode(orderMode === "simple" ? "advanced" : "simple");
 
   return (
-    <div className="bg-[var(--bg-card)] p-5 rounded-2xl border border-[var(--border)] flex items-center justify-between mt-4">
+    <div className="bg-[var(--bg-card)] p-5 rounded-xl border border-[var(--border)] flex items-center justify-between mt-4">
 
-      <h2 className="text-sm font-black uppercase tracking-widest text-[var(--text-main)]">
+      <h2 className="text-sm font-semibold text-[var(--text-main)]">
         Modalità Ordini
       </h2>
 

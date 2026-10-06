@@ -219,10 +219,10 @@ const PrintProfiles = () => {
   );
 
   return (
-    <div className="mt-6 p-6 rounded-2xl bg-[var(--bg-card)] border border-[var(--border)] shadow-sm">
+    <div className="mt-6 p-6 rounded-xl bg-[var(--bg-card)] border border-[var(--border)] shadow-sm">
       <div className="flex items-center justify-between mb-1">
         <div>
-          <h2 className="text-[10px] font-black uppercase tracking-widest text-[var(--text-muted)]">
+          <h2 className="text-xs font-semibold text-[var(--text-muted)]">
             Impostazioni di stampa
           </h2>
           <p className="text-[11px] text-[var(--text-muted)] mt-1">
@@ -290,7 +290,7 @@ const PrintProfiles = () => {
                   zIndex: isDragging ? 30 : 1,
                   boxShadow: isDragging ? '0 12px 28px rgba(0,0,0,0.25)' : undefined,
                 }}
-                className={`flex flex-col sm:flex-row sm:items-center gap-3 p-3.5 rounded-2xl border
+                className={`flex flex-col sm:flex-row sm:items-center gap-3 p-3.5 rounded-xl border
                   ${isDragging ? 'border-[var(--accent)] bg-[var(--bg-card)] scale-[1.01]' : 'border-[var(--border)] bg-[var(--bg-card-2)]'}`}
               >
                 {/* Maniglia + posizione + nome */}
@@ -310,11 +310,11 @@ const PrintProfiles = () => {
                       <GripVertical size={18} />
                     </button>
                   )}
-                  <span className="shrink-0 w-6 h-6 flex items-center justify-center rounded-lg bg-[var(--accent)]/10 text-[var(--accent)] text-[11px] font-black">
+                  <span className="shrink-0 w-6 h-6 flex items-center justify-center rounded-lg bg-[var(--accent)]/10 text-[var(--accent)] text-[11px] font-semibold">
                     {index + 1}
                   </span>
                   <div className="min-w-0">
-                    <p className="font-black text-sm uppercase tracking-tight text-[var(--text-main)] truncate">
+                    <p className="font-semibold text-sm tracking-tight text-[var(--text-main)] truncate">
                       {s.copy_type_label}
                     </p>
                     <p className="text-[11px] text-[var(--text-muted)] truncate">{s.copy_type_name}</p>
@@ -337,7 +337,7 @@ const PrintProfiles = () => {
 
                 {/* Azioni + toggle */}
                 <div className="flex items-center gap-2 shrink-0 justify-end">
-                  {/*{saving === s.id && <span className="text-[10px] text-[var(--text-muted)]">Salvataggio...</span>}*/}
+                  {/*{saving === s.id && <span className="text-xs text-[var(--text-muted)]">Salvataggio...</span>}*/}
                   {isAdmin && (
                     <>
                       <button onClick={() => setModal({ id: s.copy_type_id, name: s.copy_type_name, label: s.copy_type_label })}
@@ -386,7 +386,7 @@ const PrintProfiles = () => {
       {/* Conferma eliminazione */}
       {confirmDelete && (
         <div className="fixed inset-0 bg-black bg-opacity-60 flex items-center justify-center z-50">
-          <div className="bg-[var(--bg-card)] rounded-2xl shadow-xl p-6 w-full max-w-sm text-center border border-[var(--border)]">
+          <div className="bg-[var(--bg-card)] rounded-xl shadow-xl p-6 w-full max-w-sm text-center border border-[var(--border)]">
             <p className="text-[var(--text-main)] mb-2 font-bold">Eliminare questo tipo di copia?</p>
             <p className="text-sm text-[var(--text-muted)] mb-6">Tutte le impostazioni associate verranno perse.</p>
             <div className="flex justify-center gap-4">
@@ -417,8 +417,8 @@ const CopyTypeModal = ({ initial, templatesOptions, onSave, onClose }) => {
   };
   return (
     <div className="fixed inset-0 bg-black bg-opacity-60 flex items-center justify-center z-50">
-      <div className="bg-[var(--bg-card)] rounded-2xl shadow-xl p-6 w-full max-w-sm border border-[var(--border)]">
-        <h3 className="font-black text-sm uppercase tracking-widest text-[var(--text-muted)] mb-4 flex items-center gap-2">
+      <div className="bg-[var(--bg-card)] rounded-xl shadow-xl p-6 w-full max-w-sm border border-[var(--border)]">
+        <h3 className="font-semibold text-sm text-[var(--text-muted)] mb-4 flex items-center gap-2">
           <Printer size={14} /> {initial ? 'Modifica tipo copia' : 'Nuovo tipo copia'}
         </h3>
         <div className="flex flex-col gap-3">

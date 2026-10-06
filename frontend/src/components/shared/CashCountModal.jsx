@@ -9,7 +9,7 @@ const DenomTile = ({ value, qty, onChange }) => {
   const subtotal = value * (qty || 0);
 
   return (
-    <div className="flex items-center gap-3 p-3 bg-[var(--bg-card-2)] rounded-2xl border border-[var(--border)]">
+    <div className="flex items-center gap-3 p-3 bg-[var(--bg-card-2)] rounded-xl border border-[var(--border)]">
       <img
         src={`/cash/${value}.png`}
         alt={label}
@@ -17,7 +17,7 @@ const DenomTile = ({ value, qty, onChange }) => {
         onError={(e) => { e.target.style.visibility = 'hidden'; }}
       />
       <div className="flex-1 min-w-0">
-        <p className="text-sm font-black text-[var(--text-main)]">{label}</p>
+        <p className="text-sm font-semibold text-[var(--text-main)]">{label}</p>
         <p className="text-xs font-bold text-[var(--text-muted)]">{subtotal.toFixed(2)} €</p>
       </div>
       <div className="flex items-center gap-1.5 shrink-0">
@@ -35,7 +35,7 @@ const DenomTile = ({ value, qty, onChange }) => {
           value={qty || ''}
           onChange={(e) => onChange(Math.max(0, parseInt(e.target.value) || 0))}
           placeholder="0"
-          className="w-12 h-8 rounded-xl bg-[var(--bg-input)] border border-[var(--border)] text-[var(--text-main)] text-sm font-black text-center outline-none focus:ring-2 focus:ring-[var(--accent)]"
+          className="w-12 h-8 rounded-xl bg-[var(--bg-input)] border border-[var(--border)] text-[var(--text-main)] text-sm font-semibold text-center outline-none focus:ring-2 focus:ring-[var(--accent)]"
         />
         <button
           type="button"
@@ -66,13 +66,13 @@ const CashCountModal = ({ expectedCash = 0, onConfirm, onClose }) => {
     <div className="fixed inset-0 z-[70] flex items-center justify-center p-4" onClick={onClose}>
       <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" />
       <div
-        className="relative w-full max-w-2xl bg-[var(--bg-card)] rounded-2xl border border-[var(--border)] shadow-2xl flex flex-col max-h-[90vh]"
+        className="relative w-full max-w-2xl bg-[var(--bg-card)] rounded-xl border border-[var(--border)] shadow-2xl flex flex-col max-h-[90vh]"
         onClick={e => e.stopPropagation()}
       >
         <div className="flex justify-between items-center px-6 sm:px-8 py-5 border-b border-[var(--border)] shrink-0">
           <div>
-            <h3 className="text-xl font-black tracking-tight text-[var(--text-main)]">Conteggio cassa</h3>
-            <p className="text-[10px] font-black uppercase tracking-widest text-[var(--text-muted)] mt-0.5">Conta contanti a taglio</p>
+            <h3 className="text-xl font-semibold tracking-tight text-[var(--text-main)]">Conteggio cassa</h3>
+            <p className="text-xs font-semibold text-[var(--text-muted)] mt-0.5">Conta contanti a taglio</p>
           </div>
           <button onClick={onClose} className="p-2 rounded-xl hover:bg-[var(--bg-card-2)] transition-colors cursor-pointer">
             <X size={18} className="text-[var(--text-muted)]" />
@@ -80,7 +80,7 @@ const CashCountModal = ({ expectedCash = 0, onConfirm, onClose }) => {
         </div>
 
         <div className="overflow-y-auto px-6 sm:px-8 py-5 no-scrollbar">
-          <div className="flex items-center gap-1.5 text-[10px] font-black uppercase tracking-widest text-[var(--text-muted)] mb-2">
+          <div className="flex items-center gap-1.5 text-xs font-semibold text-[var(--text-muted)] mb-2">
             <Banknote size={13} /> Banconote
           </div>
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5 mb-6">
@@ -89,7 +89,7 @@ const CashCountModal = ({ expectedCash = 0, onConfirm, onClose }) => {
             ))}
           </div>
 
-          <div className="flex items-center gap-1.5 text-[10px] font-black uppercase tracking-widest text-[var(--text-muted)] mb-2">
+          <div className="flex items-center gap-1.5 text-xs font-semibold text-[var(--text-muted)] mb-2">
             <Coins size={13} /> Monete
           </div>
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
@@ -104,18 +104,18 @@ const CashCountModal = ({ expectedCash = 0, onConfirm, onClose }) => {
             <span>Atteso da sistema</span>
             <span>{expectedCash.toFixed(2)} €</span>
           </div>
-          <div className="flex justify-between text-base font-black text-[var(--text-main)]">
+          <div className="flex justify-between text-base font-semibold text-[var(--text-main)]">
             <span>Contato</span>
             <span>{total.toFixed(2)} €</span>
           </div>
-          <div className={`flex justify-between text-base font-black ${diffColor}`}>
+          <div className={`flex justify-between text-base font-semibold ${diffColor}`}>
             <span>Differenza</span>
             <span>{difference > 0 ? '+' : ''}{difference.toFixed(2)} €</span>
           </div>
 
           <button
             onClick={() => onConfirm(total)}
-            className="w-full mt-3 py-3.5 rounded-2xl bg-[var(--accent)] hover:bg-[var(--accent-hover)] text-white font-black text-sm uppercase tracking-widest transition-all cursor-pointer flex items-center justify-center gap-2 shadow-lg shadow-[var(--accent-shadow)]"
+            className="w-full mt-3 py-3.5 rounded-xl bg-[var(--accent)] hover:bg-[var(--accent-hover)] text-white font-semibold text-sm transition-all cursor-pointer flex items-center justify-center gap-2"
           >
             <Check size={18} /> Conferma chiusura
           </button>

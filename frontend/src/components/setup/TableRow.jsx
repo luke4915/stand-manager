@@ -37,15 +37,15 @@ const TableRow = ({ table, onChanged }) => {
 
   return (
     <li className={`flex items-center gap-2 p-2 pl-3 rounded-xl border border-[var(--border)] bg-[var(--bg-card)] ${table.active ? '' : 'opacity-50'}`}>
-      <span className="font-black text-sm text-[var(--text-main)]">{table.name}</span>
+      <span className="font-semibold text-sm text-[var(--text-main)]">{table.name}</span>
       <span className="flex items-center gap-1 text-xs text-[var(--text-muted)]"><Users size={12} /> {table.seats}</span>
-      {!table.active && <span className="text-[10px] font-black uppercase tracking-widest text-[var(--text-muted)]">disattivo</span>}
+      {!table.active && <span className="text-xs font-semibold text-[var(--text-muted)]">disattivo</span>}
       <span className="ml-auto flex items-center">
         <button className={iconBtn} disabled={busy} onClick={() => setEditing({ name: table.name, seats: table.seats })} aria-label={`Modifica ${table.name}`}><Pencil size={14} /></button>
         <button className={iconBtn} disabled={busy} onClick={toggleActive} aria-label={table.active ? `Disattiva ${table.name}` : `Riattiva ${table.name}`} title={table.active ? 'Disattiva' : 'Riattiva'}><Power size={14} /></button>
         {confirmDelete ? (
           <>
-            <button className="px-2 py-1 rounded-lg bg-red-500 text-white text-[10px] font-black uppercase tracking-widest" disabled={busy} onClick={remove}>Elimina</button>
+            <button className="px-2 py-1 rounded-lg bg-red-500 text-white text-xs font-semibold" disabled={busy} onClick={remove}>Elimina</button>
             <button className={iconBtn} onClick={() => setConfirmDelete(false)} aria-label="Annulla"><X size={14} /></button>
           </>
         ) : (

@@ -7,7 +7,7 @@ import FloorEditor from '../../smarteats/floor/FloorEditor';
 
 // Una sala con i suoi tavoli: rinomina, attiva/disattiva, elimina (se vuota), aggiunta di un tavolo o di più in serie.
 const inputClass = 'p-2.5 rounded-xl bg-[var(--bg-input)] border border-[var(--border)] text-[var(--text-main)] text-sm outline-none focus:ring-2 focus:ring-[var(--accent)] placeholder:text-[var(--text-muted)]';
-const btn = 'flex items-center gap-1.5 px-3 py-2 rounded-xl border border-[var(--border)] text-[var(--text-main)] font-black text-[10px] uppercase tracking-widest hover:bg-[var(--bg-card)] transition-all disabled:opacity-50';
+const btn = 'flex items-center gap-1.5 px-3 py-2 rounded-xl border border-[var(--border)] text-[var(--text-main)] font-semibold text-xs hover:bg-[var(--bg-card)] transition-all disabled:opacity-50';
 const iconBtn = 'p-2 rounded-lg text-[var(--text-muted)] hover:text-[var(--text-main)] hover:bg-[var(--bg-card)] transition-colors disabled:opacity-40';
 
 const RoomCard = ({ room, onChanged }) => {
@@ -41,7 +41,7 @@ const RoomCard = ({ room, onChanged }) => {
     });
 
   return (
-    <section className={`rounded-2xl border border-[var(--border)] bg-[var(--bg-card-2)] p-4 ${room.active ? '' : 'opacity-70'}`}>
+    <section className={`rounded-xl border border-[var(--border)] bg-[var(--bg-card-2)] p-4 ${room.active ? '' : 'opacity-70'}`}>
       <div className="flex flex-wrap items-center gap-2 mb-3">
         {renaming !== null ? (
           <>
@@ -52,15 +52,15 @@ const RoomCard = ({ room, onChanged }) => {
           </>
         ) : (
           <>
-            <h3 className="font-black text-[var(--text-main)]">{room.name}</h3>
+            <h3 className="font-semibold text-[var(--text-main)]">{room.name}</h3>
             <span className="text-xs text-[var(--text-muted)]">{room.tables.length} tavoli · {room.tables.reduce((n, t) => n + t.seats, 0)} posti</span>
-            {!room.active && <span className="text-[10px] font-black uppercase tracking-widest text-[var(--text-muted)]">disattiva</span>}
+            {!room.active && <span className="text-xs font-semibold text-[var(--text-muted)]">disattiva</span>}
             <span className="ml-auto flex items-center">
               <button className={iconBtn} disabled={busy} onClick={() => setRenaming(room.name)} aria-label={`Rinomina ${room.name}`}><Pencil size={15} /></button>
               <button className={iconBtn} disabled={busy} onClick={toggleActive} aria-label={room.active ? `Disattiva ${room.name}` : `Riattiva ${room.name}`} title={room.active ? 'Disattiva' : 'Riattiva'}><Power size={15} /></button>
               {confirmDelete ? (
                 <>
-                  <button className="px-2.5 py-1.5 rounded-lg bg-red-500 text-white text-[10px] font-black uppercase tracking-widest" disabled={busy} onClick={remove}>Elimina sala</button>
+                  <button className="px-2.5 py-1.5 rounded-lg bg-red-500 text-white text-xs font-semibold" disabled={busy} onClick={remove}>Elimina sala</button>
                   <button className={iconBtn} onClick={() => setConfirmDelete(false)} aria-label="Annulla"><X size={15} /></button>
                 </>
               ) : (
@@ -87,13 +87,13 @@ const RoomCard = ({ room, onChanged }) => {
       )}
       {adding === 'bulk' && (
         <div className="flex flex-wrap items-end gap-2 p-3 rounded-xl border border-[var(--border)] bg-[var(--bg-card)] mb-3">
-          <label className="text-[10px] font-black uppercase tracking-widest text-[var(--text-muted)]">Prefisso
+          <label className="text-xs font-semibold text-[var(--text-muted)]">Prefisso
             <input className={`${inputClass} block w-20 mt-1`} maxLength={20} value={bulk.prefix} onChange={e => setBulk(v => ({ ...v, prefix: e.target.value }))} /></label>
-          <label className="text-[10px] font-black uppercase tracking-widest text-[var(--text-muted)]">Dal
+          <label className="text-xs font-semibold text-[var(--text-muted)]">Dal
             <input className={`${inputClass} block w-20 mt-1`} type="number" min={1} value={bulk.from} onChange={e => setBulk(v => ({ ...v, from: e.target.value }))} /></label>
-          <label className="text-[10px] font-black uppercase tracking-widest text-[var(--text-muted)]">Al
+          <label className="text-xs font-semibold text-[var(--text-muted)]">Al
             <input className={`${inputClass} block w-20 mt-1`} type="number" min={1} value={bulk.to} onChange={e => setBulk(v => ({ ...v, to: e.target.value }))} /></label>
-          <label className="text-[10px] font-black uppercase tracking-widest text-[var(--text-muted)]">Posti
+          <label className="text-xs font-semibold text-[var(--text-muted)]">Posti
             <input className={`${inputClass} block w-20 mt-1`} type="number" min={1} max={99} value={bulk.seats} onChange={e => setBulk(v => ({ ...v, seats: e.target.value }))} /></label>
           <button className={btn} disabled={busy || Number(bulk.to) < Number(bulk.from)} onClick={addBulk}><ListPlus size={12} /> Crea {Math.max(0, Number(bulk.to) - Number(bulk.from) + 1)} tavoli</button>
           <button className={btn} onClick={() => setAdding('none')}>Chiudi</button>

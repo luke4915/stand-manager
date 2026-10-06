@@ -30,8 +30,8 @@ const MenuSettings = () => {
     };
 
     return (
-        <div className="bg-[var(--bg-card)] p-6 rounded-2xl border border-[var(--border)]">
-            <h3 className="font-black text-[var(--text-main)] uppercase tracking-tight mb-1">Menu Pubblico</h3>
+        <div className="bg-[var(--bg-card)] p-6 rounded-xl border border-[var(--border)]">
+            <h3 className="font-semibold text-[var(--text-main)] tracking-tight mb-1">Menu Pubblico</h3>
             <p className="text-xs text-[var(--text-muted)] mb-4">Messaggio di benvenuto mostrato ai clienti</p>
             <textarea
                 value={loading ? '' : welcomeMessage}
@@ -43,7 +43,7 @@ const MenuSettings = () => {
             <button
                 onClick={handleSave}
                 disabled={saving}
-                className="mt-3 flex items-center gap-2 px-4 py-2.5 bg-[var(--accent)] hover:bg-[var(--accent-hover)] text-white rounded-xl font-black text-xs uppercase tracking-widest transition-all disabled:opacity-60"
+                className="mt-3 flex items-center gap-2 px-4 py-2.5 bg-[var(--accent)] hover:bg-[var(--accent-hover)] text-white rounded-xl font-semibold text-xs transition-all disabled:opacity-60"
             >
                 <Save size={14} /> {saving ? 'Salvataggio...' : 'Salva'}
             </button>

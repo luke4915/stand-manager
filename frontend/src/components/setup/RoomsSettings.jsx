@@ -26,13 +26,13 @@ const RoomsSettings = () => {
   };
 
   return (
-    <div className="bg-[var(--bg-card)] p-5 rounded-2xl border border-[var(--border)]">
-      <h2 className="text-sm font-black uppercase tracking-widest text-[var(--text-main)] mb-1 flex items-center gap-2">
+    <div className="bg-[var(--bg-card)] p-5 rounded-xl border border-[var(--border)]">
+      <h2 className="text-sm font-semibold text-[var(--text-main)] mb-1 flex items-center gap-2">
         <LayoutGrid size={15} /> Sala e tavoli
       </h2>
       <p className="text-xs text-[var(--text-muted)] mb-4">Le sale del locale e i loro tavoli. Un tavolo con conti registrati non si elimina: si disattiva.</p>
 
-      {error && <p className="text-red-500 text-xs font-black uppercase tracking-widest mb-3">{error}</p>}
+      {error && <p className="text-red-500 text-xs font-semibold mb-3">{error}</p>}
       {!rooms && !error && <p className="text-sm text-[var(--text-muted)]">Caricamento…</p>}
 
       <div className="space-y-3">
@@ -44,7 +44,7 @@ const RoomsSettings = () => {
           <input className="flex-1 min-w-0 p-2.5 rounded-xl bg-[var(--bg-input)] border border-[var(--border)] text-[var(--text-main)] text-sm outline-none focus:ring-2 focus:ring-[var(--accent)] placeholder:text-[var(--text-muted)]"
             aria-label="Nome della nuova sala" placeholder={rooms.length ? 'Nuova sala' : 'Prima sala (es. Sala interna)'} maxLength={50}
             value={name} onChange={e => setName(e.target.value)} onKeyDown={e => e.key === 'Enter' && name.trim() && addRoom()} />
-          <button className="flex items-center gap-1.5 px-4 py-2.5 bg-[var(--accent)] hover:bg-[var(--accent-hover)] text-white rounded-xl font-black text-xs uppercase tracking-widest disabled:opacity-50"
+          <button className="flex items-center gap-1.5 px-4 py-2.5 bg-[var(--accent)] hover:bg-[var(--accent-hover)] text-white rounded-xl font-semibold text-xs disabled:opacity-50"
             disabled={busy || !name.trim()} onClick={addRoom}><Plus size={14} /> Sala</button>
         </div>
       )}
