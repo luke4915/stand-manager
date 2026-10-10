@@ -26,7 +26,8 @@ backend/            Node.js (ESM) + Express 5 + pg + ws (WSS) + pino + zod
   tests/integration/  test di integrazione: app in memoria + PostgreSQL locale con RLS
   migrations/       NNN_descrizione.sql + run.js (tabella _migrations)
 frontend/           React 19 + Vite 7 + Tailwind v4 + react-router-dom 7 + PWA (vite-plugin-pwa) + Dexie
-  src/App.jsx       shell autenticata, routing, WebSocket, carrello, sessioni
+  src/App.jsx       shell autenticata: collega hook e componenti, routing, finestre comuni
+  src/hooks/        useCart, useProducts, useWorkSession (serata), useSound, useLiveUpdates (WebSocket), useBreakpoint
   src/pages/        pagine pubbliche/di livello alto (Login, Menu, KDS, Master)
   src/components/   per dominio: cart/, kitchen/, products/, setup/, shared/, layout/
   src/context/      AuthProvider + useAuth (login, refresh), ToastProvider + useToast
@@ -34,6 +35,7 @@ frontend/           React 19 + Vite 7 + Tailwind v4 + react-router-dom 7 + PWA (
   src/offline/      db Dexie, coda ordini offline, hook useOfflineSync, catalogo offline, ultimi valori noti, dispositivo e numerazione (device.js)
   src/print/        stampa dal dispositivo: builder ePOS, template, driver, coda, configurazione locale
   src/utils/apiClient.js  client unico per le API: apiFetch, fetchWithAuth, ApiError, NetworkError
+  src/utils/sendOrder.js  invio ordine dalla cassa: numero, server o coda offline, stampa
   src/utils/pricing.js  specchio 1:1 di backend/utils/pricing.js
 ```
 
@@ -113,7 +115,7 @@ L'isolamento tra tenant si basa sulla Row-Level Security di PostgreSQL con la va
 - Errori: `{ error: 'messaggio in italiano' }`, più `code` in MAIUSCOLO quando il frontend deve distinguerli (`TOKEN_EXPIRED`, `LICENSE_EXPIRED`, `TENANT_INACTIVE`). Status coerenti: 400 validazione, 401 non autenticato, 403 non autorizzato, 404, 409 conflitto, 402 licenza.
 - Log solo con `logger` (pino), mai `console.log` nel codice applicativo. Passa l'errore come `{ err }`.
 - Query sempre parametrizzate (`$1, $2`). Niente concatenazione di input utente in SQL.
-- Eventi WebSocket: `{ type: 'snake_case_evento', … }` (es. `order_updated`, `product_stock_updated`), inviati con `broadcast(req.user.tenantId, msg)`. Il tenant è obbligatorio: senza, l'evento viene scartato. Un nuovo evento va gestito anche in `App.jsx` e/o nel KDS.
+- Eventi WebSocket: `{ type: 'snake_case_evento', … }` (es. `order_updated`, `product_stock_updated`), inviati con `broadcast(req.user.tenantId, msg)`. Il tenant è obbligatorio: senza, l'evento viene scartato. Un nuovo evento va gestito anche in `App.jsx` e/o nel KDS. Lato frontend il collegamento si apre solo con l'hook `useLiveUpdates` (riconnessione e rinnovo della sessione inclusi), mai con `new WebSocket` diretto.
 - Il KDS pubblico (`?kds=public`) riceve solo gli eventi elencati in `PUBLIC_EVENTS` di `ws.js`, ridotti con `toPublicOrder()`. Un evento nuovo per il KDS pubblico va aggiunto lì, senza prezzi, totali o dati utente.
 
 ## 6. Database e migrazioni
@@ -137,7 +139,7 @@ L'isolamento tra tenant si basa sulla Row-Level Security di PostgreSQL con la va
 - Lato server un 401 significa solo "sessione assente o scaduta": per credenziali o dati errati usa 400 o 403, altrimenti il frontend tenterebbe un rinnovo inutile.
 - Stile solo con Tailwind v4. Rispetta il tema chiaro/scuro esistente e il doppio layout desktop/mobile (`useBreakpoint`, cartelle `desktop/` e `mobile/`).
 - Messaggi all'utente tramite `ToastContext`, non con `alert()`.
-- `App.jsx` è già molto grande: le nuove funzionalità vanno in componenti, hook o pagine dedicate, non qui.
+- `App.jsx` resta un guscio che collega i pezzi: le nuove funzionalità vanno in componenti, hook (`src/hooks/`) o pagine dedicate, non qui.
 - Icone PWA in `frontend/public/` (`pwa-192.png`, `pwa-512.png`, `apple-touch-icon.png`), ricavate dal simbolo di `logo_StandManager_ESC_POS.png` con il simbolo al 56% del lato, così la 512 vale anche come maskable. Se cambi le icone, aggiorna il manifest in `vite.config.js`.
 
 ## 8. Offline-first (fase 2, in corso)

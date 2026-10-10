@@ -4,7 +4,7 @@ import { BrowserMultiFormatReader, NotFoundException } from '@zxing/library';
 import { useToast } from '../../context/useToast';
 import { useAuth } from '../../context/useAuth';
 
-import { WS_URL, WS_CLOSE_UNAUTHORIZED } from '../../config/api';
+import { useLiveUpdates } from '../../hooks/useLiveUpdates';
 import { fetchWithAuth } from '../../utils/apiClient';
 
 const mergeOrders = (existing, incoming) => {
@@ -85,8 +85,6 @@ const OrdersKitchen = () => {
 
   const videoRef = useRef(null);
   const codeReaderRef = useRef(null);
-  const wsRef = useRef(null);
-  const reconnectTimer = useRef(null);
 
   const loadOrders = useCallback(async () => {
     try {
@@ -97,57 +95,19 @@ const OrdersKitchen = () => {
     }
   }, [showToast]);
 
+  // Nuovi ordini e cambi di stato arrivano in tempo reale dal server.
+  useLiveUpdates((msg) => {
+    if (msg.type === 'order_created' || msg.type === 'new_order') {
+      setOrders(prev => mergeOrders(prev, [msg.order]));
+      showToast('Nuovo ordine ricevuto!', 'info');
+    } else if (msg.type === 'order_updated') {
+      setOrders(prev => prev.map(o => o.id === msg.order.id ? msg.order : o));
+    }
+  }, { enabled: !loading && !!user, onUnauthorized: refreshSession });
+
   useEffect(() => {
-    if (loading || !user) return;
-
-    let isMounted = true;
-
-    const connectWS = () => {
-      if (wsRef.current) {
-        wsRef.current.onclose = null;
-        wsRef.current.close();
-      }
-
-      wsRef.current = new WebSocket(WS_URL);
-
-      wsRef.current.onmessage = (event) => {
-        try {
-          const msg = JSON.parse(event.data);
-          if (msg.type === 'order_created' || msg.type === 'new_order') {
-            setOrders(prev => mergeOrders(prev, [msg.order]));
-            showToast('Nuovo ordine ricevuto!', 'info');
-          } else if (msg.type === 'order_updated') {
-            setOrders(prev => prev.map(o => o.id === msg.order.id ? msg.order : o));
-          }
-        } catch (err) {
-          console.error('WS parse error:', err);
-        }
-      };
-
-      wsRef.current.onclose = async (event) => {
-        if (!isMounted) return;
-        // Token scaduto o non valido: rinnoviamo il cookie prima di riprovare.
-        if (event.code === WS_CLOSE_UNAUTHORIZED && !(await refreshSession())) return;
-        if (isMounted) reconnectTimer.current = setTimeout(connectWS, 5000);
-      };
-
-      wsRef.current.onerror = (err) => {
-        console.warn('WebSocket error encountered:', err);
-      };
-    };
-
-    connectWS();
-    loadOrders();
-
-    return () => {
-      isMounted = false;
-      clearTimeout(reconnectTimer.current);
-      if (wsRef.current) {
-        wsRef.current.onclose = null;
-        wsRef.current.close();
-      }
-    };
-  }, [user, loading, loadOrders, refreshSession, showToast]);
+    if (!loading && user) loadOrders();
+  }, [user, loading, loadOrders]);
 
   const markAsCompleted = async (targetOrderOrId) => {
     const targetId = typeof targetOrderOrId === 'object' ? targetOrderOrId.id : targetOrderOrId;
