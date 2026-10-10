@@ -12,11 +12,13 @@ import { validate } from '../middleware/validate.js';
 import { loginSchema, createUserSchema, changePasswordSchema, resetPasswordSchema, updateUserSchema } from '../schemas/authSchema.js';
 import { idParamsSchema } from '../schemas/common.js';
 import { logAudit } from '../utils/auditLogger.js';
-import { hashPassword } from '../utils/password.js';
+import { hashPassword, DUMMY_HASH } from '../utils/password.js';
 import { sendHttpError } from '../utils/httpError.js';
 import { invalidateUserStatus } from '../utils/userStatus.js';
 import { getTenantModules } from '../utils/tenantModules.js';
 import { createUser, listUsers, updateUser, deleteUser, resetUserPassword } from '../utils/tenantUsers.js';
+
+const INVALID_CREDENTIALS = 'Credenziali non valide';
 
 const router = express.Router();
 
@@ -30,8 +32,14 @@ router.post('/login', validate({ body: loginSchema }), resolveTenantFromHost, as
       const { rows } = await db.query('SELECT * FROM users WHERE username = $1', [username]);
       return rows[0] || null;
     });
-    if (!user) return res.status(401).json({ error: 'Utente non trovato' });
+    // Utente inesistente, senza password o password errata: stessa risposta e stesso tempo
+    // (bcrypt gira comunque), così non si capisce quali username esistono.
+    const hash = user?.password_hash?.trim() ? user.password_hash : DUMMY_HASH;
+    const valid = await bcrypt.compare(password, hash);
+    if (!user || hash === DUMMY_HASH || !valid)
+      return res.status(401).json({ error: INVALID_CREDENTIALS });
 
+    // Stato del tenant solo dopo la password: chi non ha le credenziali non lo scopre.
     const { rows: tenantRows } = await pool.query('SELECT expires_at, active, name, business_type, modules FROM tenants WHERE id = $1', [user.tenant_id]);
     const tenant = tenantRows[0];
 
@@ -43,11 +51,6 @@ router.post('/login', validate({ body: loginSchema }), resolveTenantFromHost, as
     }
 
     user.tenant_name = tenant.name;
-    // Un utente senza password (creato prima della 021) non può entrare: un admin deve reimpostarla.
-    // Stesso messaggio di una password errata, così non si capisce che l'account esiste.
-    if (!user.password_hash?.trim() || !await bcrypt.compare(password, user.password_hash))
-      return res.status(401).json({ error: 'Password errata' });
-
     setCookie(res, signToken(user));
 
     res.json({ id: user.id, username: user.username, role: user.role, needsPassword: user.must_change_password, theme: user.theme || 'dark', tenantName: user.tenant_name, businessType: tenant.business_type, modules: tenant.modules });

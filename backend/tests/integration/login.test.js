@@ -46,11 +46,14 @@ describe('login per tenant', () => {
   });
 
   it('la password di un tenant non vale sull\'altro e l\'utente altrui non si distingue da uno inesistente', async () => {
-    assert.equal((await apiClient(server.port, t1.host).login('admin', 'password-due')).status, 401);
+    const wrong = await apiClient(server.port, t1.host).login('admin', 'password-due');
+    assert.equal(wrong.status, 401);
     assert.equal((await apiClient(server.port, t2.host).login('admin', 'password-uno')).status, 401);
     const other = await apiClient(server.port, t1.host).login(`inesistente-${t1.slug}`);
     assert.equal(other.status, 401);
-    assert.equal(other.body.error, 'Utente non trovato');
+    // Utente inesistente e password errata danno la stessa risposta: non si scopre quali username esistono
+    assert.equal(other.body.error, 'Credenziali non valide');
+    assert.deepEqual(other.body, wrong.body);
   });
 
   it('creare e rinominare utenti: duplicati solo nello stesso tenant', async () => {

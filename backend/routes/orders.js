@@ -116,14 +116,19 @@ export default function (broadcast) {
 
     // Idempotenza: un ordine già ricevuto (retry dopo un errore di rete o dalla
     // coda offline) non si duplica, si risponde con quello esistente.
-    if (client_order_id) {
-      const existing = await findOrderByClientId(req.db, client_order_id);
-      if (existing) return res.json(duplicateResponse(existing));
-    }
+    try {
+      if (client_order_id) {
+        const existing = await findOrderByClientId(req.db, client_order_id);
+        if (existing) return res.json(duplicateResponse(existing));
+      }
 
-    // Le comande dei tavoli esistono solo nei locali con il modulo `tables`.
-    if (check_id !== undefined && !(await getTenantModules(req.user.tenantId))?.modules.includes('tables'))
-      return res.status(403).json({ error: 'Funzione non attiva per questo locale', code: 'MODULE_DISABLED' });
+      // Le comande dei tavoli esistono solo nei locali con il modulo `tables`.
+      if (check_id !== undefined && !(await getTenantModules(req.user.tenantId))?.modules.includes('tables'))
+        return res.status(403).json({ error: 'Funzione non attiva per questo locale', code: 'MODULE_DISABLED' });
+    } catch (err) {
+      logger.error({ err }, 'Errore POST /api/orders (controlli iniziali)');
+      return res.status(500).json({ error: "Errore durante l'invio dell'ordine" });
+    }
 
     const isLateSync = session_id !== undefined;
 
