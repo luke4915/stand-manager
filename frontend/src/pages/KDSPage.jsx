@@ -1,6 +1,6 @@
-import { useEffect, useState, useRef, useMemo } from 'react';
+import { useEffect, useState, useMemo } from 'react';
 import { ChefHat, Wifi, WifiOff } from 'lucide-react';
-import { WS_URL } from '../config/api';
+import { useLiveUpdates } from '../hooks/useLiveUpdates';
 import { apiFetch } from '../utils/apiClient';
 
 const mergeOrders = (existing, incoming) => {
@@ -88,65 +88,33 @@ const OrderCard = ({ order }) => {
 // ─── Pagina KDS ────────────────────────────────────────────────
 export default function KDS() {
     const [orders, setOrders] = useState([]);
-    const [wsConnected, setWsConnected] = useState(false);
     const [loading, setLoading] = useState(true);
     const [disabled, setDisabled] = useState(false); // modulo KDS spento per questo locale
-    const disabledRef = useRef(false);
-    const wsRef = useRef(null);
-    const reconnectTimer = useRef(null);
+
+    // Schermo pubblico, senza login: riceve dal server solo gli eventi della cucina, senza prezzi.
+    // Se il modulo KDS è spento il collegamento si chiude e non riparte.
+    const wsConnected = useLiveUpdates((msg) => {
+        if (msg.type === 'order_created' || msg.type === 'new_order') {
+            if (msg.order.status === 'pending' || msg.order.status === 'preparing')
+                setOrders(prev => mergeOrders(prev, [msg.order]));
+        } else if (msg.type === 'order_updated') {
+            if (msg.order.status === 'completed' || msg.order.status === 'canceled')
+                setOrders(prev => prev.filter(o => o.id !== msg.order.id));
+            else
+                setOrders(prev => prev.map(o => o.id === msg.order.id ? msg.order : o));
+        } else if (msg.type === 'session_ended') {
+            setOrders([]);
+        }
+    }, { publicKds: true, enabled: !disabled });
 
     useEffect(() => {
-        const connectWS = () => {
-            wsRef.current = new WebSocket(`${WS_URL}?kds=public`);
-            wsRef.current.onopen = () => setWsConnected(true);
-            wsRef.current.onmessage = (event) => {
-                try {
-                    const msg = JSON.parse(event.data);
-                    if (msg.type === 'order_created' || msg.type === 'new_order') {
-                        if (msg.order.status === 'pending' || msg.order.status === 'preparing')
-                            setOrders(prev => mergeOrders(prev, [msg.order]));
-                    } else if (msg.type === 'order_updated') {
-                        if (msg.order.status === 'completed' || msg.order.status === 'canceled')
-                            setOrders(prev => prev.filter(o => o.id !== msg.order.id));
-                        else
-                            setOrders(prev => prev.map(o => o.id === msg.order.id ? msg.order : o));
-                    } else if (msg.type === 'session_ended') {
-                        setOrders([]);
-                    }
-                } catch (err) { console.error('WS parse error:', err); }
-            };
-            wsRef.current.onclose = () => {
-                setWsConnected(false);
-                if (!disabledRef.current) reconnectTimer.current = setTimeout(connectWS, 3000);
-            };
-            wsRef.current.onerror = () => wsRef.current?.close();
-        };
-
-        const loadOrders = async () => {
-            try {
-                const data = await apiFetch('/orders/kds');
-                setOrders(prev => mergeOrders(prev, data));
-            } catch (err) {
-                if (err.code === 'MODULE_DISABLED') {
-                    disabledRef.current = true;
-                    setDisabled(true);
-                    clearTimeout(reconnectTimer.current);
-                    wsRef.current?.close();
-                    return;
-                }
+        apiFetch('/orders/kds')
+            .then(data => setOrders(prev => mergeOrders(prev, data)))
+            .catch(err => {
+                if (err.code === 'MODULE_DISABLED') return setDisabled(true);
                 console.warn('KDS: caricamento ordini non riuscito, si attendono gli aggiornamenti in tempo reale', err);
-            } finally {
-                setLoading(false);
-            }
-        };
-
-        connectWS();
-        loadOrders();
-
-        return () => {
-            clearTimeout(reconnectTimer.current);
-            wsRef.current?.close();
-        };
+            })
+            .finally(() => setLoading(false));
     }, []);
 
     const pending = useMemo(() => {
