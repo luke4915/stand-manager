@@ -48,6 +48,7 @@ Comandi:
 | backend | `npm run dev` | nodemon su server.js (HTTPS, porta 3000) |
 | backend | `npm run migrate` | applica le migrazioni mancanti |
 | backend | `npm run db:baseline` | solo su un database appena creato da `schema.sql`: registra le migrazioni come già applicate |
+| backend | `npm run db:prepare` | in produzione, prima di ogni rilascio: su un database vuoto crea ruoli e schema (`scripts/init-db.js`), poi applica le migrazioni |
 | backend | `npm test` | test unitari (`node --test`) |
 | backend | `npm run test:integration` | test di integrazione (serve `backend/.env.test`, vedi `.env.test.example`) |
 | frontend | `npm run dev` | Vite su https://*.standmanager.local:5173 |
