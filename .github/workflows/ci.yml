@@ -2,7 +2,7 @@ name: CI
 
 on:
   push:
-    branches: [feat/multi-tenancy]
+    branches: [feat/multi-tenancy, feat/smarteats-platform]
   pull_request:
 
 jobs:
