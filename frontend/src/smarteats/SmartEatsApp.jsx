@@ -6,7 +6,7 @@ import { useAuth } from '../context/useAuth';
 import { useToast } from '../context/useToast';
 import { fetchWithAuth } from '../utils/apiClient';
 import { visibleViews, canViewSmartEats, smartEatsHome } from './views';
-import { useRealtime } from './useRealtime';
+import { useLiveUpdates } from '../hooks/useLiveUpdates';
 import { useService } from './useService';
 import ServiceControl from './ServiceControl';
 import SalaPage from './SalaPage';
@@ -73,7 +73,7 @@ const SettingsPage = ({ user }) => (
 // App dei ristoranti e delle pizzerie (SmartEats): una shell e una dashboard proprie, separate da quelle della cassa
 // delle sagre. Condivide col resto solo backend, login, utenti e componenti generici.
 const SmartEatsApp = () => {
-  const { user, logout } = useAuth();
+  const { user, logout, refreshSession } = useAuth();
   const { showToast } = useToast();
   const navigate = useNavigate();
   const { service, start, closingInfo, end, onEvent } = useService();
@@ -84,7 +84,7 @@ const SmartEatsApp = () => {
   useEffect(() => { document.documentElement.classList.toggle('dark', theme === 'dark'); }, [theme]);
 
   const handleMessage = useCallback((msg) => { onEvent(msg); setEvent(msg); }, [onEvent]);
-  useRealtime(handleMessage);
+  useLiveUpdates(handleMessage, { enabled: !!user, onUnauthorized: refreshSession });
 
   const views = visibleViews(user.role, user.modules);
   const home = smartEatsHome(user.role, user.modules);
