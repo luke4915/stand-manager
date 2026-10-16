@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import fs from 'fs';
 import path from 'path';
 import { fileURLToPath } from 'url';
-import { stripTransactionControl } from '../utils/migrationSql.js';
+import { stripTransactionControl, prepareSchemaSql } from '../utils/migrationSql.js';
 
 const migrationsDir = path.join(path.dirname(fileURLToPath(import.meta.url)), '..', 'migrations');
 
@@ -27,4 +27,14 @@ test('nessuna migrazione resta con un controllo di transazione proprio', () => {
     const sql = stripTransactionControl(fs.readFileSync(path.join(migrationsDir, file), 'utf8'));
     assert.doesNotMatch(sql, /^\s*(BEGIN|COMMIT|ROLLBACK|START TRANSACTION)\s*;/im, file);
   }
+});
+
+test('schema.sql preparato per un server nuovo: niente proprietario locale né comandi psql', () => {
+  const sql = prepareSchemaSql(fs.readFileSync(path.join(migrationsDir, '..', 'schema.sql'), 'utf8'));
+  assert.doesNotMatch(sql, /^\\/m);
+  assert.doesNotMatch(sql, /OWNER TO/);
+  assert.doesNotMatch(sql, /FOR ROLE/);
+  assert.doesNotMatch(sql, /transaction_timeout/);
+  assert.match(sql, /ALTER DEFAULT PRIVILEGES IN SCHEMA public GRANT SELECT,INSERT,DELETE,UPDATE ON TABLES TO standmanager_app;/);
+  assert.match(sql, /CREATE TABLE public\.tenants/);
 });

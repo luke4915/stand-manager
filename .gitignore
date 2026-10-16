@@ -13,4 +13,4 @@ Thumbs.db
 
 # Certificati SSL locali (mkcert)
 certs/
-*.pem
+*.pemdeploy/backups/

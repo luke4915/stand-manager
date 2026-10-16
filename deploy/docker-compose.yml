@@ -1,0 +1,93 @@
+# Stack di produzione: Traefik (HTTPS wildcard) + app + PostgreSQL + backup notturno.
+# Uso: vedi docs/deployment.md (sezione «Messa online gratis»). Da lanciare dalla cartella deploy/ con il file .env accanto.
+services:
+  traefik:
+    image: traefik:v3.1
+    restart: unless-stopped
+    command:
+      - --providers.docker=true
+      - --providers.docker.exposedbydefault=false
+      - --entrypoints.web.address=:80
+      - --entrypoints.web.http.redirections.entrypoint.to=websecure
+      - --entrypoints.web.http.redirections.entrypoint.scheme=https
+      - --entrypoints.websecure.address=:443
+      - --certificatesresolvers.le.acme.email=${ACME_EMAIL}
+      - --certificatesresolvers.le.acme.storage=/letsencrypt/acme.json
+      - --certificatesresolvers.le.acme.dnschallenge=true
+      - --certificatesresolvers.le.acme.dnschallenge.provider=${DNS_PROVIDER:-duckdns}
+      - --certificatesresolvers.le.acme.dnschallenge.resolvers=1.1.1.1:53,8.8.8.8:53
+      - --log.level=INFO
+    environment:
+      DUCKDNS_TOKEN: ${DUCKDNS_TOKEN:-}
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+      - letsencrypt:/letsencrypt
+
+  app:
+    image: ${APP_IMAGE:-ghcr.io/luke4915/stand-manager:latest}
+    restart: unless-stopped
+    depends_on:
+      db:
+        condition: service_healthy
+    env_file: .env
+    environment:
+      NODE_ENV: production
+      PORT: "3000"
+      TLS_TERMINATED_BY_PROXY: "true"
+      PG_HOST: db
+      PG_DATABASE: standmanager
+      PG_USER: standmanager_app
+      PG_MASTER_USER: standmanager_master
+      MIGRATION_DATABASE_URL: postgres://postgres:${POSTGRES_PASSWORD}@db:5432/standmanager
+    # Prima volta: crea ruoli e schema; poi applica le migrazioni mancanti; infine parte il server
+    command: ["sh", "-c", "node scripts/init-db.js && node migrations/run.js && node server.js"]
+    healthcheck:
+      test: ["CMD", "node", "-e", "fetch('http://127.0.0.1:3000/api/health').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 40s
+    labels:
+      - traefik.enable=true
+      - traefik.http.routers.app.rule=HostRegexp(`^(.+\.)?${APP_DOMAIN}$`)
+      - traefik.http.routers.app.entrypoints=websecure
+      - traefik.http.routers.app.tls.certresolver=le
+      - traefik.http.routers.app.tls.domains[0].main=${APP_DOMAIN}
+      - traefik.http.routers.app.tls.domains[0].sans=*.${APP_DOMAIN}
+      - traefik.http.services.app.loadbalancer.server.port=3000
+
+  db:
+    image: postgres:16
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      POSTGRES_DB: standmanager
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres -d standmanager"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+
+  # Dump ogni notte alle 03:00 (ora del server), tenuti 14 giorni in ./backups. Vedi docs/deployment.md per copiarli fuori.
+  backup:
+    image: postgres:16
+    restart: unless-stopped
+    depends_on:
+      db:
+        condition: service_healthy
+    environment:
+      BACKUP_DATABASE_URL: postgres://postgres:${POSTGRES_PASSWORD}@db:5432/standmanager
+    volumes:
+      - ../backend/scripts/backup.sh:/backup.sh:ro
+      - ./backups:/backups
+    entrypoint: ["bash", "-c", "while true; do now=$$(date +%s); next=$$(date -d 'tomorrow 03:00' +%s); [ $$(date +%H) -lt 3 ] && next=$$(date -d 'today 03:00' +%s); sleep $$((next-now)); bash /backup.sh /backups 14 || echo 'BACKUP FALLITO'; done"]
+
+volumes:
+  pgdata:
+  letsencrypt:
